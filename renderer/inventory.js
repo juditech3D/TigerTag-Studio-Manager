@@ -20089,11 +20089,6 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
       const data = {
         ...d,
         uid: newId,
-        // The copy is chipless, so it carries NO chip version at all — dropping
-        // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
-        // doc inside `id_version.json`'s referential. (It used to be re-rolled
-        // to a random u32 here, which achieved the first goal and broke the second.)
-        id_tigertag: FV.delete(),
         // The product is not a chip property: a real `id_product` is kept, so a
         // TigerData+ stays a TigerData+ and a TigerTag+ arrives as the TigerData+
         // of the same product. Anything else is normalised to "unset".
@@ -20103,6 +20098,12 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
         deleted: null, deleted_at: null,
       };
       delete data.rfidListed;
+      // The copy is chipless, so it carries NO chip version at all — dropping
+      // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
+      // doc inside `id_version.json`'s referential. Removed from the object, not
+      // written as `FieldValue.delete()`: the batch uses set() without merge,
+      // which replaces the whole doc and rejects delete() (the whole import failed).
+      delete data.id_tigertag;
       // A fresh TigerData copy is a BRAND-NEW spool → reset to 100% (full
       // capacity), not the exported remaining weight.
       const cap = Number(data.measure_gr) || Number(data.measure) || Number(data.capacity) || 0;
