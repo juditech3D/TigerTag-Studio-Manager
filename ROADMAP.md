@@ -882,16 +882,19 @@ cosmetics — a port that drops them looks frozen or shows stale slots.
 
 #### 🔧 Sub-features — recommended ship order
 
-##### P1 — Persisted slots (with occupancy) on the printer doc + per-driver `getSlots()` + reconciler + derived index  ·  **Effort: M**  ·  **Risk: low**
+##### 🟡 P1 — Persisted slots (with occupancy) on the printer doc + per-driver `getSlots()` + reconciler + derived index  ·  **Effort: M**  ·  **Risk: low**
+> 🟡 Partly shipped: `uids` written on the persisted slots, derived `uid → slot` index (`spoolMountOf`). The per-driver `getSlots()` + reconciler already existed (`getUnits` + `syncPrinterUnits`).
 Add `getSlots(printer)` to the `LiveDriver` interface (F1 of *Multi-brand live*) returning the live-detected slot descriptors (with `hwId`). Add the persisted `slots` array (each with a `uids` occupant list) to the printer device doc and a **reconciler** that, on connect / on accessory change, merges detected slots into the persisted set (append new, `present` toggling, **occupancy preserved**, never silent-delete). Write helpers operate on the **printer doc**: `assignToSlot(brand, deviceId, slotKey, uids)` overwrites that slot's `uids` (intrinsic eviction — no write to the displaced spool) and `clearSlot(brand, deviceId, slotKey)` empties it; `uids` is 1 entry for a plain spool, 2 for a twin pair. Build the derived `uid → { brand, deviceId, slotKey }` index on every `state.printers` snapshot.
 
-##### P2 — Right-click filament → printer → slot assignment  ·  **Effort: M**  ·  **Risk: low**
+##### 🟡 P2 — Right-click filament → printer → slot assignment  ·  **Effort: M**  ·  **Risk: low**
+> 🟡 Partly shipped: assignment from the spool detail panel (printer → unit → slot picker, take out). The right-click menu on rows / grid cards is still to do.
 Context menu on any inventory row / grid card / detail panel: **"Send to printer →"** → submenu listing **every printer in inventory** (connected or not — slots stay active offline) → submenu of that printer's slots (with the slot's current occupant shown; offline printers may show an online/offline dot but remain selectable). Picking a slot writes the spool's UID(s) into that slot's `uids` (overwriting any previous occupant, which is thereby evicted). Only disabled when the inventory has no printers at all.
 
 ##### P3 — Printer-slot storage view (drag-drop parity with racks)  ·  **Effort: M**  ·  **Risk: low**
 Render **every printer in inventory** as a **slot board** (like a small rack card) in the Storage view — or as a drop zone inside the printer detail panel — regardless of connection state (an offline machine still shows its boards, optionally dimmed with an offline marker but fully droppable). Drag a spool from the unranked panel / a rack slot onto a printer slot to mount it; drag it off (or "unmount") to drop the overlay and reveal it back in its rack. Reuses the rack masonry + drag-drop wholesale.
 
-##### P4 — Dual-location indicators in the filament list  ·  **Effort: S**  ·  **Risk: low**
+##### 🟡 P4 — Dual-location indicators in the filament list  ·  **Effort: S**  ·  **Risk: low**
+> 🟡 Partly shipped: the "mounted in" row in the detail panel. Table / grid pills still to do.
 In table + grid + detail panel, show **both** locations: the rack home (existing) **and** a "mounted in …" pill (printer name + slot), derived from the in-memory index (a spool is mounted if either of its UIDs appears in a slot). A spool mounted in a printer stays visible in its rack slot with a subtle "on printer" marker so the rack view never appears to lose it.
 
 ##### P5 (Phase 2) — Firmware reconciliation  ·  **Effort: L**  ·  **Risk: medium**

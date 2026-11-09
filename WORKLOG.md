@@ -2,6 +2,13 @@
 
 ## Added
 
+- A spool can be mounted in a printer slot (AMS / CFS / ACE / holder / Ext.) from its detail
+  panel: the Storage location section gains a printer row and a slot picker (printer → unit →
+  slot). It writes the `uids` already reserved on `printers/{brand}/devices/{id}.units.{unitId}.slots[i]`;
+  assigning evicts the previous occupant and removes the spool from any other slot, twin ids go
+  together. `renderer/inventory.js` (`spoolMountOf`, `assignSpoolToPrinterSlot`, `_detailMountHTML`,
+  `_wireDetailMount`, `_refreshDetailMount`), `renderer/css/10-settings.css`. ROADMAP P1/P2/P4
+  marked partly shipped.
 - Tiger Quests rank 3, **Mountaineer** (5 levels × 5 actions, 25 XP each, bonuses 50 → 150, from
   2 500 XP): envelopes, freezes and TigerCoins between friends, hidden envelopes, the sticker album,
   the Makers League, the purchase price and buy links. Spec in `docs/QUESTS.md`. What an account did
@@ -89,4 +96,5 @@
 ## Removed
 
 ## i18n
+- Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Tiger Quests rank 3 (Mountaineer) journey: `questLevel_m1`…`questLevel_m5` and 25 `questAct_m<level>_<action>` keys (after `questAct_e6_slotLock`), 11 locales.

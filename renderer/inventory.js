@@ -21336,6 +21336,7 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
   // openDetail so the surgical location patch can re-wire after swapping just that
   // section — same pattern as _wireToolbox.
   function _wireStorageLoc(r) {
+    _wireDetailMount(r);
     $("btnLocateSpool")?.addEventListener("click", () => {
       const uid = $("btnLocateSpool")?.dataset.spoolUid || "";
       closeDetail();
@@ -24452,6 +24453,19 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
           </div>
         </div>`;
     }
+    // ── Printer slot — the spool's SECOND location. The rack stays its home;
+    // the slot says which machine it is mounted on right now. Lives in the same
+    // section so the surgical location patch repaints both together.
+    const _mountRow = _detailMountHTML(r);
+    if (_mountRow) {
+      storageHtml = storageHtml
+        ? storageHtml.replace(/<\/div>\s*$/, `${_mountRow}</div>`)
+        : `
+        <div class="panel-section panel-storage-loc">
+          <div class="panel-label">${t("sectionStorageLoc") || "Storage location"}</div>
+          ${_mountRow}
+        </div>`;
+    }
 
     // Tags / Balises — free-form labels. Editable (chips + add input with
     // autocomplete) except in friend view / on tombstones, where it's read-only
@@ -27440,6 +27454,9 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
           _backfillAnycubicCloudCerts().catch(e => console.warn("[anycubic] cloud cert backfill:", e?.message));
           // The machines have just arrived — their units can now be recorded.
           syncAllPrinterUnits();
+          // A slot assignment lives on the printer doc, so the open spool's
+          // "mounted in" row follows the printers snapshot, not the inventory one.
+          _refreshDetailMount();
           scheduleStudioStateRecord();  // re-arm deferred telemetry (printer count changed)
           // Snapmaker: resolve the latest paxx firmware release (throttled to
           // one API call per 24 h inside paxx.js — repeated snapshots are a
@@ -35730,6 +35747,195 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
   function syncAllPrinterUnits() {
     if (!state.activeAccountId || state.friendView) return;
     state.printers.forEach(p => { syncPrinterUnits(p); });
+  }
+
+  /* ── An inventory spool mounted in a printer slot ─────────────────────────
+     The second, simultaneous location of a spool (ROADMAP "Printer slot
+     storage", P1/P2/P4). The rack stays its HOME; a slot is where it is mounted
+     right now. The truth is the slot's `uids` on the printer document — never
+     a field on the spool — so assigning a spool onto an occupied slot evicts the
+     previous occupant by itself, and the spool documents are never written.
+
+     Slots are read from the RECORD (`p.units`), not the live feed: a machine
+     that is off keeps its slots assignable. A twin pair is one physical spool,
+     so both of its ids go in together. */
+  let _mountIdx = null, _mountIdxOf = null;
+  function _spoolMountIndex() {
+    if (_mountIdx && _mountIdxOf === state.printers) return _mountIdx;
+    const idx = new Map();
+    for (const p of state.printers || []) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        (u?.slots || []).forEach((sl, i) => {
+          (Array.isArray(sl?.uids) ? sl.uids : []).forEach(id =>
+            idx.set(String(id), { printer: p, unitId, unit: u, slotIndex: i, slot: sl }));
+        });
+      }
+    }
+    // Derived from the printers snapshot only: rebuilt when that array is replaced.
+    _mountIdx = idx; _mountIdxOf = state.printers;
+    return idx;
+  }
+  function spoolMountOf(row) {
+    if (!row) return null;
+    const idx = _spoolMountIndex();
+    return idx.get(String(row.spoolId)) || idx.get(String(twinSpoolIdOf(row) || "")) || null;
+  }
+  function _printerDisplayName(p) {
+    return p.printerName || printerModelName(p.brand, p.printerModelId) || p.brand;
+  }
+  function _slotDisplayLabel(u, sl, i) {
+    return sl?.label || String(i + 1);
+  }
+
+  /* Puts `row` (and its twin) in the given slot — or takes it out of every slot
+     when `target` is null. One batch across every printer document it touches,
+     so a spool is never in two slots, not even for one snapshot. */
+  async function assignSpoolToPrinterSlot(row, target) {
+    const uid = state.activeAccountId;
+    if (!uid || state.friendView || !row) return;
+    const ids = [row.spoolId, twinSpoolIdOf(row)].filter(Boolean).map(String);
+    const patches = new Map();   // printerKey → { printer, patch }
+    for (const p of state.printers) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        const slots = Array.isArray(u?.slots) ? u.slots : [];
+        let changed = false;
+        const next = slots.map((sl, i) => {
+          const uids = Array.isArray(sl?.uids) ? sl.uids.map(String) : [];
+          const isTarget = !!target && _printerKey(p) === _printerKey(target.printer)
+            && unitId === target.unitId && i === target.slotIndex;
+          if (isTarget) {
+            if (uids.length === ids.length && ids.every(x => uids.includes(x))) return sl;
+            changed = true;
+            return { ...sl, uids: ids };          // the previous occupant is evicted
+          }
+          if (uids.some(x => ids.includes(x))) {
+            changed = true;
+            return { ...sl, uids: uids.filter(x => !ids.includes(x)) };
+          }
+          return sl;
+        });
+        if (!changed) continue;
+        const key = _printerKey(p);
+        if (!patches.has(key)) patches.set(key, { printer: p, patch: {} });
+        // `slots` is an array: Firestore rewrites it whole, the unit's other keys stay.
+        patches.get(key).patch[`units.${unitId}.slots`] = next;
+      }
+    }
+    if (!patches.size) return;
+    const batch = fbDb(uid).batch();
+    patches.forEach(({ printer, patch }) => batch.update(_deviceDoc(uid, printer), patch));
+    await batch.commit();
+  }
+
+  /* The "Printer" row of the detail panel's location section, plus its slot
+     picker. Empty when there is nothing to say: no printer with known slots,
+     and the spool is not mounted anywhere. */
+  let _lastDetailMountSig = null;
+  function _detailMountSig(r) {
+    const m = spoolMountOf(r);
+    const printersWithSlots = (state.printers || []).filter(p =>
+      Object.values(p?.units || {}).some(u => u && u.present !== false && (u.slots || []).length)).length;
+    return m ? `${_printerKey(m.printer)}|${m.unitId}|${m.slotIndex}|${_printerDisplayName(m.printer)}|${_unitLabel(m.unit)}`
+      : `-|${printersWithSlots}`;
+  }
+  function _detailMountHTML(r) {
+    _lastDetailMountSig = _detailMountSig(r);
+    const m = spoolMountOf(r);
+    const ro = state.friendView || r.deleted;
+    const units = (state.printers || []).flatMap(p =>
+      _storedUnits(p).filter(u => u.slots.length).map(u => ({ p, u })));
+    if (!m && (ro || !units.length)) return "";
+
+    const label = t("mountSectionLabel");
+    const head = m ? `
+          <div class="storage-loc-row storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack" title="${esc(label)}">${esc(_printerDisplayName(m.printer))}</span>
+            <span class="storage-loc-coord">${esc(_unitLabel(m.unit))} · ${esc(_slotDisplayLabel(m.unit, m.slot, m.slotIndex))}</span>
+            ${ro ? "" : `
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountChange"))}" aria-label="${esc(t("mountChange"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountClear" title="${esc(t("mountClear"))}" aria-label="${esc(t("mountClear"))}">
+              <span class="icon icon-unlink icon-14"></span>
+            </button>`}
+          </div>` : `
+          <div class="storage-loc-row storage-loc-row--empty storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack storage-loc-rack--empty">${esc(t("mountNone"))}</span>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountPick"))}" aria-label="${esc(t("mountPick"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+          </div>`;
+    if (ro) return head;
+
+    // The picker: every printer → every unit → its slots, each showing who is
+    // in it (an inventory spool, else what the machine last reported).
+    const byPrinter = new Map();
+    units.forEach(({ p, u }) => {
+      const k = _printerKey(p);
+      if (!byPrinter.has(k)) byPrinter.set(k, { p, units: [] });
+      byPrinter.get(k).units.push(u);
+    });
+    const blocks = [...byPrinter.values()].map(({ p, units: us }) => {
+      const rec = p.units || {};
+      const lines = us.map(u => {
+        const recSlots = rec[u.storedKey]?.slots || [];
+        const chips = u.slots.map((s, i) => {
+          const occIds = Array.isArray(recSlots[i]?.uids) ? recSlots[i].uids.map(String) : [];
+          const occ = occIds.length ? state.rows.find(x => occIds.includes(String(x.spoolId))) : null;
+          const mine = m && _printerKey(m.printer) === _printerKey(p) && m.unitId === u.storedKey && m.slotIndex === i;
+          const bg = occ ? colorBg(occ) : (s.color ? `#${String(s.color).replace(/^#/, "").slice(0, 6)}` : "transparent");
+          const tip = occ ? spoolCardTitle(occ)
+            : [s.vendor, s.material, s.detail].filter(Boolean).join(" ") || t("mountSlotEmpty");
+          return `<button type="button" class="mount-slot${mine ? " mount-slot--mine" : ""}${occ ? " mount-slot--taken" : ""}"
+                    data-mount-printer="${esc(_printerKey(p))}" data-mount-unit="${esc(u.storedKey)}" data-mount-slot="${i}"
+                    title="${esc(tip)}">
+                    <span class="mount-slot-dot" style="background:${esc(bg)}"></span>
+                    <span class="mount-slot-lbl">${esc(_slotDisplayLabel(u, s, i))}</span>
+                  </button>`;
+        }).join("");
+        return `<div class="mount-unit"><span class="mount-unit-lbl">${esc(_unitLabel(u))}</span><div class="mount-slots">${chips}</div></div>`;
+      }).join("");
+      return `<div class="mount-printer"><div class="mount-printer-name">${esc(_printerDisplayName(p))}</div>${lines}</div>`;
+    }).join("");
+    const picker = `
+          <div class="mount-picker" id="mountPicker" hidden>
+            ${blocks || `<div class="mount-picker-empty">${esc(t("mountNoSlots"))}</div>`}
+            <div class="mount-picker-hint">${esc(t("mountHint"))}</div>
+          </div>`;
+    return head + picker;
+  }
+  function _wireDetailMount(r) {
+    $("btnMountPick")?.addEventListener("click", () => {
+      const pk = $("mountPicker");
+      if (pk) pk.hidden = !pk.hidden;
+    });
+    $("btnMountClear")?.addEventListener("click", async () => {
+      try { await assignSpoolToPrinterSlot(r, null); }
+      catch (e) { reportError("spool.mountClear", e); }
+    });
+    document.querySelectorAll("#mountPicker .mount-slot").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const printer = state.printers.find(p => _printerKey(p) === btn.dataset.mountPrinter);
+        if (!printer) return;
+        btn.disabled = true;
+        try {
+          await assignSpoolToPrinterSlot(r, {
+            printer, unitId: btn.dataset.mountUnit, slotIndex: Number(btn.dataset.mountSlot),
+          });
+        } catch (e) { reportError("spool.mount", e); }
+        finally { btn.disabled = false; }
+      });
+    });
+  }
+  // Printers snapshot → repaint the open spool's location section if its
+  // mount (or the list of printers it could be mounted in) changed.
+  function _refreshDetailMount() {
+    if (!state.selected || !$("detailPanel")?.classList.contains("open")) return;
+    const r = state.rows.find(x => x.spoolId === state.selected);
+    if (!r || _detailMountSig(r) === _lastDetailMountSig) return;
+    _patchDetailLocation(r);
   }
 
 
