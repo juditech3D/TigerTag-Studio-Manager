@@ -15022,6 +15022,17 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
   const SCAN_MAX_GAP_MS = 45;   // a scanner types a character every 5-30 ms; people take 80+
   const SCAN_MIN_LEN = 6;       // shorter than any EAN-8 / SKU — see _catCodeish
   let _scanBuf = "", _scanLastAt = 0;
+  // A digit is read from the KEY pressed, not the character it produced: a
+  // scanner set to the US layout on a French (AZERTY) computer presses the
+  // digit keys without Shift, which type "&é\"'(-è_çà" there — every EAN
+  // would come out as punctuation. `e.code` names the physical key whatever
+  // the layout, so the digits are right either way. Other characters keep
+  // `e.key` (correct when the scanner's layout matches the computer's).
+  const _scanChar = e => {
+    const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code || "");
+    if (m) return m[1];
+    return e.key.length === 1 ? e.key : "";
+  };
   const _isEditable = el => !!el && (el.isContentEditable
     || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
   document.addEventListener("keydown", e => {
@@ -15039,7 +15050,7 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
       _onCodeScanned(code).catch(err => console.warn("[scan]", err?.message));
       return;
     }
-    if (e.key.length === 1) _scanBuf += e.key;
+    _scanBuf += _scanChar(e);
   }, true);
 
   // The catalogue products a scanned code names exactly: barcode, SKU or
