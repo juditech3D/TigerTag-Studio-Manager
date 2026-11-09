@@ -1938,6 +1938,7 @@
   "viewGroupCatalog": "Catalogue",
   "catFilterSeriesPick": "Choisissez d'abord une marque",
   "catalogTypeUnsupported": "Les produits {{type}} sont en lecture seule pour l'instant — on regarde, on n'ajoute pas encore.",
+  "scanUnknownCode": "Aucun produit avec le code {{code}} dans le catalogue. Cherche-le, ou ajoute la bobine à la main.",
   "camDetach": "Détacher",
   "friendViewInv": "Voir l'inventaire",
   "avatarPromptTitle": "Vous êtes unique. Ça se voit ?",

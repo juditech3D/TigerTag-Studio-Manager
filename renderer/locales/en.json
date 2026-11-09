@@ -1938,6 +1938,7 @@
   "viewGroupCatalog": "Catalogue",
   "catFilterSeriesPick": "Pick a brand first",
   "catalogTypeUnsupported": "{{type}} products are browse-only for now — you can look, not add yet.",
+  "scanUnknownCode": "No product with the code {{code}} in the catalogue. Search for it, or add the spool by hand.",
   "camDetach": "Detach",
   "friendViewInv": "View inventory",
   "avatarPromptTitle": "You're unique. Look like it.",

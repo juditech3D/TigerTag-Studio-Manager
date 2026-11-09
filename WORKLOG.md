@@ -2,6 +2,12 @@
 
 ## Added
 
+- A USB barcode / QR scanner works anywhere in the app: a burst of quick keys outside any field,
+  closed by Enter or Tab, is taken as a scan. Its code (or one found inside a QR link) is matched
+  exactly against the catalogue (barcode, SKU, id): the Catalogue view opens on it with the product
+  selected, so its card is ready to add the spool. A spool QR link (qr.tigertag.io) opens the spool;
+  an unknown code stays a search and says so. A field with the focus keeps every key.
+  `renderer/inventory.js` (`_onCodeScanned`, `_catalogProductsForCode`).
 - Tiger Quests rank 3, **Mountaineer** (5 levels × 5 actions, 25 XP each, bonuses 50 → 150, from
   2 500 XP): envelopes, freezes and TigerCoins between friends, hidden envelopes, the sticker album,
   the Makers League, the purchase price and buy links. Spec in `docs/QUESTS.md`. What an account did
@@ -89,4 +95,5 @@
 ## Removed
 
 ## i18n
+- Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Tiger Quests rank 3 (Mountaineer) journey: `questLevel_m1`…`questLevel_m5` and 25 `questAct_m<level>_<action>` keys (after `questAct_e6_slotLock`), 11 locales.
