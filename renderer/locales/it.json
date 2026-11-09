@@ -1946,6 +1946,7 @@
   "viewGroupCatalog": "Catalogo",
   "catFilterSeriesPick": "Scegli prima una marca",
   "catalogTypeUnsupported": "I prodotti {{type}} sono solo consultabili per ora — puoi guardarli, non ancora aggiungerli.",
+  "scanUnknownCode": "Nessun prodotto con il codice {{code}} nel catalogo. Cercalo o aggiungi la bobina a mano.",
   "camDetach": "Stacca",
   "friendViewInv": "Vedi inventario",
   "avatarPromptTitle": "Sei unico. Fallo vedere.",

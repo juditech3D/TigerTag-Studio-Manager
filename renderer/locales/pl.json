@@ -1956,6 +1956,7 @@
   "viewGroupCatalog": "Katalog",
   "catFilterSeriesPick": "Najpierw wybierz markę",
   "catalogTypeUnsupported": "Produkty {{type}} można na razie tylko oglądać — dodawanie jeszcze nie działa.",
+  "scanUnknownCode": "Brak produktu z kodem {{code}} w katalogu. Wyszukaj go lub dodaj szpulę ręcznie.",
   "camDetach": "Odłącz",
   "friendViewInv": "Zobacz asortyment",
   "avatarPromptTitle": "Jesteś jedyny w swoim rodzaju. Pokaż to.",

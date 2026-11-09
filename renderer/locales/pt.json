@@ -1946,6 +1946,7 @@
   "viewGroupCatalog": "Catálogo",
   "catFilterSeriesPick": "Escolha primeiro uma marca",
   "catalogTypeUnsupported": "Os produtos {{type}} são só para ver por enquanto — dá para olhar, ainda não para adicionar.",
+  "scanUnknownCode": "Nenhum produto com o código {{code}} no catálogo. Pesquise-o ou adicione o carretel manualmente.",
   "camDetach": "Destacar",
   "friendViewInv": "Ver inventário",
   "avatarPromptTitle": "Você é único. Que se veja.",

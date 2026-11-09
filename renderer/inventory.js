@@ -15019,6 +15019,95 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
     _onFilterChange();
     inp.focus();
   });
+
+  /* ── Barcode scanner, anywhere in the app ──────────────────────────────────
+     A USB barcode / QR scanner is a keyboard: it types the code in a burst and
+     ends it with Enter (some models: Tab). Typed into the search bar it is
+     already a search (`_catCodeish`, exact match first); typed while NO field
+     has the focus it used to go nowhere. A burst of quick keys outside any
+     editable field, closed by Enter/Tab, is now taken as a scan and handled by
+     `_onCodeScanned`. A field that has the focus keeps every key: a code
+     scanned INTO a field is meant for that field. */
+  const SCAN_MAX_GAP_MS = 45;   // a scanner types a character every 5-30 ms; people take 80+
+  const SCAN_MIN_LEN = 6;       // shorter than any EAN-8 / SKU — see _catCodeish
+  let _scanBuf = "", _scanLastAt = 0;
+  const _isEditable = el => !!el && (el.isContentEditable
+    || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || _isEditable(e.target)) { _scanBuf = ""; return; }
+    const now = performance.now();
+    if (now - _scanLastAt > SCAN_MAX_GAP_MS) _scanBuf = "";
+    _scanLastAt = now;
+    if (e.key === "Enter" || e.key === "Tab") {
+      const code = _scanBuf.trim();
+      _scanBuf = "";
+      if (code.length < SCAN_MIN_LEN) return;
+      // The burst is a scan: the Enter must not also press the focused button.
+      e.preventDefault();
+      e.stopPropagation();
+      _onCodeScanned(code).catch(err => console.warn("[scan]", err?.message));
+      return;
+    }
+    if (e.key.length === 1) _scanBuf += e.key;
+  }, true);
+
+  // The catalogue products a scanned code names exactly: barcode, SKU or
+  // catalogue id. A QR code usually carries a link: the codes are looked for
+  // inside it too (every run of 8-14 digits, then the last path segment).
+  async function _catalogProductsForCode(code) {
+    if (!_catalogIndex.length) _catalogLoadCache();
+    if (!_catalogIndex.length) await _catalogLoadBundled();
+    const exact = raw => _catalogIndex.filter(e =>
+      [e.it.barcode, e.it.sku, e.it.id].some(v => String(v || "").toLowerCase() === raw)).map(e => e.it);
+    const raw = code.toLowerCase();
+    let hits = exact(raw);
+    if (hits.length || !/^https?:\/\//.test(raw)) return { hits, query: code };
+    const tries = [...(raw.match(/\d{8,14}/g) || [])];
+    const last = raw.replace(/[?#].*$/, "").split("/").filter(Boolean).pop();
+    if (last) tries.push(decodeURIComponent(last));
+    for (const tr of tries) {
+      hits = exact(tr);
+      if (hits.length) return { hits, query: tr };
+    }
+    return { hits: [], query: code };
+  }
+
+  /* A scan opens the product it names, ready to add: the Catalogue view,
+     searched on that code, with the product selected — so its card (stock
+     already held, "+ Inventory", wishlist, cart) is the one the Catalogue gives.
+     A spool QR link (qr.tigertag.io) opens that spool, as in the search bar.
+     A code the catalogue does not know is still searched (the inventory may
+     hold it), and said so. */
+  async function _onCodeScanned(code) {
+    const link = /qr\.tigertag\.io\//i.test(code) ? parseQrLink(code) : null;
+    if (link?.kind === "spool") { _spoolLinkArrived(link); return; }
+    const { hits, query } = await _catalogProductsForCode(code);
+    const inp = $("searchInv");
+    const showSearch = () => {
+      if (inp) inp.value = query;
+      state.search = query;
+      state.locateUid = null;
+      _refreshSearchClearVisibility(query);
+      _onFilterChange();
+    };
+    // The card of a product scanned before would now describe the wrong box.
+    if (hits.length !== 1 && $("productCardPanel")?.classList.contains("open")) closeProductCard();
+    if (!hits.length) {
+      showSearch();
+      _flashMessage(t("scanUnknownCode", { code: query }));
+      return;
+    }
+    if (!_isCatalogMode(state.viewMode)) setViewMode("catalogGrid");
+    showSearch();
+    if (hits.length > 1) return;        // several products share the code: the view lists them
+    const it = hits[0];
+    // Select it outright (not _catViewSelect, which toggles): scanning the same
+    // box twice must keep its card open, not close it.
+    _catViewSelectedId = String(it.id);
+    requestAnimationFrame(() => _catViewPaintSelection());
+    _catViewProductCard(it).catch(e => console.warn("[scan] product card:", e?.message));
+  }
+
   // Does the current search leave nothing on screen? Read from the SAME signal each
   // view already computes rather than re-deriving the predicate, so this can never
   // drift from what the user is actually looking at.
