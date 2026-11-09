@@ -46,6 +46,10 @@
 
 ## Fixed
 
+- `.ttag` import in **Import** mode works again: it wrote `id_tigertag: FieldValue.delete()` in a
+  batch `set()` without merge, which Firestore rejects, so every Import-mode file failed with
+  "ttagImportErr" and nothing was written. The field is now left out of the new doc
+  (`_ttagBuildWrites` in `renderer/inventory.js`). Restore mode was not affected.
 - A spool thumbnail shows the spool colour while its photo loads (group window, tables, lists),
   instead of a grey square inside the colour frame: the photo's own fill is transparent in the
   frame (`.thumb-wrap > img.thumb` in `renderer/css/70-detail-misc.css`).
