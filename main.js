@@ -2323,6 +2323,35 @@ ipcMain.handle('mcp:hosted-grants', async (_evt, idToken, revokeId) => {
   }
 });
 
+// ── TigerTag API key (Key6) creation ────────────────────────────────────
+// Settings → Data → "Copy API URL" creates the account's Key6 when it has none.
+// The Cloud Function `createAccessKey6` does not answer the CORS preflight that
+// the renderer's `fetch` sends for a request with an Authorization header
+// (OPTIONS → 405), so the renderer reports an opaque "Failed to fetch". Main
+// has no CORS: it makes the call here. Fixed URL; the renderer only passes the
+// signed-in account's Firebase ID token. Returns { ok, status, json? } |
+// { ok:false, status:0, error }.
+const CREATE_KEY6_URL = 'https://cdn.tigertag.io/createAccessKey6';
+ipcMain.handle('apikey:create', async (_evt, idToken) => {
+  if (!idToken || typeof idToken !== 'string') return { ok: false, status: 0, error: 'no token' };
+  const ctl = new AbortController();
+  const tm = setTimeout(() => ctl.abort(), 15000);
+  try {
+    const res = await fetch(CREATE_KEY6_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ data: { action: 'create', label: 'tiger-studio' } }),
+      signal: ctl.signal,
+    });
+    const json = await res.json().catch(() => null);
+    return { ok: res.ok, status: res.status, json };
+  } catch (e) {
+    return { ok: false, status: 0, error: e?.message || String(e) };
+  } finally {
+    clearTimeout(tm);
+  }
+});
+
 // ── Auto-updater preference ─────────────────────────────────────────────
 // Persisted in <userData>/auto-update.json so it survives across launches
 // and is read at startup BEFORE the renderer has had a chance to send its

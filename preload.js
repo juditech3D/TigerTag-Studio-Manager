@@ -27,6 +27,12 @@ contextBridge.exposeInMainWorld('mcpBridge', {
   hostedGrants:  (idToken, revokeId) => ipcRenderer.invoke('mcp:hosted-grants', idToken, revokeId),
 });
 
+// TigerTag API key (Key6): created from main, because the Cloud Function does
+// not answer the renderer's CORS preflight (see 'apikey:create' in main.js).
+contextBridge.exposeInMainWorld('apiKeyBridge', {
+  create: (idToken) => ipcRenderer.invoke('apikey:create', idToken),
+});
+
 // Prusa — PrusaLink HTTP (digest auth, path-allowlisted in main) + Buddy3D RTSP camera.
 // Printer plugins — ONE generic bridge for every self-contained integration
 // (renderer/printers/<id>/main.cjs registers `printer:<id>:<name>` handlers in

@@ -46,6 +46,10 @@
 
 ## Fixed
 
+- Settings → Data → "Copy API URL" works for an account with no API key yet: the Cloud Function
+  `createAccessKey6` does not answer the CORS preflight (OPTIONS → 405), so the renderer got
+  "Failed to fetch". The key is now created from main (`apikey:create` in `main.js`,
+  `window.apiKeyBridge` in `preload.js`, `getOrCreateApiKey6` in `renderer/inventory.js`).
 - A spool thumbnail shows the spool colour while its photo loads (group window, tables, lists),
   instead of a grey square inside the colour frame: the photo's own fill is transparent in the
   frame (`.thumb-wrap > img.thumb` in `renderer/css/70-detail-misc.css`).
