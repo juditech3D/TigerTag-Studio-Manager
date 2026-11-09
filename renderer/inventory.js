@@ -4923,19 +4923,28 @@ import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, re
       console.warn("[apiKey] read failed:", e?.message);
     }
     // Create via Cloud Function (will rotate, but we just confirmed there's
-    // nothing to rotate)
+    // nothing to rotate). The function does not answer the CORS preflight, so
+    // the desktop app calls it from main (window.apiKeyBridge, 'apikey:create');
+    // a plain fetch stays for a host without that bridge.
     const idToken = await user.getIdToken();
-    const r = await fetch(`${API_BASE}/createAccessKey6`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ data: { action: "create", label: "tiger-studio" } }),
-    });
-    const json = await r.json().catch(() => ({}));
-    if (!r.ok || !json?.result?.key) {
-      throw new Error(json?.error?.message || `createAccessKey6 HTTP ${r.status}`);
+    let status, json;
+    if (window.apiKeyBridge?.create) {
+      const res = await window.apiKeyBridge.create(idToken);
+      if (!res?.status) throw new Error(res?.error || "createAccessKey6 unreachable");
+      status = res.status; json = res.json || {};
+    } else {
+      const r = await fetch(`${API_BASE}/createAccessKey6`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ data: { action: "create", label: "tiger-studio" } }),
+      });
+      status = r.status; json = await r.json().catch(() => ({}));
+    }
+    if (status < 200 || status >= 300 || !json?.result?.key) {
+      throw new Error(json?.error?.message || `createAccessKey6 HTTP ${status}`);
     }
     return json.result.key;
   }
