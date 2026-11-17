@@ -2,6 +2,15 @@
 
 ## Added
 
+- A TigerScale can stand in for a TigerPOD: while its TigerPOD tool is open on its screen, its
+  two readers show up in Studio as two more RFID readers ("TigerScale <name> #1" / "#2"), and every
+  chip feature works on them as on a USB reader (open the spool of a chip put down, write a blank
+  chip, TigerTag+ upgrade, restore, erase, NFC tools). `services/scale-pod.js` (`ScalePods`) speaks
+  the reader-process messages of `services/nfc-process.js` over `ws://<scale>/pod?c=<lan_access_code>`
+  for the account's scales that publish `lan_url` + `lan_access_code` (local addresses only, retried
+  every 5 s, the code never logged); `main.js` routes each request to whichever side owns the reader
+  (`_nfcPost`, `_nfcUp`, IPC `tigerscale:pod-scales`); `preload.js` (`tigerscale.podScales`);
+  `renderer/IoT/tigerscale/index.js` hands the list over on every scales snapshot (`_syncPodScales`).
 - A spool can be mounted in a printer slot (AMS / CFS / ACE / holder / Ext.) from its detail
   panel: the Storage location section gains a printer row and a slot picker (printer → unit →
   slot). It writes the `uids` already reserved on `printers/{brand}/devices/{id}.units.{unitId}.slots[i]`;
@@ -60,6 +69,7 @@
 
 ## Fixed
 
+- A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
 - Settings → Data → "Copy API URL" works for an account with no API key yet: the Cloud Function
   `createAccessKey6` does not answer the CORS preflight (OPTIONS → 405), so the renderer got
   "Failed to fetch". The key is now created from main (`apikey:create` in `main.js`,

@@ -62,12 +62,12 @@ L4308-4368   App lifecycle (whenReady, window-all-closed, activate)
 |---|---|---|
 | 1505-1813 | Serial-port watcher, TD/color line parse, state replayed to renderer on reload; IPC `td1s:need` / `td1s:release` | `initTD1S` |
 
-## Auto-updater + migration gate (L2146-2284)
+## Auto-updater + migration gate (L2371-2450)
 
 | L | What | Anchors / IPC |
 |---|---|---|
-| 2044-2066 | Auto-update on/off preference (on disk) | `readAutoUpdatePref`, `writeAutoUpdatePref` |
-| 2067-2182 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `initUpdater` |
+| 2371-2395 | Auto-update on/off preference (on disk) | `readAutoUpdatePref`, `writeAutoUpdatePref` |
+| 2396-2450 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `initUpdater` |
 
 ## Google auth loopback, shell, detached cam window (L1656-1918)
 
