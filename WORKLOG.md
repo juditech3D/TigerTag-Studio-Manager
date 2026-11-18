@@ -32,3 +32,44 @@
 - New (11 locales): `fbAdd`, `fbRemove`, `fbChipIs`, `fbChipIsNot`, `fbIs`, `fbIsNot`, `fbMin`, `fbMax`, `fbSearchFor`, `fbFilterBy`, `fbNothing`, `fbList`, `fbNotStored`. Removed (unused since the filter bar): `filterAllAspects`, `filterAllVersions`, `filterShortProtocol`, `filterShortMaterial`, `filterAllSeries`, `catFilterSeriesPick`.
 - New (11 locales, wording taken from tigersystem.io's `cfind` where it exists): `colorSearchBtn`, `colorSearchSub`, `colorSearchHex`, `colorSearchRal`, `colorSearchPhoto`, `colorSearchPick`, `colorSearchNone`, `colorSearchRalSearch`, `colorSearchRalNone`, `colorSearchPhotoDrop`, `colorSearchPhotoChoose`, `colorSearchPhotoClear`, `colorSearchPhotoHint`, `colorSearchMax`, `colorSearchMaxAria`, `colorSearchHelp`, `colorSearchBand_same`, `colorSearchBand_veryClose`, `colorSearchBand_close`, `colorSearchBand_near`, `colorSearchBand_far`, `colorSearchDeclared`, `colorSearchMulti`, `colorSearchRalWords` (the word list, not shown). The photo mode's tab reads just "Photo" (`colorSearchPhoto`, 11 locales).
 - TigerTag is masculine — fr `aiDemoHelpA2`, `linkedChipTagTip`, `tagAddHint`, `linkedChipAddTag` ("un TigerTag", "le TigerTag"); es / it / pt / pt-pt `aiDemoHelpA2`, `linkedChipTagTip`, `tagAddHint` ("un / el", "un / il", "um / o TigerTag"). de already used "ein TigerTag".
+
+## Fork additions (kept on top of upstream v2.59.0)
+
+### Added
+
+- A TigerScale can stand in for a TigerPOD: while its TigerPOD tool is open on its screen, its
+  two readers show up in Studio as two more RFID readers ("TigerScale <name> #1" / "#2"), and every
+  chip feature works on them as on a USB reader (open the spool of a chip put down, write a blank
+  chip, TigerTag+ upgrade, restore, erase, NFC tools). `services/scale-pod.js` (`ScalePods`) speaks
+  the reader-process messages of `services/nfc-process.js` over `ws://<scale>/pod?c=<lan_access_code>`
+  for the account's scales that publish `lan_url` + `lan_access_code` (local addresses only, retried
+  every 5 s, the code never logged); `main.js` routes each request to whichever side owns the reader
+  (`_nfcPost`, `_nfcUp`, IPC `tigerscale:pod-scales`); `preload.js` (`tigerscale.podScales`);
+  `renderer/IoT/tigerscale/index.js` hands the list over on every scales snapshot (`_syncPodScales`).
+- A spool can be mounted in a printer slot (AMS / CFS / ACE / holder / Ext.) from its detail
+  panel: the Storage location section gains a printer row and a slot picker (printer → unit →
+  slot). It writes the `uids` already reserved on `printers/{brand}/devices/{id}.units.{unitId}.slots[i]`;
+  assigning evicts the previous occupant and removes the spool from any other slot, twin ids go
+  together. `renderer/inventory.js` (`spoolMountOf`, `assignSpoolToPrinterSlot`, `_detailMountHTML`,
+  `_wireDetailMount`, `_refreshDetailMount`), `renderer/css/10-settings.css`. ROADMAP P1/P2/P4
+  marked partly shipped.
+- A USB barcode / QR scanner works anywhere in the app: a burst of quick keys outside any field,
+  closed by Enter or Tab, is taken as a scan. Its code (or one found inside a QR link) is matched
+  exactly against the catalogue (barcode, SKU, id): the Catalogue view opens on it with the product
+  selected, so its card is ready to add the spool. A spool QR link (qr.tigertag.io) opens the spool;
+  an unknown code stays a search and says so. A field with the focus keeps every key. Digits are
+  read from the physical key (`e.code`), so a scanner set to the US layout works on an AZERTY computer.
+  `renderer/inventory.js` (`_onCodeScanned`, `_catalogProductsForCode`).
+
+### Fixed
+
+- A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
+- `.ttag` import in **Import** mode works again: it wrote `id_tigertag: FieldValue.delete()` in a
+  batch `set()` without merge, which Firestore rejects, so every Import-mode file failed with
+  "ttagImportErr" and nothing was written. The field is now left out of the new doc
+  (`_ttagBuildWrites` in `renderer/inventory.js`). Restore mode was not affected.
+
+### i18n
+
+- Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
+- Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.

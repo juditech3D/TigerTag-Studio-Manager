@@ -15929,6 +15929,106 @@ import { initScreenTools } from './ai/screen-tools.js';
     _onFilterChange();
     inp.focus();
   });
+
+  /* ── Barcode scanner, anywhere in the app ──────────────────────────────────
+     A USB barcode / QR scanner is a keyboard: it types the code in a burst and
+     ends it with Enter (some models: Tab). Typed into the search bar it is
+     already a search (`_catCodeish`, exact match first); typed while NO field
+     has the focus it used to go nowhere. A burst of quick keys outside any
+     editable field, closed by Enter/Tab, is now taken as a scan and handled by
+     `_onCodeScanned`. A field that has the focus keeps every key: a code
+     scanned INTO a field is meant for that field. */
+  const SCAN_MAX_GAP_MS = 45;   // a scanner types a character every 5-30 ms; people take 80+
+  const SCAN_MIN_LEN = 6;       // shorter than any EAN-8 / SKU — see _catCodeish
+  let _scanBuf = "", _scanLastAt = 0;
+  // A digit is read from the KEY pressed, not the character it produced: a
+  // scanner set to the US layout on a French (AZERTY) computer presses the
+  // digit keys without Shift, which type "&é\"'(-è_çà" there — every EAN
+  // would come out as punctuation. `e.code` names the physical key whatever
+  // the layout, so the digits are right either way. Other characters keep
+  // `e.key` (correct when the scanner's layout matches the computer's).
+  const _scanChar = e => {
+    const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code || "");
+    if (m) return m[1];
+    return e.key.length === 1 ? e.key : "";
+  };
+  const _isEditable = el => !!el && (el.isContentEditable
+    || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || _isEditable(e.target)) { _scanBuf = ""; return; }
+    const now = performance.now();
+    if (now - _scanLastAt > SCAN_MAX_GAP_MS) _scanBuf = "";
+    _scanLastAt = now;
+    if (e.key === "Enter" || e.key === "Tab") {
+      const code = _scanBuf.trim();
+      _scanBuf = "";
+      if (code.length < SCAN_MIN_LEN) return;
+      // The burst is a scan: the Enter must not also press the focused button.
+      e.preventDefault();
+      e.stopPropagation();
+      _onCodeScanned(code).catch(err => console.warn("[scan]", err?.message));
+      return;
+    }
+    _scanBuf += _scanChar(e);
+  }, true);
+
+  // The catalogue products a scanned code names exactly: barcode, SKU or
+  // catalogue id. A QR code usually carries a link: the codes are looked for
+  // inside it too (every run of 8-14 digits, then the last path segment).
+  async function _catalogProductsForCode(code) {
+    if (!_catalogIndex.length) _catalogLoadCache();
+    if (!_catalogIndex.length) await _catalogLoadBundled();
+    const exact = raw => _catalogIndex.filter(e =>
+      [e.it.barcode, e.it.sku, e.it.id].some(v => String(v || "").toLowerCase() === raw)).map(e => e.it);
+    const raw = code.toLowerCase();
+    let hits = exact(raw);
+    if (hits.length || !/^https?:\/\//.test(raw)) return { hits, query: code };
+    const tries = [...(raw.match(/\d{8,14}/g) || [])];
+    const last = raw.replace(/[?#].*$/, "").split("/").filter(Boolean).pop();
+    if (last) tries.push(decodeURIComponent(last));
+    for (const tr of tries) {
+      hits = exact(tr);
+      if (hits.length) return { hits, query: tr };
+    }
+    return { hits: [], query: code };
+  }
+
+  /* A scan opens the product it names, ready to add: the Catalogue view,
+     searched on that code, with the product selected — so its card (stock
+     already held, "+ Inventory", wishlist, cart) is the one the Catalogue gives.
+     A spool QR link (qr.tigertag.io) opens that spool, as in the search bar.
+     A code the catalogue does not know is still searched (the inventory may
+     hold it), and said so. */
+  async function _onCodeScanned(code) {
+    const link = /qr\.tigertag\.io\//i.test(code) ? parseQrLink(code) : null;
+    if (link?.kind === "spool") { _spoolLinkArrived(link); return; }
+    const { hits, query } = await _catalogProductsForCode(code);
+    const inp = $("searchInv");
+    const showSearch = () => {
+      if (inp) inp.value = query;
+      state.search = query;
+      state.locateUid = null;
+      _refreshSearchClearVisibility(query);
+      _onFilterChange();
+    };
+    // The card of a product scanned before would now describe the wrong box.
+    if (hits.length !== 1 && $("productCardPanel")?.classList.contains("open")) closeProductCard();
+    if (!hits.length) {
+      showSearch();
+      _flashMessage(t("scanUnknownCode", { code: query }));
+      return;
+    }
+    if (!_isCatalogMode(state.viewMode)) setViewMode("catalogGrid");
+    showSearch();
+    if (hits.length > 1) return;        // several products share the code: the view lists them
+    const it = hits[0];
+    // Select it outright (not _catViewSelect, which toggles): scanning the same
+    // box twice must keep its card open, not close it.
+    _catViewSelectedId = String(it.id);
+    requestAnimationFrame(() => _catViewPaintSelection());
+    _catViewProductCard(it).catch(e => console.warn("[scan] product card:", e?.message));
+  }
+
   // Does the current search leave nothing on screen? Read from the SAME signal each
   // view already computes rather than re-deriving the predicate, so this can never
   // drift from what the user is actually looking at.
@@ -21133,11 +21233,6 @@ import { initScreenTools } from './ai/screen-tools.js';
       const data = {
         ...d,
         uid: newId,
-        // The copy is chipless, so it carries NO chip version at all — dropping
-        // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
-        // doc inside `id_version.json`'s referential. (It used to be re-rolled
-        // to a random u32 here, which achieved the first goal and broke the second.)
-        id_tigertag: FV.delete(),
         // The product is not a chip property: a real `id_product` is kept, so a
         // TigerData+ stays a TigerData+ and a TigerTag+ arrives as the TigerData+
         // of the same product. Anything else is normalised to "unset".
@@ -21147,6 +21242,12 @@ import { initScreenTools } from './ai/screen-tools.js';
         deleted: null, deleted_at: null,
       };
       delete data.rfidListed;
+      // The copy is chipless, so it carries NO chip version at all — dropping
+      // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
+      // doc inside `id_version.json`'s referential. Removed from the object, not
+      // written as `FieldValue.delete()`: the batch uses set() without merge,
+      // which replaces the whole doc and rejects delete() (the whole import failed).
+      delete data.id_tigertag;
       // A fresh TigerData copy is a BRAND-NEW spool → reset to 100% (full
       // capacity), not the exported remaining weight.
       const cap = Number(data.measure_gr) || Number(data.measure) || Number(data.capacity) || 0;
@@ -22429,6 +22530,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // openDetail so the surgical location patch can re-wire after swapping just that
   // section — same pattern as _wireToolbox.
   function _wireStorageLoc(r) {
+    _wireDetailMount(r);
     $("btnLocateSpool")?.addEventListener("click", () => {
       const uid = $("btnLocateSpool")?.dataset.spoolUid || "";
       closeDetail();
@@ -25656,6 +25758,19 @@ import { initScreenTools } from './ai/screen-tools.js';
           </div>
         </div>`;
     }
+    // ── Printer slot — the spool's SECOND location. The rack stays its home;
+    // the slot says which machine it is mounted on right now. Lives in the same
+    // section so the surgical location patch repaints both together.
+    const _mountRow = _detailMountHTML(r);
+    if (_mountRow) {
+      storageHtml = storageHtml
+        ? storageHtml.replace(/<\/div>\s*$/, `${_mountRow}</div>`)
+        : `
+        <div class="panel-section panel-storage-loc">
+          <div class="panel-label">${t("sectionStorageLoc") || "Storage location"}</div>
+          ${_mountRow}
+        </div>`;
+    }
 
     // Tags / Balises — free-form labels. Editable (chips + add input with
     // autocomplete) except in friend view / on tombstones, where it's read-only
@@ -28671,6 +28786,9 @@ import { initScreenTools } from './ai/screen-tools.js';
           _backfillAnycubicCloudCerts().catch(e => console.warn("[anycubic] cloud cert backfill:", e?.message));
           // The machines have just arrived — their units can now be recorded.
           syncAllPrinterUnits();
+          // A slot assignment lives on the printer doc, so the open spool's
+          // "mounted in" row follows the printers snapshot, not the inventory one.
+          _refreshDetailMount();
           scheduleStudioStateRecord();  // re-arm deferred telemetry (printer count changed)
           // Snapmaker: resolve the latest paxx firmware release (throttled to
           // one API call per 24 h inside paxx.js — repeated snapshots are a
@@ -36981,6 +37099,195 @@ import { initScreenTools } from './ai/screen-tools.js';
   function syncAllPrinterUnits() {
     if (!state.activeAccountId || state.friendView) return;
     state.printers.forEach(p => { syncPrinterUnits(p); });
+  }
+
+  /* ── An inventory spool mounted in a printer slot ─────────────────────────
+     The second, simultaneous location of a spool (ROADMAP "Printer slot
+     storage", P1/P2/P4). The rack stays its HOME; a slot is where it is mounted
+     right now. The truth is the slot's `uids` on the printer document — never
+     a field on the spool — so assigning a spool onto an occupied slot evicts the
+     previous occupant by itself, and the spool documents are never written.
+
+     Slots are read from the RECORD (`p.units`), not the live feed: a machine
+     that is off keeps its slots assignable. A twin pair is one physical spool,
+     so both of its ids go in together. */
+  let _mountIdx = null, _mountIdxOf = null;
+  function _spoolMountIndex() {
+    if (_mountIdx && _mountIdxOf === state.printers) return _mountIdx;
+    const idx = new Map();
+    for (const p of state.printers || []) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        (u?.slots || []).forEach((sl, i) => {
+          (Array.isArray(sl?.uids) ? sl.uids : []).forEach(id =>
+            idx.set(String(id), { printer: p, unitId, unit: u, slotIndex: i, slot: sl }));
+        });
+      }
+    }
+    // Derived from the printers snapshot only: rebuilt when that array is replaced.
+    _mountIdx = idx; _mountIdxOf = state.printers;
+    return idx;
+  }
+  function spoolMountOf(row) {
+    if (!row) return null;
+    const idx = _spoolMountIndex();
+    return idx.get(String(row.spoolId)) || idx.get(String(twinSpoolIdOf(row) || "")) || null;
+  }
+  function _printerDisplayName(p) {
+    return p.printerName || printerModelName(p.brand, p.printerModelId) || p.brand;
+  }
+  function _slotDisplayLabel(u, sl, i) {
+    return sl?.label || String(i + 1);
+  }
+
+  /* Puts `row` (and its twin) in the given slot — or takes it out of every slot
+     when `target` is null. One batch across every printer document it touches,
+     so a spool is never in two slots, not even for one snapshot. */
+  async function assignSpoolToPrinterSlot(row, target) {
+    const uid = state.activeAccountId;
+    if (!uid || state.friendView || !row) return;
+    const ids = [row.spoolId, twinSpoolIdOf(row)].filter(Boolean).map(String);
+    const patches = new Map();   // printerKey → { printer, patch }
+    for (const p of state.printers) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        const slots = Array.isArray(u?.slots) ? u.slots : [];
+        let changed = false;
+        const next = slots.map((sl, i) => {
+          const uids = Array.isArray(sl?.uids) ? sl.uids.map(String) : [];
+          const isTarget = !!target && _printerKey(p) === _printerKey(target.printer)
+            && unitId === target.unitId && i === target.slotIndex;
+          if (isTarget) {
+            if (uids.length === ids.length && ids.every(x => uids.includes(x))) return sl;
+            changed = true;
+            return { ...sl, uids: ids };          // the previous occupant is evicted
+          }
+          if (uids.some(x => ids.includes(x))) {
+            changed = true;
+            return { ...sl, uids: uids.filter(x => !ids.includes(x)) };
+          }
+          return sl;
+        });
+        if (!changed) continue;
+        const key = _printerKey(p);
+        if (!patches.has(key)) patches.set(key, { printer: p, patch: {} });
+        // `slots` is an array: Firestore rewrites it whole, the unit's other keys stay.
+        patches.get(key).patch[`units.${unitId}.slots`] = next;
+      }
+    }
+    if (!patches.size) return;
+    const batch = fbDb(uid).batch();
+    patches.forEach(({ printer, patch }) => batch.update(_deviceDoc(uid, printer), patch));
+    await batch.commit();
+  }
+
+  /* The "Printer" row of the detail panel's location section, plus its slot
+     picker. Empty when there is nothing to say: no printer with known slots,
+     and the spool is not mounted anywhere. */
+  let _lastDetailMountSig = null;
+  function _detailMountSig(r) {
+    const m = spoolMountOf(r);
+    const printersWithSlots = (state.printers || []).filter(p =>
+      Object.values(p?.units || {}).some(u => u && u.present !== false && (u.slots || []).length)).length;
+    return m ? `${_printerKey(m.printer)}|${m.unitId}|${m.slotIndex}|${_printerDisplayName(m.printer)}|${_unitLabel(m.unit)}`
+      : `-|${printersWithSlots}`;
+  }
+  function _detailMountHTML(r) {
+    _lastDetailMountSig = _detailMountSig(r);
+    const m = spoolMountOf(r);
+    const ro = state.friendView || r.deleted;
+    const units = (state.printers || []).flatMap(p =>
+      _storedUnits(p).filter(u => u.slots.length).map(u => ({ p, u })));
+    if (!m && (ro || !units.length)) return "";
+
+    const label = t("mountSectionLabel");
+    const head = m ? `
+          <div class="storage-loc-row storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack" title="${esc(label)}">${esc(_printerDisplayName(m.printer))}</span>
+            <span class="storage-loc-coord">${esc(_unitLabel(m.unit))} · ${esc(_slotDisplayLabel(m.unit, m.slot, m.slotIndex))}</span>
+            ${ro ? "" : `
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountChange"))}" aria-label="${esc(t("mountChange"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountClear" title="${esc(t("mountClear"))}" aria-label="${esc(t("mountClear"))}">
+              <span class="icon icon-unlink icon-14"></span>
+            </button>`}
+          </div>` : `
+          <div class="storage-loc-row storage-loc-row--empty storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack storage-loc-rack--empty">${esc(t("mountNone"))}</span>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountPick"))}" aria-label="${esc(t("mountPick"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+          </div>`;
+    if (ro) return head;
+
+    // The picker: every printer → every unit → its slots, each showing who is
+    // in it (an inventory spool, else what the machine last reported).
+    const byPrinter = new Map();
+    units.forEach(({ p, u }) => {
+      const k = _printerKey(p);
+      if (!byPrinter.has(k)) byPrinter.set(k, { p, units: [] });
+      byPrinter.get(k).units.push(u);
+    });
+    const blocks = [...byPrinter.values()].map(({ p, units: us }) => {
+      const rec = p.units || {};
+      const lines = us.map(u => {
+        const recSlots = rec[u.storedKey]?.slots || [];
+        const chips = u.slots.map((s, i) => {
+          const occIds = Array.isArray(recSlots[i]?.uids) ? recSlots[i].uids.map(String) : [];
+          const occ = occIds.length ? state.rows.find(x => occIds.includes(String(x.spoolId))) : null;
+          const mine = m && _printerKey(m.printer) === _printerKey(p) && m.unitId === u.storedKey && m.slotIndex === i;
+          const bg = occ ? colorBg(occ) : (s.color ? `#${String(s.color).replace(/^#/, "").slice(0, 6)}` : "transparent");
+          const tip = occ ? spoolCardTitle(occ)
+            : [s.vendor, s.material, s.detail].filter(Boolean).join(" ") || t("mountSlotEmpty");
+          return `<button type="button" class="mount-slot${mine ? " mount-slot--mine" : ""}${occ ? " mount-slot--taken" : ""}"
+                    data-mount-printer="${esc(_printerKey(p))}" data-mount-unit="${esc(u.storedKey)}" data-mount-slot="${i}"
+                    title="${esc(tip)}">
+                    <span class="mount-slot-dot" style="background:${esc(bg)}"></span>
+                    <span class="mount-slot-lbl">${esc(_slotDisplayLabel(u, s, i))}</span>
+                  </button>`;
+        }).join("");
+        return `<div class="mount-unit"><span class="mount-unit-lbl">${esc(_unitLabel(u))}</span><div class="mount-slots">${chips}</div></div>`;
+      }).join("");
+      return `<div class="mount-printer"><div class="mount-printer-name">${esc(_printerDisplayName(p))}</div>${lines}</div>`;
+    }).join("");
+    const picker = `
+          <div class="mount-picker" id="mountPicker" hidden>
+            ${blocks || `<div class="mount-picker-empty">${esc(t("mountNoSlots"))}</div>`}
+            <div class="mount-picker-hint">${esc(t("mountHint"))}</div>
+          </div>`;
+    return head + picker;
+  }
+  function _wireDetailMount(r) {
+    $("btnMountPick")?.addEventListener("click", () => {
+      const pk = $("mountPicker");
+      if (pk) pk.hidden = !pk.hidden;
+    });
+    $("btnMountClear")?.addEventListener("click", async () => {
+      try { await assignSpoolToPrinterSlot(r, null); }
+      catch (e) { reportError("spool.mountClear", e); }
+    });
+    document.querySelectorAll("#mountPicker .mount-slot").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const printer = state.printers.find(p => _printerKey(p) === btn.dataset.mountPrinter);
+        if (!printer) return;
+        btn.disabled = true;
+        try {
+          await assignSpoolToPrinterSlot(r, {
+            printer, unitId: btn.dataset.mountUnit, slotIndex: Number(btn.dataset.mountSlot),
+          });
+        } catch (e) { reportError("spool.mount", e); }
+        finally { btn.disabled = false; }
+      });
+    });
+  }
+  // Printers snapshot → repaint the open spool's location section if its
+  // mount (or the list of printers it could be mounted in) changed.
+  function _refreshDetailMount() {
+    if (!state.selected || !$("detailPanel")?.classList.contains("open")) return;
+    const r = state.rows.find(x => x.spoolId === state.selected);
+    if (!r || _detailMountSig(r) === _lastDetailMountSig) return;
+    _patchDetailLocation(r);
   }
 
 

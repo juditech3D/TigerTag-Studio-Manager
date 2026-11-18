@@ -87,11 +87,14 @@ function startNFC() {
     //     permanently report a card present ("Identity Device (Microsoft
     //     Generic Profile)"), so they showed up as an extra burn slot that
     //     could never turn green and blocked the burn button for good.
+    //   • software licence dongles — a Feitian ROCKEY-ARM ("FT ROCKEY ARM 0")
+    //     answers as a reader holding an ISO 14443-4 card that is never there,
+    //     and showed up as one more chip next to the real ones.
     // Skip them by name so they never become a reader. Kept deliberately tight
     // to avoid excluding a real reader with an unusual name; the general,
     // user-controlled override is the reader-management panel (see
     // docs/READER-SELECTION-BRIEF.md).
-    if (/yubico|yubikey|windows hello|virtual smart card/i.test(name)) return;
+    if (/yubico|yubikey|windows hello|virtual smart card|rockey/i.test(name)) return;
     readers.set(name, reader);
     process.parentPort.postMessage({ type: 'reader-connected', name });
 

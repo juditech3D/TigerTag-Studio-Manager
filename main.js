@@ -747,6 +747,15 @@ function createWindow() {
 // process (separate heap, separate libuv loop) with no thread-safety concerns.
 
 let _nfcChild = null;
+// The readers of TigerScales on the network that have their TigerPOD tool open
+// (services/scale-pod.js): they emit the same messages as the reader process,
+// and _nfcPost() sends a request to whichever side owns the reader.
+let _scalePods = null;
+function _nfcUp() { return !!_nfcChild || !!_scalePods?.hasReaders(); }
+function _nfcPost(msg) {
+  if (msg.readerName && _scalePods?.owns(msg.readerName)) { _scalePods.send(msg); return; }
+  _nfcChild?.postMessage(msg);
+}
 const _nfcReadResolvers  = new Map(); // reqId → { resolve, timeout }
 const _nfcWriteResolvers = new Map(); // reqId → { resolve, timeout }
 
@@ -848,6 +857,8 @@ function _nowChipTs() {
 }
 
 function initNFC() {
+  const { ScalePods } = require('./services/scale-pod');
+  _scalePods = new ScalePods(_onNfcMessage);
   const scriptPath = path.join(__dirname, 'services', 'nfc-process.js');
   try {
     _nfcChild = utilityProcess.fork(scriptPath);
@@ -1043,7 +1054,7 @@ ipcMain.handle('usb-scale:state', () => ({
 // On-demand card read — called by renderer "Read" button in RFID tester.
 // Delegates to the NFC utility process and parses the result here in the main process.
 ipcMain.handle('rfid:read-now', async (_evt, readerName) => {
-  if (!_nfcChild)                      return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp())                      return { ok: false, error: 'NFC process not running' };
   if (!_nfcReaders.has(readerName))    return { ok: false, error: 'Reader not connected' };
   const card = _nfcCardPresent.get(readerName);
   if (!card)                           return { ok: false, error: 'No card present' };
@@ -1055,7 +1066,7 @@ ipcMain.handle('rfid:read-now', async (_evt, readerName) => {
       resolve({ ok: false, error: 'Read timed out' });
     }, 5000);
     _nfcReadResolvers.set(reqId, { resolve, timeout });
-    _nfcChild.postMessage({ type: 'read-now', readerName, reqId });
+    _nfcPost({ type: 'read-now', readerName, reqId });
   });
 
   if (!result.ok) return result;
@@ -1092,7 +1103,7 @@ ipcMain.handle('rfid:read-now', async (_evt, readerName) => {
 //   skipping pages whose bytes haven't changed.
 ipcMain.handle('rfid:write-now', async (_evt, opts) => {
   const { readerName, cloudDoc, patch = null, surgical = true } = opts || {};
-  if (!_nfcChild)                    return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp())                    return { ok: false, error: 'NFC process not running' };
   if (!_nfcReaders.has(readerName))  return { ok: false, error: 'Reader not connected' };
   const card = _nfcCardPresent.get(readerName);
   if (!card)                         return { ok: false, error: 'No card present' };
@@ -1118,7 +1129,7 @@ ipcMain.handle('rfid:write-now', async (_evt, opts) => {
         resolve({ ok: false, error: 'Read timed out' });
       }, 5000);
       _nfcReadResolvers.set(reqId, { resolve, timeout });
-      _nfcChild.postMessage({ type: 'read-now', readerName, reqId });
+      _nfcPost({ type: 'read-now', readerName, reqId });
     });
 
     if (!readResult.ok) {
@@ -1149,7 +1160,7 @@ ipcMain.handle('rfid:write-now', async (_evt, opts) => {
       resolve({ ok: false, error: 'Write timed out' });
     }, 10000);
     _nfcWriteResolvers.set(reqId, { resolve, timeout });
-    _nfcChild.postMessage({ type: 'write-now', readerName, reqId, pages });
+    _nfcPost({ type: 'write-now', readerName, reqId, pages });
   });
 
   if (result.ok) {
@@ -1185,7 +1196,7 @@ function _pagesFromBytes(newBytes, oldBytes, startPage) {
 //   → { ok, pagesWritten, verified, mismatchPages } | { ok:false, error }
 ipcMain.handle('rfid:repair', async (_evt, opts) => {
   const { readerName, uid, hex } = opts || {};
-  if (!_nfcChild)                   return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp())                   return { ok: false, error: 'NFC process not running' };
   if (!_nfcReaders.has(readerName)) return { ok: false, error: 'Reader not connected' };
   const card = _nfcCardPresent.get(readerName);
   if (!card)                        return { ok: false, error: 'No card present' };
@@ -1202,7 +1213,7 @@ ipcMain.handle('rfid:repair', async (_evt, opts) => {
   const rRes = await new Promise((resolve) => {
     const to = setTimeout(() => { _nfcReadResolvers.delete(rReq); resolve({ ok: false }); }, 5000);
     _nfcReadResolvers.set(rReq, { resolve, timeout: to });
-    _nfcChild.postMessage({ type: 'read-now', readerName, reqId: rReq });
+    _nfcPost({ type: 'read-now', readerName, reqId: rReq });
   });
   if (rRes.ok) oldBytes = Buffer.from(rRes.rawPagesHex, 'hex');
 
@@ -1213,7 +1224,7 @@ ipcMain.handle('rfid:repair', async (_evt, opts) => {
   const result = await new Promise((resolve) => {
     const to = setTimeout(() => { _nfcWriteResolvers.delete(wReq); resolve({ ok: false, error: 'Write timed out' }); }, 15000);
     _nfcWriteResolvers.set(wReq, { resolve, timeout: to });
-    _nfcChild.postMessage({ type: 'write-now', readerName, reqId: wReq, pages });
+    _nfcPost({ type: 'write-now', readerName, reqId: wReq, pages });
   });
   console.log(`[NFC] repair ${uid}: ${result.ok ? result.pagesWritten + ' page(s), verified=' + result.verified : 'FAILED ' + result.error}`);
   return result;
@@ -1248,7 +1259,7 @@ async function _writeChipImage(targets, buildImage, logLabel) {
     const rRes = await new Promise((resolve) => {
       const to = setTimeout(() => { _nfcReadResolvers.delete(rReq); resolve({ ok: false }); }, 5000);
       _nfcReadResolvers.set(rReq, { resolve, timeout: to });
-      _nfcChild.postMessage({ type: 'read-now', readerName, reqId: rReq, ...(newBytes.length > 144 ? { length: newBytes.length } : {}) });
+      _nfcPost({ type: 'read-now', readerName, reqId: rReq, ...(newBytes.length > 144 ? { length: newBytes.length } : {}) });
     });
     if (rRes.ok) oldBytes = Buffer.from(rRes.rawPagesHex, 'hex');
 
@@ -1261,7 +1272,7 @@ async function _writeChipImage(targets, buildImage, logLabel) {
     const wRes = await new Promise((resolve) => {
       const to = setTimeout(() => { _nfcWriteResolvers.delete(wReq); resolve({ ok: false, error: 'Write timed out' }); }, 15000);
       _nfcWriteResolvers.set(wReq, { resolve, timeout: to });
-      _nfcChild.postMessage({ type: 'write-now', readerName, reqId: wReq, pages, verify: true });
+      _nfcPost({ type: 'write-now', readerName, reqId: wReq, pages, verify: true });
     });
     console.log(`[NFC] ${logLabel} ${normalizeUid(card.uid)}: ${wRes.ok ? wRes.pagesWritten + ' page(s), verified=' + wRes.verified : 'FAILED ' + wRes.error}`);
     results.push({ readerName, uid: normalizeUid(card.uid), ...wRes });
@@ -1278,7 +1289,7 @@ async function _writeChipImage(targets, buildImage, logLabel) {
 // TigerTag+ signature) is zeroed → a clean 144-byte Init image.
 //   opts = { targets: [{ readerName, uid }] }
 ipcMain.handle('rfid:format', async (_evt, { targets } = {}) => {
-  if (!_nfcChild) return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp()) return { ok: false, error: 'NFC process not running' };
   return _writeChipImage(targets, (uidBuf) => {
     const initBytes = TigerTag.asInit(uidBuf).toBytes(false); // 80 bytes
     return Buffer.concat([initBytes, Buffer.alloc(144 - initBytes.length)]);
@@ -1292,7 +1303,7 @@ ipcMain.handle('rfid:format', async (_evt, { targets } = {}) => {
 // region) so nothing of the old spool remains.
 //   opts = { targets: [{ readerName, uid }] }
 ipcMain.handle('rfid:erase', async (_evt, { targets } = {}) => {
-  if (!_nfcChild) return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp()) return { ok: false, error: 'NFC process not running' };
   return _writeChipImage(targets, () => {
     const eraseBytes = TigerTag.erase(); // 80 zero bytes — blank NDEF
     return Buffer.concat([eraseBytes, Buffer.alloc(144 - eraseBytes.length)]);
@@ -1308,7 +1319,7 @@ async function _ndefCapacity(readerName) {
   const res = await new Promise((resolve) => {
     const to = setTimeout(() => { _nfcReadResolvers.delete(reqId); resolve({ ok: false }); }, 5000);
     _nfcReadResolvers.set(reqId, { resolve, timeout: to });
-    _nfcChild.postMessage({ type: 'read-now', readerName, reqId, start: 3, length: 4 });
+    _nfcPost({ type: 'read-now', readerName, reqId, start: 3, length: 4 });
   });
   const cc = res.ok ? Buffer.from(res.rawPagesHex, 'hex') : null;
   return cc && cc[0] === 0xE1 && cc[2] ? cc[2] * 8 : NDEF_USER_BYTES;
@@ -1322,7 +1333,7 @@ async function _ndefCapacity(readerName) {
 //   opts = { targets: [{ readerName, uid }], message: { type, … } }
 //   → { ok, results } — a chip too small fails with 'ndef-too-long'
 ipcMain.handle('rfid:write-ndef', async (_evt, { targets, message } = {}) => {
-  if (!_nfcChild) return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp()) return { ok: false, error: 'NFC process not running' };
   try { ndefImage(message, Infinity); }
   catch (e) { return { ok: false, error: e.message }; }
   return _writeChipImage(targets, async (_uid, readerName) => ndefImage(message, await _ndefCapacity(readerName)), 'ndef');
@@ -1330,7 +1341,7 @@ ipcMain.handle('rfid:write-ndef', async (_evt, { targets, message } = {}) => {
 // Bytes an NDEF content takes on the chip (live counter in the NFC tools form).
 ipcMain.handle('rfid:ndef-size', (_evt, message) => ndefSize(message));
 // NDEF room of the chip on a reader, in bytes (the counter's maximum).
-ipcMain.handle('rfid:ndef-capacity', (_evt, readerName) => _nfcChild ? _ndefCapacity(readerName) : NDEF_USER_BYTES);
+ipcMain.handle('rfid:ndef-capacity', (_evt, readerName) => _nfcUp() ? _ndefCapacity(readerName) : NDEF_USER_BYTES);
 
 // Cloud → chip encoding — called when the user wants to program a Cloud spool onto
 // one or two physical RFID chips.
@@ -1347,7 +1358,7 @@ ipcMain.handle('rfid:ndef-capacity', (_evt, readerName) => _nfcChild ? _ndefCapa
 //
 // Returns { ok, results: [{ readerName, uid, ok, pagesWritten?, error? }] }
 ipcMain.handle('rfid:encode-cloud', async (_evt, { cloudDoc, targets }) => {
-  if (!_nfcChild) return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp()) return { ok: false, error: 'NFC process not running' };
   if (!Array.isArray(targets) || targets.length === 0)
     return { ok: false, error: 'No target readers provided' };
 
@@ -1398,7 +1409,7 @@ ipcMain.handle('rfid:encode-cloud', async (_evt, { cloudDoc, targets }) => {
     const reqId = Date.now() + Math.random();
     const timeout = setTimeout(() => { _nfcReadResolvers.delete(reqId); resolve({ ok: false, error: 'Read timed out' }); }, 5000);
     _nfcReadResolvers.set(reqId, { resolve, timeout });
-    _nfcChild.postMessage({ type: 'read-now', readerName, reqId });
+    _nfcPost({ type: 'read-now', readerName, reqId });
   });
   // Write with read-back verification so we only report success (and let the
   // renderer clear the "needs update" flag) once the chip really holds the bytes.
@@ -1406,7 +1417,7 @@ ipcMain.handle('rfid:encode-cloud', async (_evt, { cloudDoc, targets }) => {
     const reqId = `encode-${Date.now()}-${Math.random()}`;
     const timeout = setTimeout(() => { _nfcWriteResolvers.delete(reqId); resolve({ ok: false, error: 'Write timed out' }); }, 10000);
     _nfcWriteResolvers.set(reqId, { resolve, timeout });
-    _nfcChild.postMessage({ type: 'write-now', readerName, reqId, pages, verify: true });
+    _nfcPost({ type: 'write-now', readerName, reqId, pages, verify: true });
   });
 
   const results = [];
@@ -1471,7 +1482,7 @@ ipcMain.handle('rfid:encode-cloud', async (_evt, { cloudDoc, targets }) => {
 // in that one byte: they pair on the timestamp, never on identical bytes. Returns { ok, verified, uid, pagesWritten,
 // mismatchPages, error }. Success for the caller = ok && verified.
 ipcMain.handle('rfid:burn-one', async (_evt, { cloudDoc, timestamp, readerName, tagCount, tagIndex }) => {
-  if (!_nfcChild)                     return { ok: false, error: 'NFC process not running' };
+  if (!_nfcUp())                     return { ok: false, error: 'NFC process not running' };
   if (!readerName || !_nfcReaders.has(readerName))
     return { ok: false, error: 'Reader not connected' };
   const card = _nfcCardPresent.get(readerName);
@@ -1494,7 +1505,7 @@ ipcMain.handle('rfid:burn-one', async (_evt, { cloudDoc, timestamp, readerName, 
       resolve({ ok: false, error: 'Write timed out' });
     }, 10000);
     _nfcWriteResolvers.set(reqId, { resolve, timeout });
-    _nfcChild.postMessage({ type: 'write-now', readerName, reqId, pages, verify: true });
+    _nfcPost({ type: 'write-now', readerName, reqId, pages, verify: true });
   });
 
   // Capture the UID actually on the reader at write time (the doc id to create).
@@ -4719,6 +4730,9 @@ let _ffmpegBin = null;
   // the middle wakes it (a press on a dark screen is swallowed, it opens
   // nothing), then ~1.5 s before reading.
   // Within a band, memory runs down a column and columns run right to left.
+  // The account's scales with a LAN address and code, for the TigerPOD tool
+  // (services/scale-pod.js keeps only local addresses and never logs the code).
+  ipcMain.handle('tigerscale:pod-scales', (_e, list) => { _scalePods?.setScales(list); return true; });
   ipcMain.handle('tigerscale:screenshot', async (_e, { url, code, wake } = {}) => {
     let u; try { u = new URL(String(url)); } catch { return { ok: false, error: 'address' }; }
     if (u.protocol !== 'http:' || !localAddr(u.host)) return { ok: false, error: 'address' };
