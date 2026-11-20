@@ -11,8 +11,9 @@
  * reads it directly. `POST {lan_url}/tap?c=&x=&y=` is a finger (480×320).
  *
  * The scale serves TWO viewers at most: the stream is aborted the moment the
- * view closes, never left open. A screen asleep is black: one tap in the middle
- * wakes it (swallowed, it opens nothing) before the stream starts.
+ * view closes, never left open. A screen asleep is black: it is woken with
+ * `/wake` (through main, which lights it and presses nothing) before the stream
+ * starts. Never with a tap: on a screen already lit, a tap presses a button.
  *
  * The modal is built here on the Tiger Touch live view's classes (tigertouch.css)
  * so the two devices' live views look the same.
@@ -113,8 +114,8 @@ async function loop(live, { t, getDoc, asleep }) {
     const q = `c=${encodeURIComponent(s.lan_access_code)}`;
     if (asleep) {
       asleep = false;
-      try { await fetch(`${base}/tap?${q}&x=240&y=160`, { method: "POST" }); } catch (_) {}
-      await nap(1500);
+      const r = await window.tigerscale?.wake?.(s.lan_url, s.lan_access_code).catch(() => null);
+      if (r?.ok) await nap(1500);
     }
     live.ctl = new AbortController();
     try {
