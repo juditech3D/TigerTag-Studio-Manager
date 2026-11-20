@@ -66,6 +66,23 @@
   `_bambuSummaryHtml`), `linked.css` (`.lc-bambu*`); `renderer/inventory.js`
   (`openCatalogPick` `prefill`); `docs/LINKED-CHIPS.md`. Not tried on a real chip yet.
 
+- Labels print straight from Studio, without the system print dialog. The label card gains a
+  "Printer" list: the system dialog (as before), a **Marklife P15** over Bluetooth LE (found and
+  connected by Studio, Web Bluetooth, `select-bluetooth-device` picks the first P15 the scan lists),
+  every printer installed on the computer (printed silently through its driver), and the
+  **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
+  the roll is read from the printer's status, 62 mm continuous assumed when it does not answer).
+  A tenth template "Marklife P15" (30 × 15 mm) fits the P15's labels; picking the P15 with a wider
+  label switches to it, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).
+  P15 protocol (L11, service 0xFF00, credit flow control) from the MIT thermoprint project. New
+  `renderer/labels/p15.js`, `services/label-printers.js`; `main.js` (`_labelImage`, `label:printers`,
+  `label:bitmap`, `label:print-ql`, `label:render` `deviceName`, `select-bluetooth-device`, the
+  `enable-blink-features=WebBluetooth` switch that Linux needs);
+  `preload.js` (`listLabelPrinters`, `labelBitmap`, `printLabelQl`); `renderer/labels/index.js`
+  (`printDirect`, `searchPrinters`, `printerFor`, layout `p15` with `pillAt`), `labels.css`;
+  `CODEMAP-main.md`, `CLAUDE.md` (`tigertag.label`), `llms.txt`, `docs/i18n-keys.md`. Not tried on
+  the real printers yet.
+
 ### Changed
 
 - `README.md` opens with an "Unofficial fork" warning and gains a "What this fork adds or changes"
@@ -89,3 +106,4 @@
 - Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.
+- Label printers: `labelTpl_p15` (after `labelTpl_qrOnly`), `labelPrinter`, `labelPrinterDialog`, `labelPrinterP15`, `labelPrinterConnected`, `labelPrinterNetwork`, `labelPrinterInstalled`, `labelPrinterSearch`, `labelP15NoFit`, `labelPrinting`, `labelPrinted`, `labelP15NotFound`, `labelBtUnavailable` (after `labelExportFailed`), 11 locales.

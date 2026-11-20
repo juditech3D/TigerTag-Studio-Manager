@@ -40,7 +40,7 @@
 .lbl-open-hint .icon { background-color: currentColor; }
 .lbl-paper--link:hover .lbl-open-hint, .lbl-paper--link:focus-visible .lbl-open-hint { opacity: 1; transform: translate(-50%, 0); }
 
-.lbl-tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }   /* nine templates, three rows of three */
+.lbl-tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }   /* ten templates, three per row */
 .lbl-tpl.lbl-tpl { height: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 9px 4px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
 .lbl-tpl:hover { border-color: var(--primary); }
 .lbl-tpl.is-active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--surface-2)); }
@@ -56,4 +56,12 @@
 .lbl-actions .ghost { flex: 1; justify-content: center; }
 .lbl-actions .icon { background-color: currentColor; }
 .lbl-msg { margin: 0; min-height: 0; font-size: 12.5px; color: var(--danger-text); }
+.lbl-msg.lbl-msg--ok { color: var(--muted); }
+/* Where Print sends the label (the system dialog, a P15, an installed or network
+   printer) and the button that searches for printers again. */
+.lbl-printer { display: flex; gap: 8px; align-items: center; }
+.lbl-printer .csel { flex: 1; min-width: 0; }
+.lbl-printer .csel .csel-btn { width: 100%; max-width: none; }
+.lbl-printer-search .icon { background-color: currentColor; }
+.lbl-printer-search.is-busy .icon { animation: spin .8s linear infinite; }
 .lbl-msg:empty { display: none; }
