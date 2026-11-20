@@ -8,7 +8,10 @@
 //
 //   ws://<scale>/pod?c=<lan_access_code>
 //   scale → app  {type:'reader-connected', reader:'1'}
-//                {type:'card', reader, uid, atr, rawPagesHex}
+//                {type:'card', reader, uid, atr, rawPagesHex, bambuBlocksHex?}
+//                  bambuBlocksHex: a Bambu Lab chip's data blocks of sectors 0-4,
+//                  {"<block>": "<32 lowercase hex>"} as services/nfc-process.js
+//                  _readBambu returns them; absent for any other chip
 //                {type:'card-removed', reader}
 //                {type:'read-result'|'write-result', id, ok, …}
 //   app → scale  {type:'read-now', reader, id, start?, length?}
@@ -155,7 +158,8 @@ class ScalePods {
       case 'card':
         if (!reader || !scale.readers.has(reader) || typeof m.uid !== 'string') return;
         this._emit({ type: 'card', readerName: this._readerName(scale, reader), uid: m.uid,
-          rawPagesHex: typeof m.rawPagesHex === 'string' ? m.rawPagesHex : null, atr: m.atr || null });
+          rawPagesHex: typeof m.rawPagesHex === 'string' ? m.rawPagesHex : null, atr: m.atr || null,
+          bambuBlocksHex: (m.bambuBlocksHex && typeof m.bambuBlocksHex === 'object') ? m.bambuBlocksHex : null });
         return;
       case 'card-removed':
         if (!reader || !scale.readers.has(reader)) return;

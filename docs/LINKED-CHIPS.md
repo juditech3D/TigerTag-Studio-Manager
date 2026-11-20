@@ -143,8 +143,9 @@ diameter and nozzle range above its choices, and "Catalogue" opens filtered on t
 brand Bambu Lab and the detailed type, the products closest to the chip's colour first
 (CIEDE2000; a SKU carrying the chip's variant code first of all), and the closest
 one's card opens at once when it is within ΔE 10. Linking still works by UID as above; nothing is
-written to the chip and its RSA signature is not checked. The TigerScale's readers
-(`services/scale-pod.js`) do not read these sectors.
+written to the chip and its RSA signature is not checked. A TigerScale lending its readers
+(`services/scale-pod.js`) passes the same blocks on when its firmware sends
+`bambuBlocksHex` on its `card` message; Studio decodes them unchanged.
 
 ## Later phases
 
