@@ -5,6 +5,31 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.59.2-fork.1 — 2026-11-20
+
+First release of the unofficial fork (juditech3D), on top of the official v2.59.2. Windows + Linux
+only, unsigned, e-mail sign-in only (no Google OAuth credentials in this repository).
+
+### Added
+- TigerScale readers usable as a TigerPOD (`services/scale-pod.js`, `ScalePods`), over
+  `ws://<scale>/pod` while the scale's TigerPOD tool is open.
+- Bambu Lab chip reading on PC/SC readers and on the scale (`services/bambu-tag.js`): HKDF-derived
+  keys, decoded blocks, catalogue opened on the closest-colour Bambu Lab product. Read only.
+- USB barcode / QR scanner anywhere in the app (`_onCodeScanned`, `_catalogProductsForCode`),
+  digits read from `e.code` so a US-layout scanner works on AZERTY.
+
+### Fixed
+- `.ttag` import in Import mode (`_ttagBuildWrites` no longer writes `FieldValue.delete()` in a
+  non-merge `set()`).
+- Feitian ROCKEY-ARM dongle no longer listed as a reader (`services/nfc-process.js`).
+
+### Changed
+- Build: `package.json` `build.publish` points to juditech3D/TigerTag-Studio-Manager, so the
+  auto-updater follows this fork's releases. `.github/workflows/build.yml`: no macOS job, the
+  publish check no longer expects `latest-mac.yml` / `.dmg`, no Web sync.
+
+---
+
 ## v2.59.2 — 2026-11-20
 
 ### Fixed
