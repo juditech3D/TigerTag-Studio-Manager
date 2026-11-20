@@ -2531,6 +2531,10 @@ import { initScreenTools } from './ai/screen-tools.js';
       const c = _pendingFriendCode; _pendingFriendCode = null;
       setTimeout(() => _friendCodeArrived(c), 300);
     }
+    if (_pendingReportLink) {
+      const o = _pendingReportLink; _pendingReportLink = null;
+      setTimeout(() => openReport(o), 300);
+    }
   }
   function setDisconnected() {
     state.displayName = null; state.keyValid = null;
@@ -42386,9 +42390,28 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!user) { _pendingFriendCode = code; return; }   // flushed by setConnected
     _friendCodeArrived(code);
   }
+  // ── Request links (tigertag://report?kind=…&about=…&title=…&body=…) ────
+  // Opens the "Improvements & suggestions" card pre-filled, like the AI
+  // assistant's open_ticket: kind and about (the product) are checked by
+  // openReport against its own lists, the text goes in the form's fields. The
+  // user still ticks that the request is public and presses Send, so a link can
+  // never post a request on its own.
+  let _pendingReportLink = null;
+  function _handleReportDeepLink(url) {
+    const m = /^tigertag:\/\/report\/?(\?[^#]*)?(?:#.*)?$/i.exec(String(url || ""));
+    if (!m) return false;
+    const p = new URLSearchParams(m[1] || "");
+    const opts = { tab: "new", kind: p.get("kind") || undefined, target: p.get("about") || undefined,
+      title: String(p.get("title") || "").slice(0, 200), body: String(p.get("body") || "").slice(0, 20000) };
+    let user = null;
+    try { user = fbAuth().currentUser; } catch (_) {}
+    if (!user) { _pendingReportLink = opts; return true; }   // flushed by setConnected
+    openReport(opts);
+    return true;
+  }
   if (window.electronAPI?.onDeepLink) {
     window.electronAPI.onDeepLink((url) => {
-      try { if (!_handleSpoolDeepLink(url)) _handleFriendDeepLink(url); } catch (e) { console.warn("[deep-link]", e); }
+      try { if (!_handleSpoolDeepLink(url) && !_handleReportDeepLink(url)) _handleFriendDeepLink(url); } catch (e) { console.warn("[deep-link]", e); }
     });
     window.electronAPI.deepLinkReady();   // tell main to flush any cold-start link
   }

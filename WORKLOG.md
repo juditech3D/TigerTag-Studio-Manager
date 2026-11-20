@@ -16,6 +16,12 @@
 
 ### Added
 
+- A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
+  link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
+  `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user
+  still ticks that the request is public and presses Send. `renderer/inventory.js`
+  (`_handleReportDeepLink`, `_pendingReportLink`, flushed in `setConnected`), `main.js` (deep-link
+  comment), `CLAUDE.md` (Friends / deep links).
 - A TigerScale can stand in for a TigerPOD: while its TigerPOD tool is open on its screen, its
   two readers show up in Studio as two more RFID readers ("TigerScale <name> #1" / "#2"), and every
   chip feature works on them as on a USB reader (open the spool of a chip put down, write a blank
@@ -60,6 +66,7 @@
 - `README.md`: the download buttons, the release / build badges, the `git clone` command and the
   Issues link point to this fork (juditech3D) instead of the official repository.
 - Release v2.59.2-fork.1: `package.json` / `package-lock.json` version, `build.publish` owner `juditech3D` (auto-updater follows the fork), `.github/workflows/build.yml` without macOS and Web sync, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.1.md`.
+- Release v2.59.2-fork.2: `package.json` / `package-lock.json` version, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.2.md`, FEATURES / llms.txt version. Bundled data not refreshed (`db_update.py` cannot reach the API from the build session).
 
 ### Fixed
 

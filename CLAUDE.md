@@ -326,6 +326,8 @@ is stored as `googleName` / `firstName` / `lastName` for admin reference, never 
   (sign up with the sharer as referrer; an existing account is sent on to `/friend/<code>`).
   `tigertag://friend/<CODE>` (`setAsDefaultProtocolClient`, `_handleFriendDeepLink`) only PRE-FILLS
   the add-friend search; the user still sends the request.
+- `tigertag://report?kind=&about=&title=&body=` (`_handleReportDeepLink`) only PRE-FILLS the request
+  card; the user still ticks that it is public and sends it.
 
 ### Container picker
 `openContainerPicker(r)` lists `data/container_spool/spools_filament.json`; picking writes
