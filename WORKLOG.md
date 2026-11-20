@@ -45,6 +45,14 @@
   an unknown code stays a search and says so. A field with the focus keeps every key. Digits are
   read from the physical key (`e.code`), so a scanner set to the US layout works on an AZERTY computer.
   `renderer/inventory.js` (`_onCodeScanned`, `_catalogProductsForCode`).
+- The barcode scanner has a mode button in the view row (next to Select): "Scanner: everywhere"
+  (default, as before, and a code scanned or pasted into the search bar then Enter also opens its
+  product), "Scanner: search bar" (only the search bar acts on a code), "Scanner: off" (the search
+  bar is a plain search, nothing caught outside fields). Each click moves to the next mode; saved
+  on this computer. `renderer/inventory.html` (`#btnScanMode`), `renderer/inventory.js`
+  (`_scanMode`, `_setScanMode`, `_paintScanMode`), `renderer/css/70-detail-misc.css`
+  (`.inv-scan-btn`), `CLAUDE.md` (localStorage `tigertag.scanMode`). i18n: `scanModeOff`,
+  `scanModeSearch`, `scanModeAll`, `scanModeAria` (11 locales).
 
 - A Bambu Lab chip placed on a PC/SC reader is read: its sectors open with keys derived
   from its UID (HKDF-SHA256, per the Bambu Research Group's RFID-Tag-Guide), the data
