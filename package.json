@@ -1,6 +1,6 @@
 {
   "name": "tigertag-inventory",
-  "version": "2.59.2",
+  "version": "2.59.2-fork.1",
   "description": "Tiger Studio Manager — desktop app",
   "main": "main.js",
   "engines": {
@@ -73,7 +73,7 @@
     "copyright": "TigerTag",
     "publish": {
       "provider": "github",
-      "owner": "TigerTag-Project",
+      "owner": "juditech3D",
       "repo": "TigerTag-Studio-Manager",
       "releaseType": "draft",
       "publisherName": null
