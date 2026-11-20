@@ -10,14 +10,14 @@ It is neutral and agnostic by design: TigerTag takes no side between filament br
 distributors. The protocol is open and anyone can build a different ecosystem on it; nothing in this repo is a
 prerequisite for doing so.
 
-Current version: **2.58.0** — macOS (Intel + Apple Silicon, signed & notarized), Windows, Linux.
+Current version: **2.59.2** — macOS (Intel + Apple Silicon, signed & notarized), Windows, Linux.
 
 Showcase site (11 languages, built from `site/`, deployed by `.github/workflows/pages.yml`): https://tigertag-project.github.io/TigerTag-Studio-Manager/ — downloads: https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases/latest
 
 ## Architecture
 
 - **Entry point**: `main.js` (Electron main process)
-- **Renderer**: `renderer/inventory.html` + `renderer/inventory.js` (a single ES module, ~41 000 lines, already importing ~29 sub-modules) + modular CSS in `renderer/css/`
+- **Renderer**: `renderer/inventory.html` + `renderer/inventory.js` (a single ES module, ~48 500 lines, already importing ~29 sub-modules) + modular CSS in `renderer/css/`
 - **Preload bridge**: `preload.js` — exposes IPC handlers to renderer via `window.electronAPI`
 - **Web target (Tiger Studio Web, v2.40.0)**: the same renderer runs in a browser at `studio.tigersystem.io` (`tigersystem.io/studio` redirects there; own origin, so its own sign-in). `renderer/web-bridge.js` defines a partial browser `electronAPI` (`isWeb: true`) when preload is absent; `HAS_NATIVE` in `inventory.js` is the only "is this desktop" test (never `!!window.electronAPI`); `data-desktop-only` / `data-web-only` attributes hide UI per target (`html.is-web`). `scripts/build-web.mjs` makes the static build (app page at the folder root via `<base>`, PWA manifest, `version.json`); the Hub (TigerTag_Hub) builds the published latest release into `/studio` and `.github/workflows/web-sync.yml` keeps web and desktop on the same version; web-only fixes ship as `X.Y.Z · web N` via `npm run web:hotfix` (`docs/WEB_HOTFIX.md`). On https the bridge refuses insecure `ws:`/`http:` connections (no LAN from the web). Full guide: `docs/WEB_DEPLOYMENT.md`.
 - **NFC**: `services/nfc-process.js` runs as a `utilityProcess` (not a Worker Thread) to avoid SIGABRT on macOS; communicates via IPC
@@ -37,6 +37,8 @@ Showcase site (11 languages, built from `site/`, deployed by `.github/workflows/
 - `preload.js` — contextBridge: exposes `electronAPI` (IPC wrappers), `td1s` (TD1S sensor events)
 - `services/nfc-process.js` — NFC utilityProcess: reader lifecycle, NTAG read (READ_START_PAGE=4, READ_LENGTH=144, READ_BLOCK_SIZE=4), card-present events; `read-now` also takes a `start` / `length` (capability container, a NTAG215/216's larger NDEF area)
 - `services/ndef.js` — NDEF encoder (URI / Wi‑Fi / vCard records in a Type 2 TLV, sized to the chip) behind `rfid:write-ndef`, `rfid:ndef-size`, `rfid:ndef-capacity`
+- `renderer/filter-bar.js` — the search bar's filter chips (`mountFilterBar`; fields, conditions and counts are supplied by `inventory.js`)
+- `renderer/color-search.js` — the catalogue colour search side card (HEX / RAL / photo, CIEDE2000 ΔE)
 - `renderer/rfid_protocol/eraser/` — the NFC tools view (format, NDEF writing, Auto mode) of the new-chip card
 - `renderer/rfid_protocol/restore/` — the Restore TigerTag+ view (rewrites a chip from its `rfidList` backup)
 - `renderer/labels/` — printed spool and filament labels: nine templates, each one SVG in printer dots (`buildLabel`), Print / PDF / PNG / SVG through `main.js` `label:render`
@@ -329,7 +331,7 @@ All brands: printer discovery (mDNS + port scan + manual IP), camera; filament e
 npm run i18n:add -- myKey --after existingKey en="..." fr="..." de="..." es="..." it="..." zh="..." pt="..." pt-pt="..." pl="..." ru="..." nl="..."
 npm run i18n:check   # validates consistency (also runs as pre-commit hook)
 ```
-3137 keys × 11 locales as of v2.58.0
+3169 keys × 11 locales as of v2.59.0
 
 ## CSS conventions
 

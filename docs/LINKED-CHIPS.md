@@ -127,6 +127,26 @@ had been read (metadata, container, twin, weight).
   the scale's loop for up to 4 s. NTAG third-party chips (Anycubic ACE, ELEGOO
   Canvas, OpenSpool) are not linkable yet.
 
+## Bambu Lab chips — read only (fork)
+
+A Bambu Lab chip is a MIFARE Classic 1K whose sectors open with key A values derived
+from its 4-byte UID (HKDF-SHA256 with the public salt and info `RFID-A\0`, per the
+Bambu Research Group's RFID-Tag-Guide). On a PC/SC reader, `services/nfc-process.js`
+skips the NTAG read for a MIFARE Classic 1K, authenticates sectors 0-4 with those keys
+and reads their data blocks; `services/bambu-tag.js` decodes them (material and
+variant IDs, type, detailed type, one or two colours, weight, diameter, drying and
+nozzle temperatures, nozzle, tray UID, width, length, production date). `main.js`
+adds the result as `bambu` to the `rfid-foreign-chip` message.
+
+What Studio does with it: the new-chip card shows the material, colour, weight,
+diameter and nozzle range above its choices, and "Catalogue" opens filtered on the
+brand Bambu Lab and the detailed type, the products closest to the chip's colour first
+(CIEDE2000; a SKU carrying the chip's variant code first of all), and the closest
+one's card opens at once when it is within ΔE 10. Linking still works by UID as above; nothing is
+written to the chip and its RSA signature is not checked. A TigerScale lending its readers
+(`services/scale-pod.js`) passes the same blocks on when its firmware sends
+`bambuBlocksHex` on its `card` message; Studio decodes them unchanged.
+
 ## Later phases
 
 - **Phase 3 — optional, founder's call:** read the maker's chip content (Bambu Lab's

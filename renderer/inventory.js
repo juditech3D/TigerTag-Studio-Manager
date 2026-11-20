@@ -34,6 +34,8 @@ import { squadHeroHtml, squadItemsHeroHtml, squadRankingsHtml, pulseHtml as squa
 import { artImg } from './art.js';
 import { openDialog, initDialogs } from './dialog.js';
 import { mountQrScanner } from './qr-scan.js';
+import { mountFilterBar } from './filter-bar.js';
+import { mountColorSearch, hexToLab, deltaE2000, normHex as _csNormHex, ralColor, deltaBand } from './color-search.js';
 import { initAiAssistant, aiOnToolCall, aiAccountChanged, aiJournalChanged, renderAiPage, closeAiHistory, closeAiSetup, aiDisconnectAll } from './ai/assistant.js';
 import { initTrophies, trophiesSignIn, trophiesSignOut, renderTrophiesView, trophyEarned } from './quests/trophies.js';
 import { fillHeroScenes } from './hero-scene.js';
@@ -98,7 +100,7 @@ import { renderPrusaCamBanner, renderPrusaCamWallBanner, prusaCamStopAll } from 
 import { openPrusaAddFlow } from './printers/prusa/add-flow.js';
 import { initExtCam, extCamSubscribe, extCamUnsubscribe, openExtCamAddFlow, openExtCamEditor,
          extCamBoardObj, extCamMaxZ, extCamBoardSave, extCamBoardCardsHtml, wireExtCamBoard,
-         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamEmbedHtml } from './ext-cam/ext-cam.js';
+         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamForDetach, extCamEmbedHtml } from './ext-cam/ext-cam.js';
 // Self-contained printer plugins (renderer/printers/<id>/plugin.js) — see docs/PRINTER-PLUGINS.md.
 import { printerPlugin, printerPlugins, printerPluginIds, mergePluginStrings } from './printers/plugins.js';
 import { betaBadgeInlineHtml } from './printers/beta-badge.js';
@@ -1063,15 +1065,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     displayName: null,
     search: "",
     locateUid: null,                  // transient "locate this spool" highlight in the rack view (no search text); cleared on the next outside click
-    brandFilter: "",                  // exact brand name to keep, "" = all
-    materialFilter: "",               // exact material name to keep, "" = all
-    typeFilter: "",                   // exact product type to keep, "" = all
-    aspectFilter: "",                 // exact aspect/finish to keep — matches Aspect 1 OR Aspect 2, "" = all
-    tagFilter: "",                    // exact tag to keep (spool must carry it), "" = all
-    flagFilter: "",                   // product flag to keep: "liked" (❤) | "favorite" (★) | "" = all
-    printerBrandFilter: "",           // printer view: exact brand key to keep, "" = all
-    printerStatusFilter: "",          // printer view: "online" | "offline" | "" = all
-    printerTagFilter: "",             // printer view: exact tag the printer must carry, "" = all
+    // The filter bar's conditions (renderer/filter-bar.js): [{ field, op, values }],
+    // AND across them, OR inside one. Values are reference-table IDs as strings.
+    // Belongs to the view segment: reset by _clearSearchFilters.
+    filters: [],
+    // The printer views' own chips (brand, model, state, tag), same shape: the
+    // printers and the spools never share a field's values.
+    printerFilters: [],
 
     viewMode: localStorage.getItem("tigertag.view") || "table",
     // View-only grouping of identical spools (Table + Grid). Default ON. The
@@ -1225,9 +1225,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     $("td1sHealth")?.setAttribute("data-tooltip", t(state.td1sConnected ? "td1sDetected" : "td1sNotDetected"));
     _syncSearchPlaceholder(); // the loop above reset #searchInv to the materials text
     _syncSearchAddLabel();   // the inline "+" mirrors the header button's name
-    // The printer filter options (State labels, brand names) aren't data-i18n,
-    // so re-localise them here on a language switch while the printer view is up.
-    if (_isPrinterMode(state.viewMode) && state.viewMode !== "printer-cam") populatePrinterFilters();
+    // The filter chips' text (field names, Online / Offline) follows the language.
+    populateQuickFilters();
     // Custom-select buttons mirror their <option> text — retranslated above, so
     // resync each one's visible label to the new language.
     document.querySelectorAll(".csel > select").forEach(s => s._cselRefresh?.());
@@ -2294,6 +2293,10 @@ import { initScreenTools } from './ai/screen-tools.js';
       material: mat ? mat.label : (data.material || data.series || "-"),
       materialData: mat,
       brand: brandName(data.id_brand),
+      // The IDs the filter bar compares (labels are display text and can change).
+      brandId: data.id_brand ?? null,
+      materialId: data.id_material ?? null,
+      diameterId: data.data1 ?? null,
       colorName: data.color_name || data.name || data.message || "-",
       // User note (chip `message`). For TigerTag / TigerCloud it also feeds
       // colorName above, but for TigerTag+ colorName comes from the API, so the
@@ -3724,6 +3727,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (e.key === "Escape" && $("catalogPickPanel")?.classList.contains("open")) closeCatalogPick();
     if (e.key === "Escape" && $("chipChoicePanel")?.classList.contains("open")) closeChipChoice();
     if (e.key === "Escape" && $("qrScanPanel")?.dataset.mode === "find") closeQrScanPanel();
+    if (e.key === "Escape" && $("colorSearchPanel")?.classList.contains("open")) closeColorSearch();
   });
   // Delegated on the container: the rows are re-rendered on every open.
   $("matSourceList")?.addEventListener("click", e => {
@@ -5052,7 +5056,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     openGroup: key => { closeDetail(); _openGroupPanel(key); }, setupHoldToConfirm,
     toast: msg => _flashMessage(msg), reportError, onChange: () => { if (state.selected) refreshOpenDetail?.(); },
     brandIdOf: r => _catByName("brand", r?.brand, ["name"]),
-    openCatalogue: () => openCatalogPick(), openManual: () => openAddProductPanel(), chipPresent: () => state.nfcCardPresent.size > 0, chipsChanged: () => _refreshChipBanners(), syncPanels: () => _syncPanels(), clearSide: () => _clearSideForChip(), closeAllSide: () => _closeAllSidePanels(),
+    openCatalogue: (o) => openCatalogPick(o || {}), openManual: () => openAddProductPanel(), chipPresent: () => state.nfcCardPresent.size > 0, chipsChanged: () => _refreshChipBanners(), syncPanels: () => _syncPanels(), clearSide: () => _clearSideForChip(), closeAllSide: () => _closeAllSidePanels(),
     showTip: el => _showToolInfoTip(el), hideTip: () => _hideToolInfoTip(), errorTip: (el, msg, opts) => _showErrorTip(el, msg, opts),
     clearCreate: () => { closeCatalogPick(); if ($("productCardPanel")?.classList.contains("open")) closeProductCard(); if ($("addProductPanel")?.classList.contains("open")) _adpCloseAllSheetsAndPanel(); },
     openEraser: () => openChipEraser(), closeEraser: () => closeChipEraser(),
@@ -5911,7 +5915,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       const pubXp = ps.exists ? (ps.get("tigerSquad")?.xp ?? null) : null;
       // The flag's last move (server-written, squadLock.js lockedCountry): the picker locks for 30 days.
       const countryAt = ps.exists ? (ps.get("tigerSquad")?.countryAt?.toMillis?.() || null) : null;
-      if (countryAt !== state.squadCountryAt) { state.squadCountryAt = countryAt; _fillSquadCountry(); }
+      // …and the flag actually published (the league the member is ranked in), which the
+      // profile shows rather than a pick the lock still holds back (#290).
+      const countryPub = ps.exists ? (ps.get("tigerSquad")?.country || null) : null;
+      if (countryAt !== state.squadCountryAt || countryPub !== state.squadCountryPublished) {
+        state.squadCountryAt = countryAt; state.squadCountryPublished = countryPub; _fillSquadCountry();
+      }
       if (pubXp !== state.squadXpPublic) {
         state.squadXpPublic = pubXp; _squadRankCache = null;
         if (_squadBoardCache) _squadBoardCache.at = 0;   // my XP moved: the board's next open reloads
@@ -6179,14 +6188,19 @@ import { initScreenTools } from './ai/screen-tools.js';
   const _squadCountryUntil = () => state.squadCountryAt ? state.squadCountryAt + SQUAD_COUNTRY_LOCK_DAYS * 864e5 : 0;
   function _fillSquadCountry() {
     const cur = $("eacSquadCountryCur"); if (!cur) return;
-    const { name, detected } = _squadCountryOptions(), cc = state.squadCountry || detected;
+    // The flag the league ranks the member under (server-published), else their pick,
+    // else the detected country (not published yet).
+    const { name, detected } = _squadCountryOptions(), cc = state.squadCountryPublished || state.squadCountry || detected;
     cur.textContent = cc ? `${_flagOf(cc)}  ${name(cc)}` : "—";
     // The flag moves at most once every SQUAD_COUNTRY_LOCK_DAYS (enforced by the server).
     const until = _squadCountryUntil(), locked = until > Date.now();
     $("eacSquadCountryBtn").hidden = locked;
     const hint = $("eacSquadCountryHint");
-    if (hint) hint.textContent = locked
-      ? t("squadCountryLockedUntil", { date: new Date(until).toLocaleDateString(state.lang || "en", { day: "numeric", month: "long" }) })
+    const date = locked ? new Date(until).toLocaleDateString(state.lang || "en", { day: "numeric", month: "long" }) : "";
+    // A pick the lock is still holding back says when it takes over.
+    const pending = locked && state.squadCountry && state.squadCountryPublished && state.squadCountry !== state.squadCountryPublished;
+    if (hint) hint.textContent = pending ? t("squadCountryPending", { country: name(state.squadCountry), date })
+      : locked ? t("squadCountryLockedUntil", { date })
       : t("squadCountryLockHint");
   }
   // "Change": the countries as flag tiles in a window — the current one pinned on top,
@@ -8606,13 +8620,20 @@ import { initScreenTools } from './ai/screen-tools.js';
         if (state.friendView) break;
         const { spoolId, data } = _rackMigrationQueue.shift();
         try {
+          /* `rack: null` is how the app writes "not stored". A doc that carries it
+             next to leftover flat fields is an UNRANKED spool whose old fields
+             were never cleared (a rack resized before this migration ran): it must
+             stay unranked. Rebuilding `rack` from `rack_id` would put it back in a
+             rack — at coordinates the rack may no longer have. Only the leftovers
+             go. */
+          const unstored = data.rack === null;
           const rack = {
             id: data.rack_id,
             level:    Number.isInteger(data.level)    ? data.level    : null,
             position: Number.isInteger(data.position) ? data.position : null
           };
           await _xanoQuiet(() => invRef.doc(spoolId).update({
-            rack,
+            ...(unstored ? {} : { rack }),
             rack_id:  FV.delete(),
             level:    FV.delete(),
             position: FV.delete()
@@ -9144,6 +9165,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         if (!isFirstSnap && snapshot.docChanges().length === 0 && !snapshot.metadata.hasPendingWrites && !censusPending) return;
         const raw = {};
         snapshot.forEach(doc => { raw[doc.id] = doc.data(); });
+        const _heldBefore = state.inventory;   // what this inventory held before this snapshot (the arrival sound below)
         state.inventory = raw;
         state.rows = snapshot.docs.map(doc => normalizeRow(doc.id, doc.data()));
         _markTwinPairs(state.rows); // symmetric hasTwinPair so the link badge shows on either half
@@ -9154,11 +9176,16 @@ import { initScreenTools } from './ai/screen-tools.js';
            the whole inventory turning up at once. One sound per snapshot, so
            importing fifty spools rings once and not fifty times, and the ids
            already announced are remembered: a local write shows up twice, once
-           pending and once confirmed by the server. */
+           pending and once confirmed by the server.
+           With the delta listener (_listenSynced: where syncAt > …) a spool the
+           inventory ALREADY held shows up as "added" whenever it is rewritten —
+           a catalogue refresh bumps its syncAt and it enters the query. That is
+           not an arrival: only an id this inventory did not hold before counts,
+           or opening the catalogue after an update rang once per refreshed spool. */
         if (!isFirstSnap) {
           const changes = snapshot.docChanges();
           const fresh = changes.some(c =>
-            c.type === "added" && !c.doc.data()?.deleted && !_spoolArrivalHeard.has(c.doc.id));
+            c.type === "added" && !c.doc.data()?.deleted && !_spoolArrivalHeard.has(c.doc.id) && !_heldBefore?.[c.doc.id]);
           changes.forEach(c => { if (c.type === "added") _spoolArrivalHeard.add(c.doc.id); });
           if (fresh) _soundSpoolAdded();
         }
@@ -9167,10 +9194,13 @@ import { initScreenTools } from './ai/screen-tools.js';
         // On first live snapshot: silently refresh API data for every TigerTag+
         // spool that has no product image yet. Fire-and-forget — each write
         // triggers a new snapshot that re-renders the panel automatically.
+        // Through _catalogAskBatch (#309): sequential, at most CATALOG_REFRESH_MAX, paused
+        // after a server failure, and a spool whose product has no photo is asked
+        // once a week, not at every launch.
         if (isFirstSnap && !snapshot.metadata.fromCache && window.electronAPI?.refreshApiData) {
-          state.rows
-            .filter(r => r.isPlus && !r.isCloud && !raw[r.spoolId]?.url_img)
-            .forEach(r => _refreshApiData(r, { silent: true }));
+          const week = Math.floor(Date.now() / (7 * 864e5));
+          _catalogAskBatch(state.rows.filter(r => r.isPlus && !r.isCloud && !raw[r.spoolId]?.url_img),
+            () => `nophoto:${week}`, "spools without a photo");
         }
 
         // Census every physical chip already in this inventory into rfidList —
@@ -9862,7 +9892,9 @@ import { initScreenTools } from './ai/screen-tools.js';
     const intFmt = n => String(Math.max(0, Math.round(n)));
     const kgFmt  = n => `${n.toLocaleString(state.lang || "en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} kg`;
     const valFmt = n => `${_fmtMoney(n)} ${vat.symbol}`;
-    const tf = state.typeFilter;
+    // The tile of the type the filter bar's Type chip keeps (a single "is" value).
+    const tierCond = state.filters.find(c => c.field === "tier");
+    const tf = tierCond && tierCond.op === "is" && tierCond.values.length === 1 ? tierCond.values[0] : "";
     const cards = [
       { key: "active", label: t("statActive"), mini: t("statActiveMini"), num: active.length,  fmt: intFmt, filter: "reset" },
       { key: "kg",     label: t("statTotal"),  mini: t("statTotalMini"),  num: totalW / 1000,  fmt: kgFmt,  filter: "reset" },
@@ -9878,14 +9910,14 @@ import { initScreenTools } from './ai/screen-tools.js';
         num: valueShown, fmt: valFmt, filter: "reset", info: t("statValueTip") },
       // Tier tiles read as the capability ladder, cheapest first: no chip →
       // chip → chip + online layer.
-      { key: "cloud",  label: '<span class="tag-cloud">TigerData</span>', mini: t("statCloudMini"), num: cloud.length, fmt: intFmt, filter: "TigerData", cloud: true },
+      { key: "cloud",  label: '<span class="tag-cloud">TigerData</span>', mini: t("statCloudMini"), num: cloud.length, fmt: intFmt, filter: "tigerdata", cloud: true },
       // TigerData+ — chipless like its neighbour, but tied to a real catalogue
       // product. Its own tile because that is the whole point of the tier: how much
       // of your digital-only stock the app can actually identify. It filters on its
       // own `protocol` value, so the two tiles light independently.
-      { key: "cloudplus", label: '<span class="tag-cloud tag-cloud-plus">TigerData+</span>', mini: t("statCloudPlusMini"), num: cloudPlus.length, fmt: intFmt, filter: "TigerData+", cloud: true },
-      { key: "diy",    label: '<span class="tag-diy">TigerTag</span>',        mini: t("statDiyMini"),   num: diy,          fmt: intFmt, filter: "TigerTag" },
-      { key: "plus",   label: '<span class="tag-plus">TigerTag+</span>',      mini: t("statPlusMini"),  num: plus.length,  fmt: intFmt, filter: "TigerTag+" },
+      { key: "cloudplus", label: '<span class="tag-cloud tag-cloud-plus">TigerData+</span>', mini: t("statCloudPlusMini"), num: cloudPlus.length, fmt: intFmt, filter: "tigerdataplus", cloud: true },
+      { key: "diy",    label: '<span class="tag-diy">TigerTag</span>',        mini: t("statDiyMini"),   num: diy,          fmt: intFmt, filter: "tigertag" },
+      { key: "plus",   label: '<span class="tag-plus">TigerTag+</span>',      mini: t("statPlusMini"),  num: plus.length,  fmt: intFmt, filter: "tigertagplus" },
     // A friend's stock weight and money value are theirs alone: their counts only.
     ].filter(c => !state.friendView || !FRIEND_HIDDEN_STATS.has(c.key));
     if (fromCache) cards.forEach(c => { if (typeof cachedStats[c.key] === "number") c.num = cachedStats[c.key]; });
@@ -10264,26 +10296,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       const q = state.search.toLowerCase();
       rows = rows.filter(r => _rowMatchesSearch(r, q));
     }
-    if (state.brandFilter) {
-      rows = rows.filter(r => String(r.brand) === state.brandFilter);
-    }
-    if (state.materialFilter) {
-      rows = rows.filter(r => String(r.material) === state.materialFilter);
-    }
-    if (state.typeFilter) {
-      rows = rows.filter(r => String(r.protocol) === state.typeFilter);
-    }
-    if (state.aspectFilter) {
-      const af = state.aspectFilter;
-      rows = rows.filter(r => String(r.aspect1) === af || String(r.aspect2) === af);
-    }
-    if (state.tagFilter) {
-      const tf = state.tagFilter.toLowerCase();
-      rows = rows.filter(r => (r.tags || []).some(t => String(t).toLowerCase() === tf));
-    }
-    if (state.flagFilter && !state.friendView) {
-      rows = rows.filter(r => !!_getProduct(r)?.[state.flagFilter]);
-    }
+    rows = rows.filter(r => _fbPass(r, "inv"));
     return sortRows(deduplicateTwins(rows));
   }
 
@@ -10307,113 +10320,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (mid != null) { const m = materialLabel(mid); if (m && m !== "-") return m; }
     return l.material || "";
   }
-  // Refresh quick-filter dropdowns (brand + material). In the inventory views they
-  // reflect the whole inventory; in the Products (favorites) views they reflect only
-  // the favorites. Preserves the user's current selection if it still exists.
+  // The filter bar's chips follow the data (labels, the tag list, the racks):
+  // redrawn in place when anything they show changed (signature guard in
+  // renderer/filter-bar.js). The name stays: every view render calls it.
   function populateQuickFilters() {
-    const faves = _isProductsMode(state.viewMode) ? _favesForFilters() : null;
-    populateOneQuickFilter({
-      sel: $("brandFilter"),
-      currentKey: "brandFilter",
-      labelKey: "filterAllBrands",
-      defaultLabel: "All brands",
-      shortKey: "filterShortBrand",
-      pickValue: r => r.brand,
-      rawValues: faves ? faves.map(p => p.label?.brand) : undefined,
-    });
-    populateOneQuickFilter({
-      sel: $("materialFilter"),
-      currentKey: "materialFilter",
-      labelKey: "filterAllMaterials",
-      defaultLabel: "All materials",
-      shortKey: "filterShortMaterial",
-      pickValue: r => r.material,
-      rawValues: faves ? faves.map(_faveMaterialRaw) : undefined,
-    });
-    populateOneQuickFilter({
-      sel: $("typeFilter"),
-      currentKey: "typeFilter",
-      labelKey: "filterAllVersions",
-      defaultLabel: "All versions",
-      shortKey: "filterShortProtocol",
-      pickValue: r => r.protocol,
-      // r.protocol is now "TigerData" for chipless (normalizeRow). This map is a
-      // safety net for any legacy "TigerCloud" value that might still surface.
-      labelOf: v => (v === "TigerCloud" ? "TigerData" : v),
-    });
-    populateAspectFilter(faves);
-    populateTagFilter(faves);
-  }
-  // Aspect filter — unlike the single-value filters, an aspect can come from
-  // EITHER Aspect 1 (finish: Matte, Silk, Carbon…) or Aspect 2 (colour
-  // arrangement: Bicolor, Tricolor, Rainbow…), so build the option list from the
-  // union of both and match a row if either equals the picked value. In the
-  // Products views the source is the favorites' labels (aspect + aspect2). The
-  // "empty" aspects ("-" and "None") are dropped — they're not worth filtering by.
-  function populateAspectFilter(faves) {
-    const sel = $("aspectFilter");
-    if (!sel) return;
-    const EMPTY = new Set(["", "-", "None"]);
-    const seen = new Map();   // lowercase → first-seen casing (case-insensitive dedup)
-    const add = v => { const s = String(v ?? "").trim(); if (EMPTY.has(s)) return; const k = s.toLowerCase(); if (!seen.has(k)) seen.set(k, s); };
-    if (faves) faves.forEach(p => { add(p.label?.aspect); add(p.label?.aspect2); });
-    else state.rows.filter(r => !r.deleted).forEach(r => { add(r.aspect1); add(r.aspect2); });
-    const values = Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-    const allLabel = t("filterAllAspects") || "All aspects";
-    sel.innerHTML = `<option value="" data-i18n="filterAllAspects">${esc(allLabel)}</option>`
-      + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-    const match = values.find(v => v.toLowerCase() === String(state.aspectFilter || "").toLowerCase());
-    if (match) { sel.value = match; state.aspectFilter = match; }
-    else { sel.value = ""; state.aspectFilter = ""; }
-    sel.classList.toggle("is-active", !!state.aspectFilter);
-    sel.classList.remove("hidden");
-    sel.dataset.cselShort = "filterShortAspect";
-    sel._cselRefresh?.();
-  }
-  // Tags are an array per spool/product, so the generic single-value populate
-  // doesn't fit — build the option list from the union of all tags. In the Products
-  // views the source is the favorites' tags (else the inventory's `_allTags`).
-  function populateTagFilter(faves) {
-    const sel = $("tagFilter");
-    if (!sel) return;
-    let values;
-    if (faves) {
-      const seen = new Map();   // lowercase → first-seen casing (case-insensitive dedup)
-      faves.forEach(p => (p.tags || []).forEach(tg => { const k = String(tg).toLowerCase(); if (!seen.has(k)) seen.set(k, String(tg)); }));
-      values = Array.from(seen.values()).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-    } else {
-      values = _allTags();   // sorted, case-insensitive-deduped union (inventory)
-    }
-    const allLabel = t("filterAllTags") || "All tags";
-    sel.innerHTML = `<option value="" data-i18n="filterAllTags">${esc(allLabel)}</option>`
-      + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-    const match = values.find(v => v.toLowerCase() === String(state.tagFilter || "").toLowerCase());
-    if (match) { sel.value = match; state.tagFilter = match; }
-    else { sel.value = ""; state.tagFilter = ""; }
-    sel.classList.toggle("is-active", !!state.tagFilter);
-    sel.classList.remove("hidden"); // may have been hidden by the printer view
-    sel.dataset.cselShort = "filterShortTag";
-    sel._cselRefresh?.();   // sync the custom dropdown's button label
-  }
-  // `labelOf` projects a stored value to what the user reads. The option's VALUE
-  // stays the stored string — it is what the filter compares against — so a tier
-  // can be renamed in the UI without orphaning the filter.
-  function populateOneQuickFilter({ sel, currentKey, labelKey, defaultLabel, pickValue, rawValues, shortKey, labelOf }) {
-    if (!sel) return;
-    sel.dataset.cselShort = shortKey || "";
-    // `rawValues` (Products views) overrides the default inventory source.
-    const raw = rawValues != null ? rawValues : state.rows.filter(r => !r.deleted).map(pickValue);
-    const values = Array.from(new Set(
-      raw.filter(v => v && v !== "-").map(v => String(v))
-    )).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-    const current = state[currentKey];
-    const allLabel = t(labelKey) || defaultLabel;
-    sel.innerHTML = `<option value="" data-i18n="${labelKey}">${esc(allLabel)}</option>`
-      + values.map(v => `<option value="${esc(v)}">${esc(labelOf ? labelOf(v) : v)}</option>`).join("");
-    if (current && values.includes(current)) sel.value = current;
-    else { sel.value = ""; state[currentKey] = ""; }
-    sel.classList.toggle("is-active", !!state[currentKey]);
-    sel._cselRefresh?.();   // sync the custom dropdown's button label
+    _fb?.render();
+    _fbSyncTiles();
   }
 
   // The nearest ancestor that actually CLIPS its overflow. An absolutely
@@ -11052,26 +10964,10 @@ import { initScreenTools } from './ai/screen-tools.js';
   // search box no longer flashes the whole grid.
   function applyInventoryFilter() {
     const q = (state.search || "").trim().toLowerCase();
-    const brand = state.brandFilter || "";
-    const material = state.materialFilter || "";
-    const type = state.typeFilter || "";
-    const aspect = state.aspectFilter || "";
-    const tag = (state.tagFilter || "").toLowerCase();
-    const flag = (!state.friendView && state.flagFilter) ? state.flagFilter : "";
     const hueOn = _hueFilterOn();
-    const noFilter = !q && !brand && !material && !type && !aspect && !tag && !flag && !hueOn;
+    const noFilter = !q && !state.filters.length && !hueOn;
     const rowsById = new Map(state.rows.map(r => [r.spoolId, r]));
-    const rowMatches = r => {
-      const matchSearch = !q || _rowMatchesSearch(r, q);
-      const matchBrand = !brand || String(r.brand) === brand;
-      const matchMaterial = !material || String(r.material) === material;
-      const matchType = !type || String(r.protocol) === type;
-      const matchAspect = !aspect || String(r.aspect1) === aspect || String(r.aspect2) === aspect;
-      const matchTag = !tag || (r.tags || []).some(t => String(t).toLowerCase() === tag);
-      const matchFlag = !flag || !!_getProduct(r)?.[flag];
-      const matchHue = !hueOn || _rowMatchesHue(r);
-      return matchSearch && matchBrand && matchMaterial && matchType && matchAspect && matchTag && matchFlag && matchHue;
-    };
+    const rowMatches = r => (!q || _rowMatchesSearch(r, q)) && _fbPass(r, "inv") && (!hueOn || _rowMatchesHue(r));
     let visible = 0;
 
     // ── Table rows are group-aware ──────────────────────────────────────────
@@ -12134,7 +12030,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // when the product has no doc yet: attaching a link is the one entry point that
     // can fire on a never-favorited, never-priced product, and without the record the
     // caller's immediate re-render would read back nothing and look like a failed save.
-    const _rec = state.products[hash] || (state.products[hash] = { key: _spoolProductKey(r), label: _productLabel(r) });
+    const _rec = state.products[hash] || (state.products[hash] = { id: hash, key: _spoolProductKey(r), label: _productLabel(r) });
     if (_rec) {
       if ("liked" in patch)    _rec.liked = !!patch.liked;
       if ("favorite" in patch) _rec.favorite = !!patch.favorite;
@@ -13060,7 +12956,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Optional second sub-line (Products grid: Series for TigerTag+, else Aspect).
     const subExtra = opts.subExtraText ? `<div class="card-sub card-sub--extra">${esc(opts.subExtraText)}</div>` : "";
     return `
-      <div class="card-img-wrap"><span class="sel-check" aria-hidden="true"></span>${imgHtml}${tlBadges}${tdBadge}${chipDot}${_productBadgesHTML(r)}</div>
+      <div class="card-img-wrap"><span class="sel-check" aria-hidden="true"></span>${imgHtml}${tlBadges}${tdBadge}${opts.imgBadgeHTML || ""}${chipDot}${_productBadgesHTML(r)}</div>
       <div class="card-body">
         <div class="card-name">${swatch}${esc(nameText)}</div>
         <div class="card-sub">${esc(subText)}</div>
@@ -13598,6 +13494,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // friend→own — so the previous user's open spool never bleeds into the next view.
   function _closeAllSideCards() {
     if ($("qrScanPanel")?.dataset.mode === "find") closeQrScanPanel();   // the search bar's QR card
+    closeColorSearch();                                                   // the search bar's colour card
     closeDetail();        // also clears state.selected + any queued scan-open
     _closeGroupPanel();
     closeProductCard();   // light product "business card"
@@ -14408,9 +14305,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     // What the "+" will do here — Material, Device or Rack — said in its name.
     _syncSearchAddLabel();
     _syncSearchPlaceholder(); // materials ↔ printer search hint
-    // Right-of-search selectors: in the printer grid/table swap them to printer
-    // brand + tag (materials-only Material / Version selects hidden via the body
-    // class); materials views restore the full set on their next render.
+    // The printer grid/table filter through their own chips (_fbScope "prn");
+    // the body class hides what only spools have (the colour bars).
     const _printerFilters = _isPrinterMode(mode) && mode !== "printer-cam";
     document.body.classList.toggle("printer-filters", _printerFilters);
     /* The camera wall drops the printer FILTERS (there is nothing to filter on a
@@ -14420,7 +14316,6 @@ import { initScreenTools } from './ai/screen-tools.js';
        no spools. The wall says so itself now, and the two concerns stop sharing
        a switch. */
     document.body.classList.toggle("cam-wall-view", mode === "printer-cam");
-    if (_printerFilters) populatePrinterFilters();
     // Products views reuse the search + Brand / Material / Tag / ❤ / ★ selectors,
     // but hide the Version filter (no per-version notion for a product identity).
     document.body.classList.toggle("products-filters", _isProductsMode(mode) || _isListsMode(mode));
@@ -14428,6 +14323,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Search views browse the OFFICIAL catalogue, not the user's stock, so every
     // stock-derived selector beside the search bar is meaningless there.
     document.body.classList.toggle("catalog-filters", _isCatalogMode(mode));
+    if (!_isCatalogMode(mode)) closeColorSearch();   // the colour search is the catalogue's
     // Cam view: the search bar + Scan/Add buttons are useless there, so hide
     // them (via #card-inv.is-cam-view) and surface the cam-wall "Detach" button
     // in the actions slot instead.
@@ -15176,31 +15072,16 @@ import { initScreenTools } from './ai/screen-tools.js';
   $("btnViewPrinter")?.addEventListener("click",      () => setViewMode("printer"));
   $("btnViewPrinterTable")?.addEventListener("click", () => setViewMode("printer-table"));
   $("btnViewCam")?.addEventListener("click",          () => setViewMode("printer-cam"));
-  // Changing the brand re-scopes Series, so its previous value must go.
-  $("cvBrand")?.addEventListener("change", () => {
-    const s = $("cvSeries"); if (s) s.value = "";
-    _catViewSearch();
-    const id = _catByName("brand", $("cvBrand").value, ["name"]);
-    if (id) questBump(`brand_${id}`);
-  });
-  $("cvMaterial")?.addEventListener("change", () => {
-    _catViewSearch();
-    const id = _catMaterialId($("cvMaterial").value);
-    if (id) questBump(`material_${id}`);
-  });
-  ["cvType", "cvSeries", "cvSort"].forEach(id =>
-    $(id)?.addEventListener("change", _catViewSearch));
+  $("cvSort")?.addEventListener("change", _catViewSearch);
   $("btnViewCatalogGrid")?.addEventListener("click",  () => setViewMode("catalogGrid"));
   $("btnViewCatalogTable")?.addEventListener("click", () => setViewMode("catalogTable"));
   // Delegated on the stable container — cards/rows are rebuilt on every query.
   $("catalogViewBody")?.addEventListener("click", e => {
     if (e.target.closest?.("[data-cv-create]")) { openAddProductPanel(); return; }
     if (e.target.closest?.("[data-cv-clear-filters]")) {
-      ["cvType", "cvBrand", "cvMaterial", "cvSeries"].forEach(id => {
-        const sel = $(id);
-        if (sel) { sel.value = ""; sel.classList.remove("is-active"); sel._cselRefresh?.(); }
-      });
-      _catViewSearch();
+      state.filters = [];
+      _catColorSet(null, { search: false });
+      _onFilterChange();
       return;
     }
     const el = e.target.closest?.(".cv-card, .cv-row");
@@ -15280,7 +15161,6 @@ import { initScreenTools } from './ai/screen-tools.js';
   const _bootPrinterFilters = _isPrinterMode(state.viewMode) && state.viewMode !== "printer-cam";
   document.body.classList.toggle("cam-wall-view", state.viewMode === "printer-cam");
   document.body.classList.toggle("printer-filters", _bootPrinterFilters);
-  if (_bootPrinterFilters) populatePrinterFilters();
   document.body.classList.toggle("products-filters", _isProductsMode(state.viewMode));
   // The "Select" button shows only on button-select views (grid + printer) —
   // apply it on boot too (setViewMode, which normally does, isn't called on the
@@ -15310,30 +15190,253 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!btn) return;
     btn.hidden = !value || !value.length;
   }
+  /* ── Filter bar: fields, matching, options ───────────────────────────────
+     The ONE search bar holds the typed text plus filter chips
+     (renderer/filter-bar.js, Shopify admin's pattern). Each field reads the
+     IDs a record carries (id_brand, id_material, id_aspect1/2, data1, rack id…)
+     and the conditions compare those, never a label. Three scopes, one per
+     view family:
+       inv  — the spools (grid, table, Storage)
+       prod — product identities (Products views, Lists)
+       cat  — the catalogue (Search views)
+       prn  — the printers (grid / table), with their own list `state.printerFilters`
+     `keys[scope](record)` gives the record's values for that field (several =
+     the record answers to any of them: a spool's two aspects, its tags); a
+     range field gives one number. */
+  const FB_TIERS = { tigertag: "TigerTag", tigertagplus: "TigerTag+", tigerdata: "TigerData", tigerdataplus: "TigerData+" };
+  const FB_EMPTY_ASPECTS = new Set(["0", "255"]);   // "-" and "None": nothing to filter by
+  function _fbScope(mode = state.viewMode) {
+    if (mode === "printer-cam" || _isProgressMode(mode)) return null;
+    if (_isPrinterMode(mode)) return "prn";
+    if (_isCatalogMode(mode)) return "cat";
+    if (_isProductsMode(mode) || _isListsMode(mode)) return "prod";
+    return "inv";
+  }
+  function _rowTier(r) {
+    return r.isCloud ? (r.isCloudPlus ? "tigerdataplus" : "tigerdata") : r.isPlus ? "tigertagplus" : "tigertag";
+  }
+  // A product identity's IDs: its chip seed when it has one, else its label
+  // resolved against the reference tables (older products carry only names).
+  const _prodIdCache = new WeakMap();
+  function _prodIds(p) {
+    let v = _prodIdCache.get(p);
+    if (!v) {
+      const s = p?.cloudSeed || {}, l = p?.label || {};
+      v = {
+        brand: s.id_brand || _catByName("brand", l.brand, ["name"]) || null,
+        material: s.id_material || _catMaterialId(l.materialRaw || l.material) || null,
+        aspects: [s.id_aspect1, s.id_aspect2],
+      };
+      _prodIdCache.set(p, v);
+    }
+    return v;
+  }
+  // A catalogue entry's brand: the reference-table id (99.9 % of entries
+  // resolve); a name the table does not know keeps its own key.
+  const _catBrandCache = new WeakMap();
+  function _catBrandKey(it) {
+    let k = _catBrandCache.get(it);
+    if (k == null) {
+      const id = _catByName("brand", it.brand, ["name"]);
+      k = id ? String(id) : (it.brand ? "n:" + it.brand : "");
+      _catBrandCache.set(it, k);
+    }
+    return k;
+  }
+  const _fbTagCase = new Map();   // lowercase tag → the casing shown
+  const _lower = v => String(v).toLowerCase();
+  const FB_FIELDS = [
+    { id: "brand", key: "thBrand", neg: true,
+      keys: { inv: r => [r.brandId], prod: p => [_prodIds(p).brand], cat: it => [_catBrandKey(it)], prn: p => [p.brand] },
+      label: (v, scope) => scope === "prn" ? (PRINTER_BRAND_META[v]?.label || v)
+                         : v.startsWith("n:") ? v.slice(2) : brandName(+v) },
+    { id: "model", key: "thModel", neg: true,
+      keys: { prn: p => [p.printerModelId != null && p.printerModelId !== "" ? `${p.brand}|${p.printerModelId}` : null] },
+      label: v => { const i = v.indexOf("|"); return printerModelName(v.slice(0, i), v.slice(i + 1)) || ""; } },
+    { id: "state", key: "filterShortState", order: ["online", "offline"],
+      keys: { prn: p => [_isPrinterOnline(p) ? "online" : "offline"] },
+      label: v => t(v === "online" ? "snapStatusOnline" : "snapStatusOffline") },
+    { id: "series", key: "thSeries",
+      keys: { cat: it => [it._series ? _catBrandKey(it) + "|" + it._series : null] },
+      label: v => { const [b, s] = [v.slice(0, v.indexOf("|")), v.slice(v.indexOf("|") + 1)];
+                    return `${s} · ${b.startsWith("n:") ? b.slice(2) : brandName(+b)}`; } },
+    { id: "material", key: "thMaterial", neg: true,
+      // The catalogue filters by material FAMILY (`material_type`): brands file
+      // the same spool under "PLA" or "PLA Silk" (#217).
+      keys: { inv: r => [r.materialId], prod: p => [_prodIds(p).material], cat: it => [_catFamily(it)] },
+      label: (v, scope) => scope === "cat" ? v : (materialFull(+v)?.label || "") },
+    { id: "aspect", key: "filterShortAspect", neg: true, skip: FB_EMPTY_ASPECTS,
+      keys: { inv: r => [r.aspect1Id, r.aspect2Id], prod: p => _prodIds(p).aspects,
+              cat: it => [it.RFID_Data?.id_aspect1, it.RFID_Data?.id_aspect2] },
+      label: v => aspectLabel(+v) || "" },
+    { id: "tier", key: "thType", neg: true, order: Object.keys(FB_TIERS),
+      keys: { inv: r => [_rowTier(r)] }, label: v => FB_TIERS[v] || v },
+    { id: "ptype", key: "thType",
+      keys: { cat: it => [it.product_type] }, label: v => v },
+    { id: "diameter", key: "detDiameter",
+      keys: { inv: r => [r.diameterId] }, label: v => diamLabel(+v) || "" },
+    { id: "tag", key: "filterShortTag", neg: true,
+      keys: { inv: r => (r.tags || []).map(_lower), prod: p => (p.tags || []).map(_lower), prn: p => (p.tags || []).map(_lower) },
+      label: v => _fbTagCase.get(v) || v },
+    { id: "list", key: "fbList", when: () => !state.friendView,
+      keys: { inv: r => { const p = _getProduct(r); return [p?.liked && "liked", p?.favorite && "favorite"]; },
+              prod: p => [p.liked && "liked", p.favorite && "favorite"] },
+      label: v => t(v === "liked" ? "productLike" : "productFavorite") },
+    { id: "weight", key: "thWeight", kind: "range", unit: "g",
+      keys: { inv: r => r.weightAvailable } },
+    { id: "rack", key: "thRack", neg: true, when: () => (state.racks || []).length > 0,
+      keys: { inv: r => [r.rackId || "none"] },
+      label: v => v === "none" ? t("fbNotStored") : ((state.racks || []).find(x => x.id === v)?.name || v) },
+  ];
+  const FB_BY_ID = Object.fromEntries(FB_FIELDS.map(f => [f.id, f]));
+  // The chips of a scope: the printers keep their own, so a brand picked for the
+  // spools never filters the printers (their brands are other values).
+  const _fbConds = (scope = _fbScope()) => scope === "prn" ? state.printerFilters : state.filters;
+  const _fbKeys = (f, scope, x) =>
+    (f.keys[scope]?.(x) || []).filter(v => v != null && v !== "" && v !== false && v !== 0).map(String);
+  // Does a record pass every condition (except `skip`, for the facet counts)?
+  function _fbPass(x, scope, skip = null, conds = state.filters) {
+    for (const c of conds) {
+      if (c.field === skip) continue;
+      const f = FB_BY_ID[c.field];
+      if (!f?.keys[scope]) continue;
+      if (f.kind === "range") {
+        const v = f.keys[scope](x);
+        if (v == null || v === "" || !Number.isFinite(Number(v))) return false;
+        const [lo, hi] = c.values;
+        if ((lo != null && Number(v) < lo) || (hi != null && Number(v) > hi)) return false;
+        continue;
+      }
+      const hit = _fbKeys(f, scope, x).some(k => c.values.includes(k));
+      if (c.op === "isNot" ? hit : !hit) return false;
+    }
+    return true;
+  }
+  // What a field's menu counts over: the records the typed search, the colour
+  // bars / colour search and the OTHER chips leave (so a count is what you get).
+  function _fbBase(scope) {
+    const q = (state.search || "").trim().toLowerCase();
+    if (scope === "inv") return state.rows.filter(r => !r.deleted && (!q || _rowMatchesSearch(r, q)) && _rowMatchesHue(r));
+    if (scope === "prod") {
+      const src = _isListsMode(state.viewMode) ? _listItems(_selectedList()) : _favesForFilters();
+      return src.filter(p => _prodTextPass(p, q));
+    }
+    if (scope === "cat") return _catColorApply(_catalogFilter($("searchInv")?.value, "", ""));
+    if (scope === "prn") return (state.printers || []).filter(p => _printerMatchesSearch(p, q));
+    return [];
+  }
+  function _fbOptions(f, scope) {
+    const m = new Map();
+    const conds = _fbConds(scope);
+    for (const x of _fbBase(scope)) {
+      if (!_fbPass(x, scope, f.id, conds)) continue;
+      for (const k of new Set(_fbKeys(f, scope, x))) if (!f.skip?.has(k)) m.set(k, (m.get(k) || 0) + 1);
+      if (f.id === "tag") (x.tags || []).forEach(tg => { const k = _lower(tg); if (!_fbTagCase.has(k)) _fbTagCase.set(k, String(tg)); });
+    }
+    // A picked value stays listed (at 0) so it can be unticked.
+    conds.find(c => c.field === f.id)?.values.forEach(v => { if (!m.has(v)) m.set(v, 0); });
+    // A value with no name (an ID the bundled tables do not know yet) or a
+    // placeholder one ("-", the reference table's "unknown" entry) says nothing
+    // in a list of names.
+    const opts = [...m].map(([value, count]) => ({ value, count, label: f.label(value, scope) }))
+      .filter(o => o.label && o.label !== "-");
+    if (f.order) opts.sort((a, b) => f.order.indexOf(a.value) - f.order.indexOf(b.value));
+    else opts.sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { sensitivity: "base" }));
+    return opts;
+  }
+  function _fbFieldDefs() {
+    const scope = _fbScope();
+    if (!scope) return [];
+    return FB_FIELDS.filter(f => f.keys[scope] && (!f.when || f.when())).map(f => ({
+      id: f.id, label: t(f.key), kind: f.kind || "values", neg: !!f.neg, unit: f.unit,
+      labelOf: v => f.label(v, scope), options: () => _fbOptions(f, scope),
+    }));
+  }
+  // The chips the bar shows but other controls edit: the colour bars and the
+  // catalogue's colour search.
+  function _fbExtraChips() {
+    const out = [];
+    const c = state.catColor;
+    if (c && _fbScope() === "cat") out.push({
+      key: "color", text: `${c.ral || c.hex.toUpperCase()} · ΔE ≤ ${c.max}`, swatch: colorBg({ colorList: [c.hex] }),
+      onEdit: () => openColorSearch(), onRemove: () => _catColorSet(null),
+    });
+    const f = _hueFilter();
+    if (_hueFilterOn(f) && _fbScope() && _fbScope() !== "prn") {
+      const w = f.axis === "lum" ? f.lum : f.hue;
+      const swatch = f.axis === "lum"
+        ? `linear-gradient(90deg, hsl(0 0% ${100 - w.lo}%), hsl(0 0% ${Math.max(0, 100 - w.lo - w.width)}%))`
+        : `linear-gradient(90deg, hsl(${w.lo} 85% 55%), hsl(${(w.lo + w.width / 2) % 360} 85% 55%), hsl(${(w.lo + w.width) % 360} 85% 55%))`;
+      out.push({
+        key: "hue", text: t("rackHue"), swatch,
+        onRemove: () => {
+          Object.assign(f.hue, HUE_DEFAULT); Object.assign(f.lum, LUM_DEFAULT); f.axis = "hue";
+          _hueViewsRedraw?.();
+          _onFilterChange();
+        },
+      });
+    }
+    return out;
+  }
+  // The header's type tiles light up with the Type chip they set.
+  function _fbSyncTiles() {
+    const c = state.filters.find(x => x.field === "tier");
+    const tf = c && c.op === "is" && c.values.length === 1 ? c.values[0] : "";
+    document.querySelectorAll("#sbStats .sb-stat[data-filter]").forEach(el =>
+      el.classList.toggle("is-active", !!tf && el.dataset.filter === tf));
+  }
+  function _fbSetConds(list) {
+    if (_fbScope() === "prn") {
+      state.printerFilters = list;
+      _fbTrophies(list);
+      _onFilterChange();
+      return;
+    }
+    const before = state.filters;
+    state.filters = list;
+    // Quests count the brands and materials looked up in the catalogue.
+    if (_fbScope() === "cat") for (const c of list) {
+      if (c.op !== "is" || !["brand", "material"].includes(c.field)) continue;
+      const old = before.find(x => x.field === c.field)?.values || [];
+      for (const v of c.values) if (!old.includes(v)) {
+        const id = c.field === "brand" ? (v.startsWith("n:") ? 0 : +v) : _catMaterialId(v);
+        if (id) questBump(`${c.field}_${id}`);
+      }
+    }
+    _fbTrophies(list);
+    _onFilterChange();
+  }
+  /* The filter chips' trophies (backend trophyRules APP_REPORTED, asked once): a
+     first chip, 3 / 5 / 8 chips at once, an "is not", a weight range with both
+     ends, and (hidden) 3 chips or more that leave none of the inventory's spools. */
+  const FB_STACK_TROPHIES = [[3, "filterStack3"], [5, "filterStack5"], [8, "filterStack8"]];
+  function _fbTrophies(list) {
+    if (!list.length) return;
+    _appTrophy("filterFirst");
+    for (const [n, id] of FB_STACK_TROPHIES) if (list.length >= n) _appTrophy(id);
+    if (list.some(c => c.op === "isNot" && c.values.length)) _appTrophy("filterIsNot");
+    if (list.some(c => c.field === "weight" && c.values[0] != null && c.values[1] != null)) _appTrophy("filterWeightRange");
+    if (list.length >= 3 && _fbScope() === "inv" && !state.friendView) {
+      const rows = state.rows.filter(r => !r.deleted);
+      if (rows.length && !rows.some(r => _fbPass(r, "inv", null, list))) _appTrophy("filterNothing");
+    }
+  }
+  let _fb = null;
+  let _hueViewsRedraw = null;   // set where the colour bars are wired
+
   // Reset the search bar + all quick-filters when switching instance
   // (account switch or friend view). Called before rendering the new view
   // so the first render is always unfiltered.
   function _clearSearchFilters() {
     state.search        = "";
-    state.brandFilter    = "";
-    state.materialFilter = "";
-    state.typeFilter     = "";
-    state.aspectFilter   = "";
-    state.tagFilter      = "";
-    state.flagFilter     = "";
-    state.printerBrandFilter  = "";
-    state.printerStatusFilter = "";
-    state.printerTagFilter    = "";
+    state.filters        = [];
+    state.printerFilters = [];
     const si = $("searchInv");
     if (si) { si.value = ""; _refreshSearchClearVisibility(""); }
-    ["brandFilter", "materialFilter", "aspectFilter", "typeFilter", "tagFilter"].forEach(id => {
-      const sel = $(id);
-      // Reset the native select AND its custom dropdown button (_enhanceSelect) —
-      // otherwise the styled `.csel-btn` keeps showing the old filter label.
-      if (sel) { sel.value = ""; sel.classList.remove("is-active"); sel._cselRefresh?.(); }
-    });
-    $("wishFilter")?.classList.remove("is-active");
-    $("likeFilter")?.classList.remove("is-active");
+    // The catalogue's colour search is one of the chips: it goes with them.
+    if (state.catColor) _catColorSet(null, { search: false });
+    _fb?.close();
+    populateQuickFilters();
   }
 
   // Skip the full DOM rebuild on filter changes and just toggle `.hidden`
@@ -15345,15 +15448,12 @@ import { initScreenTools } from './ai/screen-tools.js';
   /* Is anything actually filtering right now? Drives the reset button's state:
      it should look usable only while it has something to undo. */
   function _anyFilterActive() {
-    if (state.search || state.brandFilter || state.materialFilter || state.typeFilter
-        || state.aspectFilter || state.tagFilter || state.flagFilter || _hueFilterOn()) return true;
-    // The button lives on the search row now, so it is on screen in the printer
-    // views too — where the filters it clears are the printer ones.
-    if (state.printerBrandFilter || state.printerStatusFilter || state.printerTagFilter) return true;
-    // The Search views browse the catalogue and carry their own selectors.
-    if (_isCatalogMode(state.viewMode))
-      return ["cvType", "cvBrand", "cvMaterial", "cvSeries"].some(id => $(id)?.value);
-    return false;
+    // The button lives on the search row, so it is on screen in the printer views
+    // too — where only the search and the printer chips filter (the colour bars
+    // and the spool chips are not theirs).
+    if (_fbScope() === "prn") return !!state.search || state.printerFilters.length > 0;
+    if (state.search || state.filters.length || _hueFilterOn()) return true;
+    return _isCatalogMode(state.viewMode) && !!state.catColor;
   }
   function _syncFilterReset() {
     $("rvHueReset")?.classList.toggle("is-armed", _anyFilterActive());
@@ -15371,6 +15471,7 @@ import { initScreenTools } from './ai/screen-tools.js';
 
   function _onFilterChange() {
     _syncFilterReset();
+    populateQuickFilters();
     if (state.viewMode === "rack") { applyRackSearchDim(); return; }
     // Search views: the query is the catalogue query — re-run our own engine
     // rather than filtering spool rows that aren't on screen.
@@ -15469,6 +15570,129 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!$("qrScanPanel")?.classList.contains("open")) return;
     $("qrScanPanel").classList.remove("open");
     _syncPanels();
+  }
+
+  /* ── Colour search (#colorSearchPanel, renderer/color-search.js) ─────────────
+     The Search views' colour finder, the same matching as tigersystem.io's: a HEX,
+     a RAL Classic code or a point of a photo, ranked by CIEDE2000 and kept within
+     a ΔE ceiling. `state.catColor` = { mode, hex, ral, max, multi, lab } | null;
+     _catViewSearch runs it after the other filters (_catColorApply). The card
+     stands alone at the right edge and gives way to any other side card. */
+  let _csr = null, _csrLang = "";
+  $("searchColor")?.addEventListener("click", () => {
+    if ($("colorSearchPanel")?.classList.contains("open")) { closeColorSearch(); return; }
+    openColorSearch();
+  });
+  $("colorSearchPanelClose")?.addEventListener("click", () => closeColorSearch());
+  $("colorSearchCloseTab")?.addEventListener("click", () => closeColorSearch());
+  function openColorSearch() {
+    const panel = $("colorSearchPanel"), root = $("colorSearchRoot");
+    if (!panel || !root) return;
+    _closeAllSideCards();
+    // Built once and kept (an opened photo stays), rebuilt only for a new language.
+    if (!_csr || _csrLang !== state.lang) {
+      _csrLang = state.lang;
+      _csr = mountColorSearch(root, {
+        t, esc, openColorPop,
+        swatchBg: hex => colorBg({ colorList: [hex] }),
+        value: state.catColor || {},
+        onChange: v => _catColorSet(v),
+      });
+    } else {
+      _csr.setValue(state.catColor || { hex: null, ral: "" });
+    }
+    panel.classList.add("open");
+    _csrWatchOthers(true);
+    _syncPanels();
+  }
+  function closeColorSearch() {
+    _csrWatchOthers(false);
+    const panel = $("colorSearchPanel");
+    if (!panel?.classList.contains("open")) return;
+    panel.classList.remove("open");
+    _syncPanels();
+  }
+  // Another side card opening (a result's product card…) takes the right edge.
+  let _csrOthersObs = null;
+  function _csrWatchOthers(on) {
+    _csrOthersObs?.disconnect();
+    _csrOthersObs = null;
+    if (!on) return;
+    _csrOthersObs = new MutationObserver(recs => {
+      if (recs.some(r => r.target.classList.contains("open") && !r.oldValue?.split(" ").includes("open"))) closeColorSearch();
+    });
+    document.querySelectorAll(".detail-panel").forEach(el => {
+      if (el.id !== "colorSearchPanel") _csrOthersObs.observe(el, { attributes: true, attributeFilter: ["class"], attributeOldValue: true });
+    });
+  }
+  function _catColorSet(v, { search = true } = {}) {
+    state.catColor = v && v.hex ? { ...v, lab: hexToLab(v.hex) } : null;
+    if (!state.catColor) _csr?.setValue({ hex: null, ral: "" });
+    // Trophies (backend trophyRules APP_REPORTED): a first colour search, a RAL, a photo point.
+    if (state.catColor) {
+      _appTrophy("colorSearchFirst");
+      if (state.catColor.ral) _appTrophy("colorSearchRal");
+      if (state.catColor.mode === "photo") _appTrophy("colorSearchPhoto");
+    }
+    _catColorChipSync();
+    if (search && _isCatalogMode(state.viewMode)) _onFilterChange();
+  }
+  // The active colour is one of the filter bar's chips (_fbExtraChips): a click
+  // reopens the colour card, its cross removes it.
+  function _catColorChipSync() {
+    $("searchColor")?.classList.toggle("is-on", !!state.catColor);
+    populateQuickFilters();
+  }
+  // Each product's colours in CIELAB, computed once per catalogue item.
+  const _catLabCache = new WeakMap();
+  function _catLabs(it) {
+    let l = _catLabCache.get(it);
+    if (!l) {
+      l = _catColors(it).map(_csNormHex).filter(Boolean).map(hexToLab);
+      _catLabCache.set(it, l);
+    }
+    return l;
+  }
+  // The RAL codes a brand declared, one per colour (`rals`), or the first colour's (`ral`).
+  function _catRals(it) {
+    const list = Array.isArray(it.rals) && it.rals.length ? it.rals : [it.ral];
+    return list.map(c => ralColor(c)?.code || "");
+  }
+  // item → { de, declared } for the hits of the current colour search.
+  const _catColorDE = new Map();
+  function _catColorApply(hits) {
+    _catColorDE.clear();
+    const c = state.catColor;
+    if (!c) return hits;
+    const out = [];
+    for (const it of hits) {
+      const labs = _catLabs(it);
+      if (!labs.length) continue;
+      const declared = !!c.ral && _catRals(it).includes(c.ral);
+      // A rainbow is not "a blue filament": multicolour on request, or when its
+      // brand declared the RAL searched for (as on the site).
+      if (!c.multi && labs.length > 1 && !declared) continue;
+      let de = Infinity;
+      for (const l of labs) { const d = deltaE2000(c.lab, l); if (d < de) de = d; }
+      if (!declared && de > c.max) continue;
+      out.push({ it, de, declared });
+    }
+    out.sort((a, z) => Number(z.declared) - Number(a.declared) || a.de - z.de);
+    // A hit the eye cannot tell from the colour searched (ΔE under 1) earns a trophy.
+    if (out.some(o => o.de < 1)) _appTrophy("colorSearchExact");
+    for (const o of out) _catColorDE.set(o.it, o);
+    return out.map(o => o.it);
+  }
+  // "ΔE 1.4" on a result, tinted by the site's bands; a declared RAL says so.
+  // While a colour search is on, each hit's distance as a badge at the bottom
+  // left of its picture — the TD badge's place and look (`cls`: card-td-badge on
+  // a card, thumb-td-badge on a table thumbnail), a dot in the band's colour.
+  function _catDeHTML(it, cls = "card-td-badge") {
+    const m = _catColorDE.get(it);
+    if (!m) return "";
+    const band = m.declared ? "declared" : deltaBand(m.de);
+    const label = m.declared ? t("colorSearchDeclared", { code: state.catColor?.ral || "" }) : t(`colorSearchBand_${band}`);
+    return `<span class="${cls} cv-de" data-band="${band}" aria-label="${esc(label)}">${m.declared ? esc(state.catColor?.ral || "") : `ΔE ${m.de.toFixed(1)}`}</span>`;
   }
   /* ── Add with TigerTag (#tagAddPanel, the new-chip card's pane) ───────────────
      The only way a scanned chip enters the inventory (founder, 2026-11-13). A
@@ -15758,6 +15982,106 @@ import { initScreenTools } from './ai/screen-tools.js';
     _onFilterChange();
     inp.focus();
   });
+
+  /* ── Barcode scanner, anywhere in the app ──────────────────────────────────
+     A USB barcode / QR scanner is a keyboard: it types the code in a burst and
+     ends it with Enter (some models: Tab). Typed into the search bar it is
+     already a search (`_catCodeish`, exact match first); typed while NO field
+     has the focus it used to go nowhere. A burst of quick keys outside any
+     editable field, closed by Enter/Tab, is now taken as a scan and handled by
+     `_onCodeScanned`. A field that has the focus keeps every key: a code
+     scanned INTO a field is meant for that field. */
+  const SCAN_MAX_GAP_MS = 45;   // a scanner types a character every 5-30 ms; people take 80+
+  const SCAN_MIN_LEN = 6;       // shorter than any EAN-8 / SKU — see _catCodeish
+  let _scanBuf = "", _scanLastAt = 0;
+  // A digit is read from the KEY pressed, not the character it produced: a
+  // scanner set to the US layout on a French (AZERTY) computer presses the
+  // digit keys without Shift, which type "&é\"'(-è_çà" there — every EAN
+  // would come out as punctuation. `e.code` names the physical key whatever
+  // the layout, so the digits are right either way. Other characters keep
+  // `e.key` (correct when the scanner's layout matches the computer's).
+  const _scanChar = e => {
+    const m = /^(?:Digit|Numpad)(\d)$/.exec(e.code || "");
+    if (m) return m[1];
+    return e.key.length === 1 ? e.key : "";
+  };
+  const _isEditable = el => !!el && (el.isContentEditable
+    || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+  document.addEventListener("keydown", e => {
+    if (e.ctrlKey || e.metaKey || e.altKey || _isEditable(e.target)) { _scanBuf = ""; return; }
+    const now = performance.now();
+    if (now - _scanLastAt > SCAN_MAX_GAP_MS) _scanBuf = "";
+    _scanLastAt = now;
+    if (e.key === "Enter" || e.key === "Tab") {
+      const code = _scanBuf.trim();
+      _scanBuf = "";
+      if (code.length < SCAN_MIN_LEN) return;
+      // The burst is a scan: the Enter must not also press the focused button.
+      e.preventDefault();
+      e.stopPropagation();
+      _onCodeScanned(code).catch(err => console.warn("[scan]", err?.message));
+      return;
+    }
+    _scanBuf += _scanChar(e);
+  }, true);
+
+  // The catalogue products a scanned code names exactly: barcode, SKU or
+  // catalogue id. A QR code usually carries a link: the codes are looked for
+  // inside it too (every run of 8-14 digits, then the last path segment).
+  async function _catalogProductsForCode(code) {
+    if (!_catalogIndex.length) _catalogLoadCache();
+    if (!_catalogIndex.length) await _catalogLoadBundled();
+    const exact = raw => _catalogIndex.filter(e =>
+      [e.it.barcode, e.it.sku, e.it.id].some(v => String(v || "").toLowerCase() === raw)).map(e => e.it);
+    const raw = code.toLowerCase();
+    let hits = exact(raw);
+    if (hits.length || !/^https?:\/\//.test(raw)) return { hits, query: code };
+    const tries = [...(raw.match(/\d{8,14}/g) || [])];
+    const last = raw.replace(/[?#].*$/, "").split("/").filter(Boolean).pop();
+    if (last) tries.push(decodeURIComponent(last));
+    for (const tr of tries) {
+      hits = exact(tr);
+      if (hits.length) return { hits, query: tr };
+    }
+    return { hits: [], query: code };
+  }
+
+  /* A scan opens the product it names, ready to add: the Catalogue view,
+     searched on that code, with the product selected — so its card (stock
+     already held, "+ Inventory", wishlist, cart) is the one the Catalogue gives.
+     A spool QR link (qr.tigertag.io) opens that spool, as in the search bar.
+     A code the catalogue does not know is still searched (the inventory may
+     hold it), and said so. */
+  async function _onCodeScanned(code) {
+    const link = /qr\.tigertag\.io\//i.test(code) ? parseQrLink(code) : null;
+    if (link?.kind === "spool") { _spoolLinkArrived(link); return; }
+    const { hits, query } = await _catalogProductsForCode(code);
+    const inp = $("searchInv");
+    const showSearch = () => {
+      if (inp) inp.value = query;
+      state.search = query;
+      state.locateUid = null;
+      _refreshSearchClearVisibility(query);
+      _onFilterChange();
+    };
+    // The card of a product scanned before would now describe the wrong box.
+    if (hits.length !== 1 && $("productCardPanel")?.classList.contains("open")) closeProductCard();
+    if (!hits.length) {
+      showSearch();
+      _flashMessage(t("scanUnknownCode", { code: query }));
+      return;
+    }
+    if (!_isCatalogMode(state.viewMode)) setViewMode("catalogGrid");
+    showSearch();
+    if (hits.length > 1) return;        // several products share the code: the view lists them
+    const it = hits[0];
+    // Select it outright (not _catViewSelect, which toggles): scanning the same
+    // box twice must keep its card open, not close it.
+    _catViewSelectedId = String(it.id);
+    requestAnimationFrame(() => _catViewPaintSelection());
+    _catViewProductCard(it).catch(e => console.warn("[scan] product card:", e?.message));
+  }
+
   // Does the current search leave nothing on screen? Read from the SAME signal each
   // view already computes rather than re-deriving the predicate, so this can never
   // drift from what the user is actually looking at.
@@ -15809,78 +16133,38 @@ import { initScreenTools } from './ai/screen-tools.js';
   // Initial sync — covers the case where the input was pre-populated
   // by a previous render or autofill (rare but possible).
   _refreshSearchClearVisibility($("searchInv")?.value);
-  $("brandFilter")?.addEventListener("change", e => {
-    const v = e.target.value;
-    e.target.classList.toggle("is-active", !!v);
-    // Same select, two contexts: printer brands in the printer view, else materials.
-    if (_isPrinterMode(state.viewMode)) { state.printerBrandFilter = v; applyPrinterFilter(); }
-    else { state.brandFilter = v; _onFilterChange(); }
+  // The filter bar: the chips written in the field (see "Filter bar: fields").
+  if ($("fbBar")) _fb = mountFilterBar({
+    bar: $("fbBar"), input: $("searchInv"), searchBox: $("searchInv").closest(".inv-search"), addBtn: $("fbAddBtn"),
+    t, esc, registry: _cselOpen,
+    active: () => !!_fbScope(),
+    fields: _fbFieldDefs,
+    conds: () => _fbConds(),
+    setConds: _fbSetConds,
+    extraChips: _fbExtraChips,
+    onFieldTyped: () => _appTrophy("filterTyped"),
   });
-  $("materialFilter")?.addEventListener("change", e => {
-    const v = e.target.value;
-    e.target.classList.toggle("is-active", !!v);
-    // Printer view repurposes this select as the State (online/offline) filter.
-    if (_isPrinterMode(state.viewMode)) { state.printerStatusFilter = v; applyPrinterFilter(); }
-    else { state.materialFilter = v; _onFilterChange(); }
-  });
-  $("typeFilter")?.addEventListener("change", e => {
-    state.typeFilter = e.target.value;
-    e.target.classList.toggle("is-active", !!state.typeFilter);
-    _onFilterChange();
-  });
-  $("aspectFilter")?.addEventListener("change", e => {
-    state.aspectFilter = e.target.value;
-    e.target.classList.toggle("is-active", !!state.aspectFilter);
-    _onFilterChange();
-  });
-  $("tagFilter")?.addEventListener("change", e => {
-    const v = e.target.value;
-    e.target.classList.toggle("is-active", !!v);
-    if (_isPrinterMode(state.viewMode)) { state.printerTagFilter = v; applyPrinterFilter(); }
-    else { state.tagFilter = v; _onFilterChange(); }
-  });
-  // Replace the native OS dropdowns of the toolbar filters with app-styled popups.
-  ["brandFilter", "materialFilter", "aspectFilter", "typeFilter", "tagFilter", "gridSort",
-   // Search-view filters — same app-styled dropdown as every other filter, so
-   // the two view families are visually indistinguishable.
-   "cvType", "cvBrand", "cvMaterial", "cvSeries", "cvSort"].forEach(id => _enhanceSelect($(id)));
-  // Field name on the button while nothing is picked — same convention as the
-  // inventory / printer filters (see `cselShort` above).
-  Object.entries({ cvType: "thType", cvBrand: "thBrand", cvMaterial: "thMaterial",
-                   cvSeries: "thSeries", cvSort: "sortBy" }).forEach(([id, key]) => {
-    const el = $(id); if (el) { el.dataset.cselShort = key; el._cselRefresh?.(); }
-  });
+  // Replace the native OS dropdowns of the toolbar's two sorts (the grid's and
+  // the Search views') with app-styled popups; every filter is a chip of the
+  // filter bar.
+  ["gridSort", "cvSort"].forEach(id => _enhanceSelect($(id)));
   // Same treatment for the Add-product panel's identity selects (Brand/Material
   // use their own bottom-sheets; these are the plain <select>s). The button
   // mirrors the .adp-select look; only the OS option list is replaced.
   _ADP_CSEL_IDS.forEach(id => _enhanceSelect($(id)));
-  // ❤ Liked / ★ Favorite quick filters — toggle on/off, mutually exclusive.
-  // The value doubles as the product field key (`_getProduct(r)?.[flagFilter]`).
-  function _toggleFlagFilter(flag) {
-    state.flagFilter = (state.flagFilter === flag) ? "" : flag;
-    _syncFlagFilterUI();
+  // ── Stat tile click → the Type chip ────────────────────────────────────────
+  // A type tile (TigerTag / TigerTag+ / TigerData / TigerData+) sets the filter
+  // bar's Type chip to that type and lights up; a second click removes it. The
+  // other tiles (spools, stock, value) only inform.
+  $("sbStats")?.addEventListener("click", e => {
+    const el = e.target.closest?.(".sb-stat[data-filter]");
+    if (!el || !FB_TIERS[el.dataset.filter] || _fbScope() !== "inv") return;
+    _fb?.toggle("tier", el.dataset.filter);
     _onFilterChange();
-  }
-  function _syncFlagFilterUI() {
-    $("wishFilter")?.classList.toggle("is-active", state.flagFilter === "liked");
-    $("likeFilter")?.classList.toggle("is-active", state.flagFilter === "favorite");
-  }
-  $("wishFilter")?.addEventListener("click", () => _toggleFlagFilter("liked"));
-  $("likeFilter")?.addEventListener("click", () => _toggleFlagFilter("favorite"));
-
-  // ── Stat tile click → quick type filter ────────────────────────────────────
-  // Clicking a version tile (TigerTag / TigerTag+ / TigerCloud) sets the
-  // typeFilter and highlights the tile. Clicking it again, or clicking a
-  // "reset" tile (SPOOLS / STOCK), clears the filter back to "All versions".
+  });
   // The ⓘ info bubble on the "Stock value" stat (reuses the toolbox tooltip pop).
   $("sbStats")?.addEventListener("mouseover", e => { const el = e.target.closest?.(".tool-info"); if (el) _showToolInfoTip(el); });
   $("sbStats")?.addEventListener("mouseout",  e => { const el = e.target.closest?.(".tool-info"); if (el && !el.contains(e.relatedTarget)) _hideToolInfoTip(); });
-  // The header mini-dashboard is INFORMATIONAL only — clicking a stat card no
-  // longer filters the inventory. It used to set state.typeFilter and poke
-  // `#typeFilter.value` directly, which left the custom `_enhanceSelect` dropdown
-  // showing a stale label (the visible button mirrors the <select> and only
-  // refreshes on a real change event). Protocol filtering stays where it belongs:
-  // the filter controls next to the search field.
 
   function updateSortIndicators() {
     document.querySelectorAll("th.sortable").forEach(th => {
@@ -16542,7 +16826,9 @@ import { initScreenTools } from './ai/screen-tools.js';
 
   // `ifNewer`: only write when the live product is ahead of this spool — a later
   // `updated_at` than its last reconcile, or a photo with a higher version.
-  async function _refreshApiData(r, { silent = false, ifNewer = false } = {}) {
+  // `report` (optional object) gets `error` when the call failed — _catalogAskBatch
+  // tells a server failure (pause everything) from an answer (stamp the spool).
+  async function _refreshApiData(r, { silent = false, ifNewer = false, report = null } = {}) {
     const rawDoc = state.inventory[r.spoolId];
     if (!rawDoc) return;
     const btn = silent ? null : $("btnRefreshApi");
@@ -16648,6 +16934,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       return true;
     } catch (e) {
       console.error("[refreshApi]", e);
+      if (report) report.error = e?.message || String(e);
       if (!silent) _flashMessage(t("toolRefreshApiError"));
     } finally {
       if (btn) { btn.disabled = false; btn.querySelector(".toolbox-row-label").textContent = t("toolRefreshApi"); }
@@ -16819,6 +17106,17 @@ import { initScreenTools } from './ai/screen-tools.js';
      slot semantics, which would be wrong data under the contract.
   */
   const CATALOG_LS_KEY = "tigertag.catalog";
+  // The mirror's fingerprint at the last sync (_catalogSignature): a sync that
+  // brings the same list back does not reconcile the spools again (#309).
+  const CATALOG_SIG_KEY = "tigertag.catalogSig";
+  function _catalogSignature(items) {
+    let h = 0x811c9dc5;   // FNV-1a over every product's id, date and photo
+    for (const p of items) {
+      const str = `${p?.id}|${p?.updated_at ?? ""}|${p?.img_src ?? ""};`;
+      for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+    }
+    return `${items.length}:${(h >>> 0).toString(36)}`;
+  }
   const CATALOG_CACHE_V = 3;   // see `_catalogLoadCache`
   // The catalogue mirror (id_catalog.json on GitHub) is rebuilt every 6 hours, and
   // a re-read costs a 304 when nothing moved (ETag), so the copy here is checked as
@@ -17040,54 +17338,95 @@ import { initScreenTools } from './ai/screen-tools.js';
     });
   }
 
-  // How many stale spools one sync will refresh. Each one is a `product/get`
-  // round-trip, so an inventory that has sat unopened for months could otherwise
-  // fire hundreds at once. The rest are picked up by the next sync — the stamp
-  // makes the work resumable, nothing is lost by stopping early.
-  const CATALOG_REFRESH_MAX = 40;
+  // How many stale spools one run refreshes. Each one is a `product/get` round-trip
+  // on an API every Studio shares: the rest wait for the next mirror (the per-spool
+  // stamp makes the work resumable, nothing is lost by stopping early).
+  const CATALOG_REFRESH_MAX = 10;
+  /* 2.59.0–2.59.1 flooded product/get (~450 000 calls a day, the API went down —
+     issue #309): the refresh ran on every inventory snapshot and window focus, and
+     a spool still counted behind after its refresh (the mirror's photo ahead of the
+     API's, a 503) was asked again every 30 min, forever, from every window. Now:
+       • it runs only after a sync that downloaded a CHANGED mirror (_catalogSync);
+       • every answered call stamps the spool with the mirror entry it was asked
+         for (`tigertag.catalogAsked.<uid>`, kept across restarts): the spool is not
+         asked again until that entry moves, whatever the answer was;
+       • a 5xx, a timeout or a network failure stops the run and pauses every
+         automatic ask (`tigertag.catalogBackoff`, 30 min doubling up to 8 h). */
+  const CATALOG_BACKOFF_MS = 30 * 60_000, CATALOG_BACKOFF_MAX_STEP = 5;
+  const CATALOG_BACKOFF_KEY = "tigertag.catalogBackoff";
+  const _catalogAskedKey = uid => `tigertag.catalogAsked.${uid}`;
+  function _lsJson(key, fallback) { try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; } catch (_) { return fallback; } }
+  function _lsPut(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (_) {} }
+  const _catalogBackoff = () => _lsJson(CATALOG_BACKOFF_KEY, { until: 0, n: 0 });
+  const _catalogPaused = () => _catalogBackoff().until > Date.now();
+  // The API did not answer (as opposed to answering "not found" or "no change").
+  const _catalogServerFailed = err => /HTTP 5\d\d|abort|timed? ?out|fetch failed|network|ECONN|ENOTFOUND|EAI_AGAIN/i.test(String(err || ""));
+  // What a spool was last asked against: the mirror entry's date + photo.
+  const _catalogMirrorKey = prod => `${prod?.updated_at ?? ""}|${prod?.img_src ?? ""}`;
   let _catalogRefreshing = false;
 
-  /**
-   * Bring every spool the catalogue has moved on from back in line.
-   *
-   * Runs after a catalogue sync, in the background, sequentially — a burst of
-   * parallel requests would be rude to the API and buys nothing here. Each row
-   * goes through the SAME `_refreshApiData` the manual button uses, so the
-   * consequence is decided in one place: the record is updated either way, and
-   * `needUpdateAt` is raised only when the change touched something the chip
-   * carries AND the spool has a chip. A TigerData+ therefore updates in complete
-   * silence, which is the whole point — it has no chip to re-burn.
-   */
-  async function _catalogRefreshStale() {
-    // Second lock on the WRITE path. `_catalogStaleRows` already refuses to scan a
-    // friend's inventory, so this can only fire if that ever regresses — cheap, and
-    // it is the write that would be unrecoverable.
-    if (_catalogRefreshing || state.friendView) return;
-    const stale = _catalogStaleRows();
-    if (!stale.length) return;
+  /* Ask the API for `rows`, one after the other, stamping each answered spool with
+     `keyOf(row)` so it is skipped while that key holds; a server failure stops the
+     run and starts the pause. → how many spools were written, -1 when it could not
+     run now (another run, a pause, a friend's view). */
+  async function _catalogAskBatch(rows, keyOf, label) {
+    const uid = state.activeAccountId;
+    if (!uid || _catalogRefreshing || state.friendView || _catalogPaused()) return -1;
+    const asked = _lsJson(_catalogAskedKey(uid), {});
+    const todo = rows.filter(r => asked[r.spoolId]?.k !== keyOf(r));
+    if (!todo.length) return 0;
     _catalogRefreshing = true;
-    const batch = stale.slice(0, CATALOG_REFRESH_MAX);
-    let done = 0;
+    const batch = todo.slice(0, CATALOG_REFRESH_MAX);
+    let done = 0, failed = null;
     try {
       for (const r of batch) {
-        if (await _refreshApiData(r, { silent: true })) done++;
+        const rep = {};
+        const wrote = await _refreshApiData(r, { silent: true, report: rep });
+        if (rep.error && _catalogServerFailed(rep.error)) { failed = rep.error; break; }
+        asked[r.spoolId] = { k: keyOf(r), at: Date.now() };   // answered: not again until the key moves
+        if (wrote) done++;
       }
     } finally {
       _catalogRefreshing = false;
+      // Spools no longer in this inventory drop out of the stamps.
+      for (const id of Object.keys(asked)) if (!state.inventory[id]) delete asked[id];
+      _lsPut(_catalogAskedKey(uid), asked);
+      const bo = _catalogBackoff();
+      if (failed) {
+        const n = Math.min(bo.n + 1, CATALOG_BACKOFF_MAX_STEP);
+        _lsPut(CATALOG_BACKOFF_KEY, { until: Date.now() + CATALOG_BACKOFF_MS * 2 ** (n - 1), n });
+        console.warn(`[catalog] ${label}: the API failed (${failed}) — automatic asks paused ${30 * 2 ** (n - 1)} min`);
+      } else if (bo.n) _lsPut(CATALOG_BACKOFF_KEY, { until: 0, n: 0 });
     }
-    const left = stale.length - batch.length;
-    console.log(`[catalog] refreshed ${done}/${batch.length} stale spool(s)`
-      + (left ? ` — ${left} left for the next sync` : ""));
+    const left = todo.length - batch.length;
+    console.log(`[catalog] ${label}: refreshed ${done}/${batch.length} spool(s)` + (left ? ` — ${left} left for the next mirror` : ""));
+    return done;
+  }
+
+  /**
+   * Bring the spools the catalogue has moved on from back in line.
+   *
+   * Runs only after a sync that downloaded a changed mirror (_catalogSync), in the
+   * background, sequentially. Each row goes through the SAME `_refreshApiData` the
+   * manual button uses, so the consequence is decided in one place: the record is
+   * updated either way, and `needUpdateAt` is raised only when the change touched
+   * something the chip carries AND the spool has a chip. A TigerData+ therefore
+   * updates in complete silence — it has no chip to re-burn.
+   */
+  async function _catalogRefreshStale() {
+    if (state.friendView) return -1;   // second lock on the WRITE path (_catalogStaleRows refuses already)
+    const byId = new Map(_catalogIndex.map(e => [Number(e.it.id), e.it]));
+    return _catalogAskBatch(_catalogStaleRows(), r => _catalogMirrorKey(byId.get(Number(r.raw?.id_product))), "stale spools");
   }
 
   // The spools follow the catalogue without anyone opening it: at launch and when
   // the window comes back, the local copy is checked (a 304 while the mirror has
-  // not moved, nothing at all inside its 6 hours), then the spools it has moved on
-  // from are brought up to date through the API (_catalogRefreshStale).
+  // not moved, nothing at all inside its 6 hours). Only a sync that brings a CHANGED
+  // mirror goes on to the API for the spools it moved on from (_catalogSync → #309).
   function _catalogAutoSync() {
     if (state.friendView || !state.activeAccountId) return;
     _catalogLoadCacheIfNeeded();
-    _catalogSync().catch(() => {}).finally(() => _catalogRefreshStale());
+    _catalogSync().catch(() => {});
   }
   window.addEventListener("focus", () => _catalogAutoSync());
 
@@ -17106,7 +17445,13 @@ import { initScreenTools } from './ai/screen-tools.js';
         _catalogBuildIndex(res.items);
         _catalogSaveCache(res.items);
         if (_isCatalogMode(state.viewMode)) _catViewSearch();
-        _catalogRefreshStale();   // fire-and-forget: a sync must not wait on it
+        // The spools are reconciled only when the mirror itself moved since the last
+        // sync (a 304 brings the same list back): fire-and-forget, never awaited.
+        const sig = _catalogSignature(res.items);
+        // The fingerprint is kept only once a run happened: one held back (a pause,
+        // another run) is tried again at the next sync.
+        if (sig !== _lsJson(CATALOG_SIG_KEY, null))
+          _catalogRefreshStale().then(n => { if (n >= 0) _lsPut(CATALOG_SIG_KEY, sig); }).catch(() => {});
       } else if (!_catalogIndex.length) {
         // Only surface a failure when there is nothing cached to fall back on.
         _catViewSetStatus(t("catalogSyncError"));
@@ -17453,6 +17798,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if ($("notifPanel")?.classList.contains("open"))       closeNotifs();
     if ($("matSourcePanel")?.classList.contains("open"))   closeMaterialSourcePicker();
     if ($("qrScanPanel")?.dataset.mode === "find")         closeQrScanPanel();
+    closeColorSearch();
     closeCatalogPick();
     closeChipLink();
     if ($("addProductPanel")?.classList.contains("open"))  _adpCloseAllSheetsAndPanel();
@@ -17464,7 +17810,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   }
   // `upgradeFor`: a TigerTag's spool id — the picked product upgrades that spool to
   // TigerTag+ (its product card offers it) instead of creating a TigerData+.
-  function openCatalogPick({ upgradeFor = null } = {}) {
+  function openCatalogPick({ upgradeFor = null, prefill = null } = {}) {
     if (!state.activeAccountId || state.friendView) return;
     _cpkUpgradeFor = upgradeFor;
     $("upgradePlusBanner")?.classList.toggle("is-active", !!upgradeFor);
@@ -17487,13 +17833,24 @@ import { initScreenTools } from './ai/screen-tools.js';
       for (const e of _catalogIndex) if (e.it.brand) n.set(e.it.brand, (n.get(e.it.brand) || 0) + 1);
       brand.innerHTML = `<option value="">${esc(t("filterAllBrands"))}</option>` +
         [...n].sort((a, b) => a[0].localeCompare(b[0])).map(([v, c]) => `<option value="${esc(v)}">${esc(v)} (${c})</option>`).join("");
-      brand.value = "";
+      // prefill: a maker's chip that names its brand (a Bambu Lab chip) opens the
+      // list on it, when the catalogue has that brand.
+      brand.value = prefill?.brand && n.has(prefill.brand) ? prefill.brand : "";
       _enhanceSelect(brand);
       brand._cselRefresh?.();
     }
-    if ($("cpkSearch")) { $("cpkSearch").value = ""; $("cpkSearch").dispatchEvent(new Event("input")); }
+    const chipHex = _csNormHex(String(prefill?.hex || "").slice(0, 7));
+    _cpkChipColor = chipHex ? { lab: hexToLab(chipHex), variant: String(prefill?.variant || "").toUpperCase() } : null;
+    if ($("cpkSearch")) { $("cpkSearch").value = prefill?.query || ""; $("cpkSearch").dispatchEvent(new Event("input")); }
     _catalogPickFill();
     $("catalogPickPanel")?.classList.add("open");
+    // The chip's own product (its variant code, else a colour within ΔE 10) opens
+    // at once, as if tapped: its card is ready to add the spool.
+    if (_cpkChipColor) {
+      const first = $("cpkList")?.querySelector(".cpk-row");
+      const it = first && _catalogIndex.find(x => String(x.it.id) === first.dataset.cpkId)?.it;
+      if (it && _cpkChipRank(it) < 10) setTimeout(() => first.click(), 120);
+    }
     _syncPanels();
     setTimeout(() => $("cpkSearch")?.focus(), 80);
   }
@@ -17508,13 +17865,29 @@ import { initScreenTools } from './ai/screen-tools.js';
     _syncPanels();
   }
   let _cpkFilledIndex = null;   // the catalogue index the rows on screen came from
+  // A Bambu Lab chip's colour (and variant code) when it opened the list: the
+  // products closest to it come first (CIEDE2000), cleared on the next opening.
+  let _cpkChipColor = null;     // { lab, variant } | null
+  function _cpkChipRank(it) {
+    const c = _cpkChipColor;
+    if (!c) return 0;
+    if (c.variant && String(it.sku || "").toUpperCase().split("-").slice(0, 2).join("-") === c.variant) return -1;
+    let de = Infinity;
+    for (const h of _catColors(it).map(_csNormHex).filter(Boolean)) {
+      const d = deltaE2000(c.lab, hexToLab(h));
+      if (d < de) de = d;
+    }
+    return de;
+  }
   function _catalogPickFill() {
     const list = $("cpkList");
     if (!list) return;
     // A synced catalogue (new photos, names) rebuilds the rows instead of keeping them.
     if (_cpkFilledIndex !== _catalogIndex) { list.innerHTML = ""; _cpkFilledIndex = _catalogIndex; }
-    const hits = _catalogFilter($("cpkSearch")?.value, $("cpkBrand")?.value || "", "", _cpkHueFilter())
-      .filter(_catIsCreatable).slice(0, CAT_PICK_MAX);
+    let hits = _catalogFilter($("cpkSearch")?.value, $("cpkBrand")?.value || "", "", _cpkHueFilter())
+      .filter(_catIsCreatable);
+    if (_cpkChipColor) hits = hits.map(it => [it, _cpkChipRank(it)]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+    hits = hits.slice(0, CAT_PICK_MAX);
     if (!hits.length) { list.innerHTML = `<p class="cpk-empty">${esc(t("catEmptyTitle"))}</p>`; return; }
     // Keyed by product id: a row already on screen is kept (moved into place,
     // never rebuilt), so typing a letter only adds and drops rows — the photos
@@ -17626,97 +17999,35 @@ import { initScreenTools } from './ai/screen-tools.js';
     return rank;
   }
 
-  // Counts are computed over the WHOLE catalogue, not the current result set —
-  // the number next to "Bambu Lab" answers "how many are there", which stays
-  // stable as the other filters move.
-  // The counts only move with the index (and the "All …" rows with the
-  // language), so the three catalogue-wide selects are rebuilt only then, and
-  // Series only when the brand changes too — not on every keystroke.
-  let _catFacetsKey = "", _catFacetsIdx = null;
+  // The Search views' only select left is the sort (the filters are chips of
+  // the filter bar). "Sort by: Brand", not a bare "Brand": the sort always HAS a
+  // value, and a bare field name would read like a filter.
   function _catViewFillFacets() {
-    const brandNow = $("cvBrand")?.value || "";
-    const key = state.lang + "|" + brandNow;
-    if (_catFacetsIdx === _catalogIndex && _catFacetsKey === key) return;
-    const fullRebuild = _catFacetsIdx !== _catalogIndex || !_catFacetsKey.startsWith(state.lang + "|");
-    _catFacetsIdx = _catalogIndex;
-    _catFacetsKey = key;
-    const idx = _catalogIndex.map(e => e.it);
-    const countBy = (list, key) => {
-      const m = new Map();
-      for (const it of list) {
-        const v = typeof key === "function" ? key(it) : it[key];
-        if (v) m.set(v, (m.get(v) || 0) + 1);
-      }
-      return [...m.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])));
-    };
-    const fill = (el, allLabel, pairs, { keepValue = true } = {}) => {
-      if (!el) return;
-      const cur = el.value;
-      el.innerHTML = `<option value="">${esc(allLabel)}</option>` +
-        pairs.map(([v, n]) => `<option value="${esc(String(v))}">${esc(String(v))} (${n})</option>`).join("");
-      if (keepValue && cur && pairs.some(([v]) => String(v) === cur)) el.value = cur;
-      // These selects are wrapped in the app's custom dropdown (_enhanceSelect):
-      // the native <select> is only the model, so the visible button has to be
-      // told the options changed.
-      el._cselRefresh?.();
-    };
-    // Iso with every other filter in the app: the LIST shows a plain "All" row,
-    // and the BUTTON shows the field name (via `data-csel-short`, which
-    // _enhanceSelect swaps in whenever no value is picked) so the user can see
-    // what the menu filters without opening it.
-    if (fullRebuild) {
-      fill($("cvType"),     t("filterAllVersions"),  countBy(idx, "product_type"));
-      fill($("cvBrand"),    t("filterAllBrands"),    countBy(idx, "brand"));
-      fill($("cvMaterial"), t("filterAllMaterials"), countBy(idx, _catFamily));
-    }
-
-    // Series depends on the chosen brand.
-    const brand = $("cvBrand")?.value || "";
-    const sEl = $("cvSeries");
-    if (sEl) {
-      if (!brand) {
-        sEl.disabled = true;
-        sEl.innerHTML = `<option value="">${esc(t("catFilterSeriesPick"))}</option>`;
-        sEl._cselRefresh?.();
-      } else {
-        sEl.disabled = false;
-        fill(sEl, t("filterAllSeries"), countBy(idx.filter(it => it.brand === brand), "_series"));
-      }
-      // The custom dropdown mirrors the <select>'s options but NOT its disabled
-      // state, so the wrapper carries it — otherwise the button stays clickable
-      // and opens an empty list.
-      sEl.closest(".csel")?.classList.toggle("is-disabled", sEl.disabled);
-    }
     const sortEl = $("cvSort");
     if (sortEl && !sortEl.options.length) {
-      // "Sort by: Brand", not a bare "Brand" — the sort always HAS a value, so
-      // `cselShort` never kicks in and the button shows the option text. A bare
-      // field name there would sit next to the Brand FILTER reading identically.
       sortEl.innerHTML = [["brand", "thBrand"], ["name", "thName"], ["material", "thMaterial"]]
         .map(([v, k]) => `<option value="${v}">${esc(t("sortBy") + ": " + t(k))}</option>`).join("");
+      sortEl._cselRefresh?.();
     }
   }
 
   function _catViewSearch() {
     _syncFilterReset();   // the catalogue's own selectors arm it too
-    // The Material filter lists families: once the table is read, list them again.
-    if (!_matFamiliesP) _loadMaterialFamilies().then(() => { _catFacetsIdx = null; _catViewSearch(); });
+    // The Material chip lists families: once the table is read, search again.
+    if (!_matFamiliesP) _loadMaterialFamilies().then(() => _catViewSearch());
     _catViewFillFacets();
-    const fType   = $("cvType")?.value || "";
-    const fBrand  = $("cvBrand")?.value || "";
-    const fMat    = $("cvMaterial")?.value || "";
-    const fSeries = $("cvSeries")?.value || "";
-    _catViewHits = _catalogFilter($("searchInv")?.value, fBrand, fMat)
-      .filter(it => (!fType || it.product_type === fType)
-                 && (!fSeries || it._series === fSeries));
+    _catViewHits = _catalogFilter($("searchInv")?.value, "", "").filter(it => _fbPass(it, "cat"));
     const rank = _catSortRank($("cvSort")?.value || "brand");
     _catViewHits.sort((a, b) => rank.get(a) - rank.get(b));
+    // A colour search keeps the products within its ΔE and puts the closest first.
+    _catViewHits = _catColorApply(_catViewHits);
     // Drop a selection the current query no longer contains.
     if (_catViewSelectedId && !_catViewHits.some(x => String(x.id) === _catViewSelectedId)) {
       _catViewSelectedId = null;
     }
     const body = $("catalogViewBody");
-    const sig = state.viewMode + "|" + state.lang;
+    const cc = state.catColor;
+    const sig = state.viewMode + "|" + state.lang + "|" + (cc ? cc.hex + cc.ral : "");
     const sameHits = _catViewHits.length === _catViewRenderedHits.length
       && _catViewHits.every((x, i) => x === _catViewRenderedHits[i]);
     if (body && sameHits && sig === _catViewRenderedSig && _catalogIndex === _catViewRenderedIndex && body.childElementCount) {
@@ -17744,7 +18055,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         body.className = "cv-body";
         // The search finds products but the selectors above leave none: say so and
         // offer to clear them, rather than "make it yourself" (#217).
-        const filtered = (fType || fBrand || fMat || fSeries)
+        const filtered = (state.filters.length || state.catColor)
           && _catalogFilter($("searchInv")?.value, "", "").length > 0;
         body.innerHTML = filtered ? `
           <div class="cv-empty">
@@ -17836,6 +18147,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       subText:      [it.brand, it.material].filter(Boolean).join(" · ") || "—",
       subExtraText: String(it._series || ""),
       footerHTML:   `<span class="card-weight">${esc(String(it.measure || "—"))}</span>`,
+      imgBadgeHTML: _catDeHTML(it),
     });
     return `
       <div class="spool-card cv-card${sel}" role="button" tabindex="0" data-id="${esc(String(it.id))}"
@@ -17896,7 +18208,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // `fill`: the thumb takes its size from CSS (the catalogue pick list's column
   // flush with the row's left edge); `size` then only picks the rendition.
   // `badges`: the top-left badges of the inventory thumbnails (here, Refill).
-  function _catThumbHTML(r, size = 50, { fill = false, badges = false } = {}) {
+  function _catThumbHTML(r, size = 50, { fill = false, badges = false, extra = "" } = {}) {
     const bg  = colorBg(r);
     const src = r.imgUrl ? resolvedImg(cdnImg(r.imgUrl, size)) : null;
     // data-zoom: the hover preview, as on the inventory table (_showThumbZoom).
@@ -17906,6 +18218,7 @@ import { initScreenTools } from './ai/screen-tools.js';
          + `<img class="cv-thumb-logo" src="${logoSrc(bg)}" alt="" />`
          + (src ? `<img class="cv-thumb-img" data-img-src="${esc(src)}" alt="" />` : "")
          + (badges ? _cardTlBadges(r, { compact: true, backup: false }) : "")
+         + extra
          + `</span>`;
   }
 
@@ -17917,12 +18230,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     return `
       <tr class="cv-row${sel}" data-id="${esc(String(it.id))}" aria-selected="${sel ? "true" : "false"}">
         <td class="sel-cell"><span class="sel-check" aria-hidden="true"></span></td>
-        <td class="thumb-cell">${_catThumbHTML(r, 50, { badges: true })}</td>
+        <td class="thumb-cell">${_catThumbHTML(r, 50, { badges: true, extra: _catDeHTML(it, "thumb-td-badge") })}</td>
         <td>${tierBadgeHTML(r)}</td>
         ${cell(it.material)}
         ${cell(it.brand)}
         ${cell(it._series)}
-        ${cell(it._name)}
+        <td>${esc(String(it._name || "-"))}</td>
         <td style="font-variant-numeric:tabular-nums">${esc(String(it.measure || "-"))}</td>
       </tr>`;
   }
@@ -18423,7 +18736,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     catch (e) { console.warn("[products] field write failed:", e); }
   }
 
-  // Current stock (non-deleted spool count) per product identity key.
+  // Current stock (non-deleted spool count) per product identity, keyed by the
+  // identity HASH — a product record's id (`p.id`), exactly what the product card
+  // counts with (`_filamentStockCount`). Not by the record's stored `key` string:
+  // `_writeProduct` stores it with the tier ("tt:123|tdplus", from `_spoolGroupKey`)
+  // while a spool's own key has none, so a lookup by `p.key` found nothing and the
+  // To-order cart read 0 in stock for a product that had spools (#285).
   function _stockCountByKey() {
     // Group by product identity, then count PHYSICAL spools per group (twin pairs
     // count once — see _countPhysicalSpools) so favorites / order stock matches
@@ -18431,7 +18749,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const groups = new Map();
     (state.rows || []).forEach(r => {
       if (r.deleted) return;
-      const k = _spoolProductKey(r);
+      const k = _productKeyHash(r);
       if (!groups.has(k)) groups.set(k, []);
       groups.get(k).push(r);
     });
@@ -18444,7 +18762,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // override when set, otherwise the recommendation (toOrder).
   function _productOrderInfo(p, stockMap) {
     const required = +p.minStockSpools || 0;
-    const inStock  = stockMap.get(p.key) || 0;
+    const inStock  = stockMap.get(p.id) || 0;
     const onOrder  = +p.onOrder || 0;
     const toOrder  = Math.max(0, required - inStock - onOrder);
     const qty = (p.orderQty != null && Number.isFinite(+p.orderQty)) ? Math.max(0, Math.round(+p.orderQty)) : toOrder;
@@ -18469,36 +18787,21 @@ import { initScreenTools } from './ai/screen-tools.js';
       : `<span class="pv-thumb pv-thumb--swatch" style="--spool-bg:${esc(bg)}"></span>`;
   }
 
-  // Apply the shared search bar + right-side selectors (Brand / Material / Tag /
-  // ❤ Liked / ★ Favorite) to the product list, so the Products views react to the
-  // same controls as the inventory. `label.material` may carry the aspect
-  // ("PLA Basic") while the filter holds the raw material ("PLA") — match either.
+  // Apply the shared search bar and its filter chips to the product list, so the
+  // Products views react to the same controls as the inventory.
   function _filteredProducts(list) {
-    const q        = (state.search || "").trim().toLowerCase();
-    const brand    = state.brandFilter || "";
-    const material = state.materialFilter || "";
-    const aspect   = state.aspectFilter || "";
-    const tag      = (state.tagFilter || "").toLowerCase();
-    const flag     = state.flagFilter || "";        // "liked" | "favorite" | ""
-    return list.filter(p => {
-      const l = p.label || {};
-      if (flag && !p[flag]) return false;
-      if (brand && String(l.brand || "") !== brand) return false;
-      if (material) {
-        const m = String(l.material || "");
-        if (m !== material && !m.startsWith(material + " ")) return false;
-      }
-      if (aspect && String(l.aspect || "") !== aspect && String(l.aspect2 || "") !== aspect) return false;
-      if (tag && !(p.tags || []).some(tg => String(tg).toLowerCase() === tag)) return false;
-      // A product identity carries one colour, not a spool's three slots.
-      if (!_colorsMatchHue([l.colorHex])) return false;
-      if (q) {
-        const hay = [l.brand, l.series, l.material, l.aspect, l.aspect2, l.colorName, p.note, p.sku, p.ean, ...(p.tags || [])]
-          .filter(Boolean).join(" ").toLowerCase();
-        if (!_hayHasAll(hay, _searchTokens(q))) return false;
-      }
-      return true;
-    });
+    const q = (state.search || "").trim().toLowerCase();
+    return list.filter(p => _fbPass(p, "prod") && _prodTextPass(p, q));
+  }
+  // The typed search and the colour bars over one product identity.
+  function _prodTextPass(p, q) {
+    const l = p.label || {};
+    // A product identity carries one colour, not a spool's three slots.
+    if (!_colorsMatchHue([l.colorHex])) return false;
+    if (!q) return true;
+    const hay = [l.brand, l.series, l.material, l.aspect, l.aspect2, l.colorName, p.note, p.sku, p.ean, ...(p.tags || [])]
+      .filter(Boolean).join(" ").toLowerCase();
+    return _hayHasAll(hay, _searchTokens(q));
   }
 
   // Shared loading block — the comet spinner + a carousel of playful phrases that
@@ -19332,7 +19635,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const sortCol = state.favesSortCol, sdir = state.favesSortDir === "desc" ? -1 : 1;
     const _fval = (p) => {
       const l = p.label || {};
-      const inStock = stockMap.get(p.key) || 0;
+      const inStock = stockMap.get(p.id) || 0;
       const min = (Number.isFinite(+p.minStockSpools) && +p.minStockSpools > 0) ? +p.minStockSpools : 0;
       switch (sortCol) {
         case "material": return (l.material || "").toLowerCase();
@@ -19361,7 +19664,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       const series   = (r.series && r.series !== "-") ? r.series : "";
       const aspect   = [r.aspect1, r.aspect2].filter(a => a && a !== "-" && a !== "None" && String(a).trim() !== "").join(" ");
       const mat      = [material, series || aspect].filter(Boolean).join(" · ") || "—";
-      const inStock  = stockMap.get(p.key) || 0;
+      const inStock  = stockMap.get(p.id) || 0;
       const min      = (Number.isFinite(+p.minStockSpools) && +p.minStockSpools > 0) ? +p.minStockSpools : null;
       const low      = min != null && inStock < min;
       const priceHTML = _favePriceHTML(p.buyPriceHt, sym);   // in the user's HT/TTC mode
@@ -20335,7 +20638,10 @@ import { initScreenTools } from './ai/screen-tools.js';
     const qrp = $("qrScanPanel"), qrOpen = !!qrp?.classList.contains("open") && !borrowed(qrp);
     _setTab($("qrScanCloseTab"), qrOpen, qrOpen ? qrp.offsetWidth : 0, qrp);
     // Only the new-chip card's own » shows while it is up.
-    if (ccOpen) ["catalogPickCloseTab", "chipLinkCloseTab", "addProductCloseTab", "qrScanCloseTab"].forEach(id => { if ($(id)) $(id).hidden = true; });
+    // The search bar's colour card, alone at the right edge too.
+    const csp = $("colorSearchPanel"), csOpen = !!csp?.classList.contains("open");
+    _setTab($("colorSearchCloseTab"), csOpen, csOpen ? csp.offsetWidth : 0, csp);
+    if (ccOpen) ["catalogPickCloseTab", "chipLinkCloseTab", "addProductCloseTab", "qrScanCloseTab", "colorSearchCloseTab"].forEach(id => { if ($(id)) $(id).hidden = true; });
     _setTab($("productCardCloseTab"), pcOpen, pcRight + (pcW || upPcW), pcp);
     _setTab($("reorderCloseTab"), roOpen, roRight + roW, rop);
     _setTab($("detailCloseTab"),     dOpen, matRight + detailW, dp);
@@ -21048,11 +21354,6 @@ import { initScreenTools } from './ai/screen-tools.js';
       const data = {
         ...d,
         uid: newId,
-        // The copy is chipless, so it carries NO chip version at all — dropping
-        // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
-        // doc inside `id_version.json`'s referential. (It used to be re-rolled
-        // to a random u32 here, which achieved the first goal and broke the second.)
-        id_tigertag: FV.delete(),
         // The product is not a chip property: a real `id_product` is kept, so a
         // TigerData+ stays a TigerData+ and a TigerTag+ arrives as the TigerData+
         // of the same product. Anything else is normalised to "unset".
@@ -21062,6 +21363,12 @@ import { initScreenTools } from './ai/screen-tools.js';
         deleted: null, deleted_at: null,
       };
       delete data.rfidListed;
+      // The copy is chipless, so it carries NO chip version at all — dropping
+      // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
+      // doc inside `id_version.json`'s referential. Removed from the object, not
+      // written as `FieldValue.delete()`: the batch uses set() without merge,
+      // which replaces the whole doc and rejects delete() (the whole import failed).
+      delete data.id_tigertag;
       // A fresh TigerData copy is a BRAND-NEW spool → reset to 100% (full
       // capacity), not the exported remaining weight.
       const cap = Number(data.measure_gr) || Number(data.measure) || Number(data.capacity) || 0;
@@ -21770,6 +22077,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const r = state.rows.find(x => x.spoolId === spoolId);
     const pid = Number(r?.raw?.id_product);
     if (!r || r.deleted || !_hasRealProductId(pid) || _catalogCheckedOnOpen.has(pid)) return;
+    if (_catalogPaused()) return;   // the API failed lately: no automatic ask (#309)
     _catalogCheckedOnOpen.add(pid);
     // The API answers a 503 or times out now and then: a second try 2 s later, and
     // if that fails too the next opening asks again. (null = it could not tell.)
@@ -22344,6 +22652,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // openDetail so the surgical location patch can re-wire after swapping just that
   // section — same pattern as _wireToolbox.
   function _wireStorageLoc(r) {
+    _wireDetailMount(r);
     $("btnLocateSpool")?.addEventListener("click", () => {
       const uid = $("btnLocateSpool")?.dataset.spoolUid || "";
       closeDetail();
@@ -24821,7 +25130,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const next = !_getProduct(r)?.[field];
     // Optimistic local patch so the toggle buttons AND the illustration badges
     // (grid/table/deck/detail) flip instantly; the write's snapshot reconciles.
-    const cur = state.products[hash] || (state.products[hash] = { key: _spoolProductKey(r) });
+    const cur = state.products[hash] || (state.products[hash] = { id: hash, key: _spoolProductKey(r) });
     // Apply the flag + its interest-hierarchy coupling (❤⇒★, ★off⇒drop ❤+min)
     // to the local record and repaint BOTH toggles so the link shows instantly.
     const coupled = _coupleFlags({ [field]: next }, +(cur.minStockSpools) || 0);
@@ -25569,6 +25878,19 @@ import { initScreenTools } from './ai/screen-tools.js';
               <span class="icon icon-sparkle icon-16"></span>
             </button>
           </div>
+        </div>`;
+    }
+    // ── Printer slot — the spool's SECOND location. The rack stays its home;
+    // the slot says which machine it is mounted on right now. Lives in the same
+    // section so the surgical location patch repaints both together.
+    const _mountRow = _detailMountHTML(r);
+    if (_mountRow) {
+      storageHtml = storageHtml
+        ? storageHtml.replace(/<\/div>\s*$/, `${_mountRow}</div>`)
+        : `
+        <div class="panel-section panel-storage-loc">
+          <div class="panel-label">${t("sectionStorageLoc") || "Storage location"}</div>
+          ${_mountRow}
         </div>`;
     }
 
@@ -28586,6 +28908,9 @@ import { initScreenTools } from './ai/screen-tools.js';
           _backfillAnycubicCloudCerts().catch(e => console.warn("[anycubic] cloud cert backfill:", e?.message));
           // The machines have just arrived — their units can now be recorded.
           syncAllPrinterUnits();
+          // A slot assignment lives on the printer doc, so the open spool's
+          // "mounted in" row follows the printers snapshot, not the inventory one.
+          _refreshDetailMount();
           scheduleStudioStateRecord();  // re-arm deferred telemetry (printer count changed)
           // Snapmaker: resolve the latest paxx firmware release (throttled to
           // one API call per 24 h inside paxx.js — repeated snapshots are a
@@ -29294,7 +29619,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (p.brand === "flashforge" && p.ip)               ffgConnect(p);
       if (p.brand === "prusa" && p.ip)                    prusaConnect(p);
       printerPlugin(p)?.connect?.(p);
-      if (p.brand === "creality"   && p.ip)               creConnect(p);
+      /* A Creality feed is its own WebRTC session, not something the printer's
+         link carries: connecting is not enough, the session has to be opened
+         too — idempotent, a live one is reused. Without it the play key and the
+         automatic start drew the card's <video> and left it black until the side
+         panel or the camera wall opened the session. */
+      if (p.brand === "creality"   && p.ip)             { creConnect(p); startCreCam(p.ip); }
       if (p.brand === "bambulab"   && (p.broker || p.ip || p.mode === "cloud")) bambuConnect(p);
       if (p.brand === "elegoo" && !_ppForcedOfflineKeys.has(elegooKey(p))) elegooConnect(p);
       if (p.brand === "anycubic" && (p.ip || p.mode === "cloud") && !_ppForcedOfflineKeys.has(acuKey(p))) acuConnect(p);
@@ -29832,15 +30162,6 @@ import { initScreenTools } from './ai/screen-tools.js';
     const _printerSub = state.viewMode === "printer-table" ? "table"
                       : state.viewMode === "printer-cam"   ? "cam"
                       : "grid";
-    // Keep the brand / tag selectors in sync with the current printer set
-    // (new brand or tag → fresh option) — grid + table only, cam hides them.
-    // ONLY while the printer view is the one on screen. These selects are SHARED
-    // with the materials views, and a connected printer pushing a status update
-    // re-renders this view from a brand callback whatever the user is currently
-    // looking at — which rewrote the Brand list with printer brands and turned
-    // Material into "State" while the user was standing in Storage, with no way
-    // to filter their own spools by brand any more.
-    if (_printerSub !== "cam" && _isPrinterMode(state.viewMode)) populatePrinterFilters();
     /* HAND BACK the mux consumers this board registered — before the rebuild
        destroys their elements, AND before we branch away to the table or the
        camera wall. Placed after the branch it only fired on a board redraw, so
@@ -30117,22 +30438,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     ].filter(Boolean).join(" ").toLowerCase();
     return hay.includes(q);
   }
-  // Filter the printer view by the search box + the brand / tag selectors WITHOUT
+  // Filter the printer view by the search box + its filter chips WITHOUT
   // rebuilding it — a rebuild would re-fire every brand connect/ping on each
   // keystroke and reload logos. Toggles `.hidden` on each card/row and collapses
   // now-empty grid sections.
   function applyPrinterFilter() {
     const host = $("invPrinterView");
     if (!host) return;
-    const q      = (state.search || "").trim().toLowerCase();
-    const brand  = state.printerBrandFilter || "";
-    const status = state.printerStatusFilter || "";
-    const tag    = (state.printerTagFilter || "").toLowerCase();
-    const shown = p =>
-      _printerMatchesSearch(p, q)
-      && (!brand  || p.brand === brand)
-      && (!status || (status === "online") === _isPrinterOnline(p))
-      && (!tag    || (p.tags || []).some(x => x.toLowerCase() === tag));
+    const q = (state.search || "").trim().toLowerCase();
+    const shown = p => _printerMatchesSearch(p, q) && _fbPass(p, "prn", null, state.printerFilters);
     host.querySelectorAll("[data-printer-key]").forEach(el => {
       const p = state.printers.find(x => `${x.brand}:${x.id}` === el.dataset.printerKey);
       el.classList.toggle("hidden", !!p && !shown(p));
@@ -30141,56 +30455,6 @@ import { initScreenTools } from './ai/screen-tools.js';
     const board = _printerPlanContainer();
     if (board) _drawClusterHulls(board);
   }
-  // Repopulate the right-of-search selectors for the printer view: reuse the
-  // Brand select (printer brands present) + the Tag select (printer tags union),
-  // and hide the materials-only Material / Version selects (via body class in
-  // setViewMode). Preserves the current selection when it still exists; the Tag
-  // select hides itself when no printer carries a tag yet.
-  function populatePrinterFilters() {
-    const bsel = $("brandFilter");
-    if (bsel) {
-      const brands = Array.from(new Set((state.printers || []).map(p => p.brand))).filter(Boolean)
-        .sort((a, b) => (PRINTER_BRAND_META[a]?.label || a).localeCompare(PRINTER_BRAND_META[b]?.label || b, undefined, { sensitivity: "base" }));
-      const allLabel = t("filterAllBrands") || "All brands";
-      bsel.innerHTML = `<option value="" data-i18n="filterAllBrands">${esc(allLabel)}</option>`
-        + brands.map(b => `<option value="${esc(b)}">${esc(PRINTER_BRAND_META[b]?.label || b)}</option>`).join("");
-      if (state.printerBrandFilter && brands.includes(state.printerBrandFilter)) bsel.value = state.printerBrandFilter;
-      else { bsel.value = ""; state.printerBrandFilter = ""; }
-      bsel.classList.toggle("is-active", !!state.printerBrandFilter);
-      bsel.dataset.cselShort = "filterShortBrand";
-      bsel._cselRefresh?.();
-    }
-    // Repurpose the Material select as a State (online / offline) filter — the
-    // Version select stays hidden (both are materials-only concepts).
-    const ssel = $("materialFilter");
-    if (ssel) {
-      const opts = [
-        ["",        t("filterAllStates")   || "All states"],
-        ["online",  t("snapStatusOnline")  || "Online"],
-        ["offline", t("snapStatusOffline") || "Offline"],
-      ];
-      ssel.innerHTML = opts.map(([v, lbl]) => `<option value="${esc(v)}">${esc(lbl)}</option>`).join("");
-      ssel.value = state.printerStatusFilter || "";
-      ssel.classList.toggle("is-active", !!state.printerStatusFilter);
-      ssel.dataset.cselShort = "filterShortState";
-      ssel._cselRefresh?.();
-    }
-    const tsel = $("tagFilter");
-    if (tsel) {
-      const values = _allPrinterTags();
-      const allLabel = t("filterAllTags") || "All tags";
-      tsel.innerHTML = `<option value="" data-i18n="filterAllTags">${esc(allLabel)}</option>`
-        + values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
-      const match = values.find(v => v.toLowerCase() === String(state.printerTagFilter || "").toLowerCase());
-      if (match) { tsel.value = match; state.printerTagFilter = match; }
-      else { tsel.value = ""; state.printerTagFilter = ""; }
-      tsel.classList.toggle("is-active", !!state.printerTagFilter);
-      tsel.classList.toggle("hidden", values.length === 0); // no printer tags → hide the select
-      tsel.dataset.cselShort = "filterShortTag";
-      tsel._cselRefresh?.();
-    }
-  }
-
   // ── Printer table sub-view ───────────────────────────────────────────────
   // Brands that ship a logo SVG (assets/svg/icons/logo_<brand>.svg) → the Brand
   // column shows the tinted logo; any other brand falls back to the text pill.
@@ -30402,8 +30666,17 @@ import { initScreenTools } from './ai/screen-tools.js';
   // ── Serialize online cameras for the detached cam window ────────────────
   // Returns an array of CamDescriptor objects understood by renderer/cam/cam.js.
   function _serializeCamerasForDetach() {
-    return state.printers.flatMap(p => {
+    // The cameras of the account WITH what a reader needs (address, login): they reach
+    // the detached window over IPC only, and are never drawn there (renderer/cam/cam.js).
+    const extById = new Map(extCamForDetach().map(c => [c.id, c]));
+    const extDescriptor = (brand, id, name, c) => ({ brand, id, name, camType: "extcam", url: null, ip: null, bblKey: null,
+      ext: { protocol: c.protocol, url: c.url, username: c.username, password: c.password } });
+    const fromPrinters = state.printers.flatMap(p => {
       const name = p.printerName || "(unnamed)";
+      // An IP camera shown in place of the printer's own (printer settings → "Camera shown"):
+      // the wall — this one included — shows IT, whether or not the printer is online.
+      const linked = extById.get(_camSourceId(p));
+      if (linked) return [extDescriptor(p.brand, p.id, name, linked)];
       if (p.brand === "snapmaker") {
         const conn = snapGetConn(snapKey(p));
         if (!conn || conn.status !== "connected" || !conn.ip) return [];
@@ -30465,6 +30738,11 @@ import { initScreenTools } from './ai/screen-tools.js';
       }
       return [];
     });
+    // The IP cameras that belong to no printer have their own card on the wall: here too.
+    const linkedIds = _linkedCamIds();
+    const alone = [...extById.values()].filter(c => !linkedIds.has(c.id))
+      .map(c => extDescriptor("ipcam", c.id, c.name || "(camera)", c));
+    return [...fromPrinters, ...alone];
   }
 
   // ── Printer cam wall sub-view ────────────────────────────────────────────
@@ -36879,6 +37157,195 @@ import { initScreenTools } from './ai/screen-tools.js';
     state.printers.forEach(p => { syncPrinterUnits(p); });
   }
 
+  /* ── An inventory spool mounted in a printer slot ─────────────────────────
+     The second, simultaneous location of a spool (ROADMAP "Printer slot
+     storage", P1/P2/P4). The rack stays its HOME; a slot is where it is mounted
+     right now. The truth is the slot's `uids` on the printer document — never
+     a field on the spool — so assigning a spool onto an occupied slot evicts the
+     previous occupant by itself, and the spool documents are never written.
+
+     Slots are read from the RECORD (`p.units`), not the live feed: a machine
+     that is off keeps its slots assignable. A twin pair is one physical spool,
+     so both of its ids go in together. */
+  let _mountIdx = null, _mountIdxOf = null;
+  function _spoolMountIndex() {
+    if (_mountIdx && _mountIdxOf === state.printers) return _mountIdx;
+    const idx = new Map();
+    for (const p of state.printers || []) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        (u?.slots || []).forEach((sl, i) => {
+          (Array.isArray(sl?.uids) ? sl.uids : []).forEach(id =>
+            idx.set(String(id), { printer: p, unitId, unit: u, slotIndex: i, slot: sl }));
+        });
+      }
+    }
+    // Derived from the printers snapshot only: rebuilt when that array is replaced.
+    _mountIdx = idx; _mountIdxOf = state.printers;
+    return idx;
+  }
+  function spoolMountOf(row) {
+    if (!row) return null;
+    const idx = _spoolMountIndex();
+    return idx.get(String(row.spoolId)) || idx.get(String(twinSpoolIdOf(row) || "")) || null;
+  }
+  function _printerDisplayName(p) {
+    return p.printerName || printerModelName(p.brand, p.printerModelId) || p.brand;
+  }
+  function _slotDisplayLabel(u, sl, i) {
+    return sl?.label || String(i + 1);
+  }
+
+  /* Puts `row` (and its twin) in the given slot — or takes it out of every slot
+     when `target` is null. One batch across every printer document it touches,
+     so a spool is never in two slots, not even for one snapshot. */
+  async function assignSpoolToPrinterSlot(row, target) {
+    const uid = state.activeAccountId;
+    if (!uid || state.friendView || !row) return;
+    const ids = [row.spoolId, twinSpoolIdOf(row)].filter(Boolean).map(String);
+    const patches = new Map();   // printerKey → { printer, patch }
+    for (const p of state.printers) {
+      for (const [unitId, u] of Object.entries(p?.units || {})) {
+        const slots = Array.isArray(u?.slots) ? u.slots : [];
+        let changed = false;
+        const next = slots.map((sl, i) => {
+          const uids = Array.isArray(sl?.uids) ? sl.uids.map(String) : [];
+          const isTarget = !!target && _printerKey(p) === _printerKey(target.printer)
+            && unitId === target.unitId && i === target.slotIndex;
+          if (isTarget) {
+            if (uids.length === ids.length && ids.every(x => uids.includes(x))) return sl;
+            changed = true;
+            return { ...sl, uids: ids };          // the previous occupant is evicted
+          }
+          if (uids.some(x => ids.includes(x))) {
+            changed = true;
+            return { ...sl, uids: uids.filter(x => !ids.includes(x)) };
+          }
+          return sl;
+        });
+        if (!changed) continue;
+        const key = _printerKey(p);
+        if (!patches.has(key)) patches.set(key, { printer: p, patch: {} });
+        // `slots` is an array: Firestore rewrites it whole, the unit's other keys stay.
+        patches.get(key).patch[`units.${unitId}.slots`] = next;
+      }
+    }
+    if (!patches.size) return;
+    const batch = fbDb(uid).batch();
+    patches.forEach(({ printer, patch }) => batch.update(_deviceDoc(uid, printer), patch));
+    await batch.commit();
+  }
+
+  /* The "Printer" row of the detail panel's location section, plus its slot
+     picker. Empty when there is nothing to say: no printer with known slots,
+     and the spool is not mounted anywhere. */
+  let _lastDetailMountSig = null;
+  function _detailMountSig(r) {
+    const m = spoolMountOf(r);
+    const printersWithSlots = (state.printers || []).filter(p =>
+      Object.values(p?.units || {}).some(u => u && u.present !== false && (u.slots || []).length)).length;
+    return m ? `${_printerKey(m.printer)}|${m.unitId}|${m.slotIndex}|${_printerDisplayName(m.printer)}|${_unitLabel(m.unit)}`
+      : `-|${printersWithSlots}`;
+  }
+  function _detailMountHTML(r) {
+    _lastDetailMountSig = _detailMountSig(r);
+    const m = spoolMountOf(r);
+    const ro = state.friendView || r.deleted;
+    const units = (state.printers || []).flatMap(p =>
+      _storedUnits(p).filter(u => u.slots.length).map(u => ({ p, u })));
+    if (!m && (ro || !units.length)) return "";
+
+    const label = t("mountSectionLabel");
+    const head = m ? `
+          <div class="storage-loc-row storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack" title="${esc(label)}">${esc(_printerDisplayName(m.printer))}</span>
+            <span class="storage-loc-coord">${esc(_unitLabel(m.unit))} · ${esc(_slotDisplayLabel(m.unit, m.slot, m.slotIndex))}</span>
+            ${ro ? "" : `
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountChange"))}" aria-label="${esc(t("mountChange"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountClear" title="${esc(t("mountClear"))}" aria-label="${esc(t("mountClear"))}">
+              <span class="icon icon-unlink icon-14"></span>
+            </button>`}
+          </div>` : `
+          <div class="storage-loc-row storage-loc-row--empty storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack storage-loc-rack--empty">${esc(t("mountNone"))}</span>
+            <button class="ghost sm storage-loc-autobtn" id="btnMountPick" title="${esc(t("mountPick"))}" aria-label="${esc(t("mountPick"))}">
+              <span class="icon icon-chevron-r icon-14"></span>
+            </button>
+          </div>`;
+    if (ro) return head;
+
+    // The picker: every printer → every unit → its slots, each showing who is
+    // in it (an inventory spool, else what the machine last reported).
+    const byPrinter = new Map();
+    units.forEach(({ p, u }) => {
+      const k = _printerKey(p);
+      if (!byPrinter.has(k)) byPrinter.set(k, { p, units: [] });
+      byPrinter.get(k).units.push(u);
+    });
+    const blocks = [...byPrinter.values()].map(({ p, units: us }) => {
+      const rec = p.units || {};
+      const lines = us.map(u => {
+        const recSlots = rec[u.storedKey]?.slots || [];
+        const chips = u.slots.map((s, i) => {
+          const occIds = Array.isArray(recSlots[i]?.uids) ? recSlots[i].uids.map(String) : [];
+          const occ = occIds.length ? state.rows.find(x => occIds.includes(String(x.spoolId))) : null;
+          const mine = m && _printerKey(m.printer) === _printerKey(p) && m.unitId === u.storedKey && m.slotIndex === i;
+          const bg = occ ? colorBg(occ) : (s.color ? `#${String(s.color).replace(/^#/, "").slice(0, 6)}` : "transparent");
+          const tip = occ ? spoolCardTitle(occ)
+            : [s.vendor, s.material, s.detail].filter(Boolean).join(" ") || t("mountSlotEmpty");
+          return `<button type="button" class="mount-slot${mine ? " mount-slot--mine" : ""}${occ ? " mount-slot--taken" : ""}"
+                    data-mount-printer="${esc(_printerKey(p))}" data-mount-unit="${esc(u.storedKey)}" data-mount-slot="${i}"
+                    title="${esc(tip)}">
+                    <span class="mount-slot-dot" style="background:${esc(bg)}"></span>
+                    <span class="mount-slot-lbl">${esc(_slotDisplayLabel(u, s, i))}</span>
+                  </button>`;
+        }).join("");
+        return `<div class="mount-unit"><span class="mount-unit-lbl">${esc(_unitLabel(u))}</span><div class="mount-slots">${chips}</div></div>`;
+      }).join("");
+      return `<div class="mount-printer"><div class="mount-printer-name">${esc(_printerDisplayName(p))}</div>${lines}</div>`;
+    }).join("");
+    const picker = `
+          <div class="mount-picker" id="mountPicker" hidden>
+            ${blocks || `<div class="mount-picker-empty">${esc(t("mountNoSlots"))}</div>`}
+            <div class="mount-picker-hint">${esc(t("mountHint"))}</div>
+          </div>`;
+    return head + picker;
+  }
+  function _wireDetailMount(r) {
+    $("btnMountPick")?.addEventListener("click", () => {
+      const pk = $("mountPicker");
+      if (pk) pk.hidden = !pk.hidden;
+    });
+    $("btnMountClear")?.addEventListener("click", async () => {
+      try { await assignSpoolToPrinterSlot(r, null); }
+      catch (e) { reportError("spool.mountClear", e); }
+    });
+    document.querySelectorAll("#mountPicker .mount-slot").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const printer = state.printers.find(p => _printerKey(p) === btn.dataset.mountPrinter);
+        if (!printer) return;
+        btn.disabled = true;
+        try {
+          await assignSpoolToPrinterSlot(r, {
+            printer, unitId: btn.dataset.mountUnit, slotIndex: Number(btn.dataset.mountSlot),
+          });
+        } catch (e) { reportError("spool.mount", e); }
+        finally { btn.disabled = false; }
+      });
+    });
+  }
+  // Printers snapshot → repaint the open spool's location section if its
+  // mount (or the list of printers it could be mounted in) changed.
+  function _refreshDetailMount() {
+    if (!state.selected || !$("detailPanel")?.classList.contains("open")) return;
+    const r = state.rows.find(x => x.spoolId === state.selected);
+    if (!r || _detailMountSig(r) === _lastDetailMountSig) return;
+    _patchDetailLocation(r);
+  }
+
 
 
   /* What a machine reports in one bay, as the inner markup of an unassigned
@@ -36939,7 +37406,16 @@ import { initScreenTools } from './ai/screen-tools.js';
         // whatever stood there back to the unranked panel.
         const oobDepth = (newDepth != null && Number.isInteger(row.rackDepth)  && row.rackDepth  >= newDepth);
         if (oobLevel || oobPos || oobDepth) {
-          batch.update(invRef.doc(row.spoolId), { rack: null });
+          /* Clear the legacy flat fields too, like `deleteRack` does: a doc still
+             on the old schema keeps `rack_id`, `normalizeRow` falls back to it
+             when `rack` is null, and the spool stays tied to a rack it no longer
+             fits in — gone from the grid AND from the unranked panel. */
+          batch.update(invRef.doc(row.spoolId), {
+            rack:     null,
+            rack_id:  firebase.firestore.FieldValue.delete(),
+            level:    firebase.firestore.FieldValue.delete(),
+            position: firebase.firestore.FieldValue.delete(),
+          });
           freed++;
         }
       });
@@ -36977,6 +37453,94 @@ import { initScreenTools } from './ai/screen-tools.js';
     } catch (e) {
       console.warn("[rack-cleanup] batch failed:", e?.message || e);
     }
+  }
+
+  // True when the spool's coordinates are a real slot of `rk`: level, position
+  // and depth all inside the rack's grid.
+  function _slotFitsRack(x, rk) {
+    if (!Number.isInteger(x.rackLevel) || !Number.isInteger(x.rackPos)) return false;
+    if (x.rackLevel < 0 || x.rackLevel >= (rk.level    || 0)) return false;
+    if (x.rackPos   < 0 || x.rackPos   >= (rk.position || 0)) return false;
+    if (!Number.isInteger(x.rackDepth) || x.rackDepth < 0 || x.rackDepth >= rackDepthOf(rk)) return false;
+    return true;
+  }
+
+  /* GHOSTS (#278) — a spool tied to a rack that STILL EXISTS, at a slot that rack
+     no longer has. A rack made smaller used to leave the spools of the removed
+     shelves with coordinates outside its grid: in no slot, and not in "Spools not
+     stored" either, which skips any spool whose rack exists. Those already stuck
+     in that state are freed here, like the spools of a deleted rack (the orphan
+     sweep above): `rack: null` and the leftover flat fields go.
+     It writes real spools from a guess, so it is held to a high bar:
+       • the inventory settled and the racks confirmed BY THE SERVER, on the
+         signed-in account, never on a friend's;
+       • a rack doc without a real grid says nothing about its spools: untouched;
+       • the picture has to hold GHOST_SWEEP_DELAY_MS later, racks included — a
+         rack made bigger on another computer can reach this one AFTER the spool
+         placed in its new slot, and that spool looks out of bounds until the rack
+         arrives;
+       • a sweep that wants to free most of the racked stock has misread something
+         rather than found that many ghosts (half of a rack's spools can be genuine
+         after a shrink, hence a share above the orphan sweep's) and steps aside. */
+  const GHOST_SWEEP_DELAY_MS = 8000;
+  const GHOST_SWEEP_MAX_SHARE = 0.6;
+  let _ghostSweepTimer = null;
+
+  function _findGhostSpools() {
+    const byId = new Map(state.racks.map(r => [r.id, r]));
+    return state.rows.filter(x => {
+      if (x.deleted || !x.rackId) return false;
+      const rk = byId.get(x.rackId);
+      // No rack at all is the orphan sweep's case.
+      if (!rk || !(rk.level >= 1) || !(rk.position >= 1)) return false;
+      return !_slotFitsRack(x, rk);
+    });
+  }
+
+  const _ghostSignature = ghosts =>
+    state.racks.map(r => `${r.id}:${r.level}x${r.position}x${rackDepthOf(r)}`).sort().join(",")
+    + "|" + ghosts.map(x => `${x.spoolId}@${x.rackLevel},${x.rackPos},${x.rackDepth}`).sort().join(",");
+
+  function _scheduleGhostSweep() {
+    if (_ghostSweepTimer || state.friendView || state.invLoading || !_racksFromServer || !state.racks.length) return;
+    if (fbAuth().currentUser?.uid !== state.activeAccountId || _racksLoadedFor !== state.activeAccountId) return;
+    const seen = _findGhostSpools();
+    if (!seen.length) return;
+    const before = _ghostSignature(seen);
+    _ghostSweepTimer = setTimeout(() => {
+      _ghostSweepTimer = null;
+      _runGhostSweep(before).catch(e => console.warn("[rack-cleanup] ghost sweep failed:", e?.message || e));
+    }, GHOST_SWEEP_DELAY_MS);
+  }
+
+  async function _runGhostSweep(before) {
+    const user = fbAuth().currentUser;
+    if (!user || user.uid !== state.activeAccountId || state.friendView || state.invLoading || !_racksFromServer) return;
+    const ghosts = _findGhostSpools();
+    if (!ghosts.length) return;
+    if (_ghostSignature(ghosts) !== before) {   // the picture moved: this pass writes nothing, a fresh one starts from what is true now
+      _scheduleGhostSweep();
+      return;
+    }
+    const racked = state.rows.filter(x => !x.deleted && x.rackId).length;
+    if (ghosts.length > racked * GHOST_SWEEP_MAX_SHARE) {
+      console.warn(`[rack-cleanup] ghost sweep REFUSED — it wanted to free ${ghosts.length} of ${racked} racked spools. `
+        + `That is not leftovers; nothing was changed.`);
+      return;
+    }
+    const invRef = fbDb().collection("users").doc(user.uid).collection("inventory");
+    const FV = firebase.firestore.FieldValue;
+    for (let i = 0; i < ghosts.length; i += 400) {   // a batch holds 500 writes at most
+      const batch = _xanoQuietBatch(fbDb().batch());
+      ghosts.slice(i, i + 400).forEach(row => batch.update(invRef.doc(row.spoolId), {
+        rack:     null,
+        rack_id:  FV.delete(),
+        level:    FV.delete(),
+        position: FV.delete(),
+      }));
+      await batch.commit();
+    }
+    console.log(`[rack-cleanup] freed ${ghosts.length} spool(s) left outside the grid of their rack`);
   }
 
   async function deleteRack(rackId) {
@@ -37938,6 +38502,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         return g;
       };
       const views = hueGroup(f, () => _onFilterChange());
+      _hueViewsRedraw = () => views.redraw();   // the filter bar's colour chip resets them
 
       /* One selector, driven twice. `win` is the {lo,width,active} it owns and
          `axis` says how wide the scale is, how thin the window may get, and
@@ -38262,13 +38827,9 @@ import { initScreenTools } from './ai/screen-tools.js';
         Object.assign(f.hue, HUE_DEFAULT);
         Object.assign(f.lum, LUM_DEFAULT);
         f.axis = "hue";            // the selector goes home with everything else
+        // Every chip goes, the catalogue's colour search with them; the sort
+        // order is not a filter and stays.
         _clearSearchFilters();
-        // The Search views browse the catalogue, not the user's stock, so they
-        // carry their own selectors. The sort order is not a filter and stays.
-        ["cvType", "cvBrand", "cvMaterial", "cvSeries"].forEach(id => {
-          const sel = $(id);
-          if (sel) { sel.value = ""; sel.classList.remove("is-active"); sel._cselRefresh?.(); }
-        });
         views.redraw(); _onFilterChange();
       });
       views.redraw();
@@ -38277,15 +38838,11 @@ import { initScreenTools } from './ai/screen-tools.js';
 
   function applyRackSearchDim() {
     const q = (state.search || "").trim().toLowerCase();
-    const brand = state.brandFilter || "";
-    const material = state.materialFilter || "";
     // Transient "locate this spool" highlight (from the detail panel) — lights
     // up one spool's slot WITHOUT writing anything in the search bar.
     const locate = state.locateUid ? String(state.locateUid).toLowerCase() : "";
-    const tag = (state.tagFilter || "").toLowerCase();
-    const aspect = state.aspectFilter || "";
     const hueOn = _hueFilterOn();
-    const noFilter = !q && !brand && !material && !aspect && !tag && !locate && !hueOn;
+    const noFilter = !q && !state.filters.length && !locate && !hueOn;
     document.querySelectorAll("#invRackView .rp-slot--filled").forEach(el => {
       if (noFilter) {
         el.classList.remove("rp-dim");
@@ -38295,17 +38852,10 @@ import { initScreenTools } from './ai/screen-tools.js';
       const sid = el.dataset.spoolId;
       const r = state.rows.find(x => x.spoolId === sid);
       if (!r) { el.classList.add("rp-dim"); el.classList.remove("rp-slot--match"); return; }
-      const matchSearch = !q || _rowMatchesSearch(r, q);
-      const matchBrand = !brand || String(r.brand) === brand;
-      const matchMaterial = !material || String(r.material) === material;
-      const type = state.typeFilter || "";
-      const matchType = !type || String(r.protocol) === type;
-      const matchAspect = !aspect || String(r.aspect1) === aspect || String(r.aspect2) === aspect;
-      const matchTag = !tag || (r.tags || []).some(t => String(t).toLowerCase() === tag);
       const matchLocate = !locate
         || String(r.uid).toLowerCase() === locate || String(r.spoolId).toLowerCase() === locate;
-      const matchHue = !hueOn || _rowMatchesHue(r);
-      const matches = matchSearch && matchBrand && matchMaterial && matchType && matchAspect && matchTag && matchLocate && matchHue;
+      const matches = (!q || _rowMatchesSearch(r, q)) && _fbPass(r, "inv") && matchLocate
+        && (!hueOn || _rowMatchesHue(r));
       el.classList.toggle("rp-dim", !matches);
       // Positive match indicator on the slot CONTAINER (border + glow) —
       // makes depleted spools (whose .rp-fill is invisible at 0%) still
@@ -39516,8 +40066,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // transient "locate this spool" highlight is active — not just search text.
     // (The Storage-location row sets state.locateUid with no search text, so the
     // old `state.search`-only guard meant clicking it no longer lit the slot.)
-    if (state.search || state.locateUid || state.brandFilter || state.materialFilter
-        || state.typeFilter || state.aspectFilter || state.tagFilter) applyRackSearchDim();
+    if (state.search || state.locateUid || state.filters.length) applyRackSearchDim();
     return true;
   }
 
@@ -39596,12 +40145,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const _isInValidSlot = x => {
       if (x.deleted || !x.rackId) return false;
       const rk = racksById.get(x.rackId);
-      if (!rk) return false;
-      if (!Number.isInteger(x.rackLevel) || !Number.isInteger(x.rackPos)) return false;
-      if (x.rackLevel < 0 || x.rackLevel >= (rk.level    || 0)) return false;
-      if (x.rackPos   < 0 || x.rackPos   >= (rk.position || 0)) return false;
-      if (!Number.isInteger(x.rackDepth) || x.rackDepth < 0 || x.rackDepth >= rackDepthOf(rk)) return false;
-      return true;
+      return !!rk && _slotFitsRack(x, rk);
     };
     let totalSlotsAll = 0, filledSlotsAll = 0, lockedSlotsAll = 0, lockedEmptyAll = 0;
     state.racks.forEach(r => {
@@ -39660,6 +40204,8 @@ import { initScreenTools } from './ai/screen-tools.js';
         _cleanupOrphanRackRefs(orphans).finally(() => { _orphanCleanupInFlight = false; });
       }
     }
+    // Spools left outside the grid of a rack that still exists (#278).
+    _scheduleGhostSweep();
     // Usable capacity = physical total minus locked-EMPTY (unusable) slots:
     // locking an empty slot takes it out of the rack's storable capacity, so
     // the "filled / total" denominator drops (198 → 197). Locked-FILLED
@@ -42908,8 +43454,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     const stockMap = _stockCountByKey();
     Object.values(state.products || {}).forEach(p => {
       const min = +p.minStockSpools || 0;
-      const stock = (p.key && stockMap.get(p.key)) || 0;
-      const belowMin = min > 0 && p.key && stock < min;
+      const stock = (p.id && stockMap.get(p.id)) || 0;
+      const belowMin = min > 0 && p.id && stock < min;
       if (!belowMin) { if (active.delete(p.id)) changed = true; return; }   // above min → re-arm for next dip
       if (active.has(p.id)) return;                                          // already notified this dip
       active.add(p.id); changed = true;
@@ -44820,10 +45366,16 @@ import { initScreenTools } from './ai/screen-tools.js';
     const r = ownSpoolId ? state.rows.find(x => x.spoolId === ownSpoolId) : null;
     return r ? _hasRealProductId(r.raw?.id_product ?? r.idProduct) || !!r.isPlus : _hasRealProductId(idProduct);
   }
-  // A trophy only the app sees (backend trophyRules APP_REPORTED), asked once.
+  // A trophy only the app sees (backend trophyRules APP_REPORTED), asked once per
+  // account and launch: the filters and the colour search call this on every change,
+  // before the album says it is earned. (A property, not a const: it may run before
+  // this line has.)
   function _appTrophy(id) {
     const uid = state.activeAccountId;
-    if (uid && !trophyEarned(id)) _tigerCoins(uid, "appTrophy", { id }).catch(() => {});
+    const asked = (_appTrophy.asked ||= new Set()), key = `${uid}:${id}`;
+    if (!uid || trophyEarned(id) || asked.has(key)) return;
+    asked.add(key);
+    _tigerCoins(uid, "appTrophy", { id }).catch(() => {});
   }
   // `qr_read`: a qr.tigertag.io link pasted or scanned into the search, every kind
   // (spool, product, no_product, newer), once per link over 5 minutes. `Reader`

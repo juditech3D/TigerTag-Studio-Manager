@@ -34,8 +34,13 @@
 | `tagRemove` | Remove-tag button tooltip |
 | `sortBy` | Grid-view sort dropdown title |
 | `sortDir` | Grid-view sort direction toggle title |
-| `filterAllTags` | Tag filter dropdown — "All tags" default |
-| `filterAllStates` | Printer State filter dropdown — "All states" default (online/offline) |
+| `fbAdd` / `fbRemove` | Filter bar (renderer/filter-bar.js): the search field's filter icon (accessible name) / a chip's ✕ |
+| `fbChipIs` / `fbChipIsNot` (`{{field}}`, `{{values}}`) | A chip's text: "Brand is Bambu Lab, Sunlu +1" / "… is not …" |
+| `fbIs` / `fbIsNot` | The is / is not switch in a chip's editor |
+| `fbMin` / `fbMax` | A range chip's editor (Weight): at least / at most |
+| `fbSearchFor` (`{{q}}`) / `fbFilterBy` (`{{field}}`) | The field list under the search field while text is typed: keep it as a search / add the filter it names |
+| `fbNothing` | A filter menu with nothing to list |
+| `fbList` / `fbNotStored` | Field "List" (to order / favourite) / the Rack field's value for a spool in no rack |
 | `toolRepairPlus` / `toolRepairPlusTip` | Toolbox "Restore TigerTag+" action + tooltip (keys kept as `Repair*`; label reads "Restore") |
 | `toolRepairNoChip` / `toolRepairNoBackup` | Restore guard messages (chip not on reader / no backup) |
 | `toolRepairWriting` / `toolRepairDone` / `toolRepairAlready` / `toolRepairFailed` | Restore progress/result states |
@@ -115,6 +120,7 @@
 | `noMatch` | Empty state: no match |
 | `invLoading` | Loading spinner label |
 | `qrScanScanning` / `qrScanFound` | Camera QR card: status pill while scanning / on a read |
+| `bambuChipSummary` | New-chip card: what a Bambu Lab chip says (weight, diameter, nozzle range) under its material |
 | `linkedChipAddQr` / `linkedChipQrTip` | Add chooser: the "Add from QR code" tile and its ⓘ tip |
 | `linkedChipAddTag` / `linkedChipTagTip` | Add chooser: the "Add with TigerTag" tile and its ⓘ tip |
 | `tagAddHint` / `tagAddUnknown` / `tagAddBlank` / `tagAddReplace` / `tagAddKnown` / `tagAddDone` / `tagAddReading` / `tagAddAlready` | Add with TigerTag: the waiting hint, the toast for a new chip scanned outside it, a blank chip, a chip placed before the view opened, one already in the inventory, one just added |
@@ -122,7 +128,16 @@
 | `pcQrAddBanner` / `pcQrAddInfo` | Catalogue product card, nothing on the TigerPOD: "Add with TigerQR+", its ⓘ and hold tip — creates the spool and opens its QR label |
 | `chipAutoUpdated` | Toast when a chip flagged "to update" is rewritten automatically as it lands on the TigerPOD |
 | `chipAutoUpdating` | The spool card's update banner while that automatic rewrite runs ("Update in progress…"), its fill running by itself |
-| `catEmptyFilteredTitle` / `catEmptyFilteredCta` | Catalogue empty state when the search finds products but the Type / Brand / Material / Series selectors leave none, and its "Clear the filters" button (keeps the search) |
+| `catEmptyFilteredTitle` / `catEmptyFilteredCta` | Catalogue empty state when the search finds products but the filter chips leave none, and its "Clear the filters" button (keeps the search) |
+| `colorSearchBtn` / `colorSearchSub` | Colour search (Search views): the search bar's colour button, chip and card title / its subtitle (renderer/color-search.js) |
+| `colorSearchHex` / `colorSearchRal` / `colorSearchPhoto` | Colour search mode tabs (HEX code · RAL Classic · Photo) |
+| `colorSearchPick` / `colorSearchNone` | The colour picker swatch's label / the current colour before one is picked |
+| `colorSearchRalSearch` / `colorSearchRalNone` | RAL field placeholder / no RAL matches the words typed |
+| `colorSearchRalWords` | The RAL search's word list, `word=english|…`: a colour word typed in the app's language read as the English RAL name word (the RAL names are English only). Not shown |
+| `colorSearchPhotoDrop` / `colorSearchPhotoChoose` / `colorSearchPhotoClear` / `colorSearchPhotoHint` | Photo mode: drop zone, choose another, remove, "nothing is uploaded" hint |
+| `colorSearchMax` (`{{n}}`) / `colorSearchMaxAria` / `colorSearchHelp` | ΔE ceiling slider label, its accessible name, what ΔE means |
+| `colorSearchBand_same` / `_veryClose` / `_close` / `_near` / `_far` | tigersystem.io's ΔE bands (<1, <2, <5, <10, ≥10) |
+| `colorSearchDeclared` (`{{code}}`) / `colorSearchMulti` | A result whose brand declared the RAL searched for / include multicolour toggle |
 
 ### Stats
 | Key | Purpose |
@@ -242,7 +257,7 @@ Window and pill: `questsTitle`, `questsToday`, `questsJourney`, `questsOpenApp`,
 Built from ids (dynamic): daily missions `questDaily_<id>` (`findBrand` takes `{{brand}}`, `filterMaterial` takes `{{material}}`), journey actions `questAct_<level>_<action>` (e.g. `questAct_d1_displayName`, 85 keys), level themes `questLevel_d1`…`questLevel_e5` and `questLevel_m1`…`questLevel_m5` (the Mountaineer rank), ranks `questRank_1`…`questRank_20` and their worlds `questWorld_1`…`questWorld_20`. XP history parts: `xpAch_daily`, `xpAch_updates`, `xpAch_journey`.
 
 ### TigerSquad country league (account modal → Ligue des pays)
-`squadCountryChange` (the button beside the current flag), and its window: `squadCountryPickTitle`, `squadCountryPickSub`, `squadCountryCurrent`, `squadCountryDetected` (badge when the flag is the auto-detected one), `squadCountrySearch`, `squadCountryLockTitle` (`{{n}}` days), `squadCountryPickWarn` (the lock line), `squadCountryConfirm` (`{{country}}`, the held button), `squadCountryPickNone` (the button before a pick), `squadCountryKeep`
+`squadCountryChange` (the button beside the current flag); under it `squadCountryLockHint`, `squadCountryLockedUntil` (`{{date}}`) or `squadCountryPending` (`{{country}}`, `{{date}}`: a pick the 30-day lock still holds back); and its window: `squadCountryPickTitle`, `squadCountryPickSub`, `squadCountryCurrent`, `squadCountryDetected` (badge when the flag is the auto-detected one), `squadCountrySearch`, `squadCountryLockTitle` (`{{n}}` days), `squadCountryPickWarn` (the lock line), `squadCountryConfirm` (`{{country}}`, the held button), `squadCountryPickNone` (the button before a pick), `squadCountryKeep`
 
 ### Trophies (renderer/quests/trophies.js)
 Generic labels only: `trophyTier_<tier>`, `trophyFamilyAll`, `trophyFilter_<all|got|locked>`, `trophyHidden`, `trophyHiddenHow`, `trophySeenAt` (`{{name}}`: the friend who revealed it), `trophyUnlocked`, `trophySeeAll`… No `trophy_<id>` / `trophyHow_<id>` / `trophyFamily_<family>` key: each trophy's name and mission and each family's label come from the backend (`trophyCatalog.json`, `trophyFamilies.json` → cdn catalogue, `trophyCards`), see `docs/TROPHIES.md`.

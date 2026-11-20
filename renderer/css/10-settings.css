@@ -1222,3 +1222,46 @@ img.notif-ic.notif-ic--badge { background: none; border: 0; border-radius: 0; ob
    Share → Add to Home Screen, so the button unfolds these words instead). */
 .sb-install-hint { margin: 2px 4px 6px; font-size: 11.5px; line-height: 1.4; color: var(--muted); }
 .sidebar.collapsed .sb-install-hint { display: none; }
+
+  /* Spool detail panel → Printer slot row + picker. The spool's second
+     location: the rack is its home, the slot is where it is mounted now.
+     Same compact row as the rack line, then an inline picker listing every
+     printer → unit → slot, each slot a chip with its occupant's colour. */
+  .panel-storage-loc .storage-loc-row--mount { margin-top: 6px; }
+  .panel-storage-loc .mount-picker {
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .panel-storage-loc .mount-picker[hidden] { display: none; }
+  .panel-storage-loc .mount-printer-name { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .panel-storage-loc .mount-unit { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .panel-storage-loc .mount-unit-lbl {
+    flex: 0 0 64px; font-size: 11px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .panel-storage-loc .mount-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .panel-storage-loc .mount-slot {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 8px 3px 4px;
+    font: inherit; font-size: 11px; font-family: var(--mono);
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .panel-storage-loc .mount-slot:hover { border-color: var(--primary); background: var(--primary-soft); }
+  .panel-storage-loc .mount-slot--mine { border-color: var(--primary); color: var(--primary-text); }
+  .panel-storage-loc .mount-slot:disabled { opacity: .5; cursor: progress; }
+  .panel-storage-loc .mount-slot-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1px solid color-mix(in srgb, var(--text) 25%, transparent);
+  }
+  .panel-storage-loc .mount-slot--taken .mount-slot-dot { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--muted); }
+  .panel-storage-loc .mount-picker-empty,
+  .panel-storage-loc .mount-picker-hint { font-size: 11px; color: var(--muted); }

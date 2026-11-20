@@ -1,24 +1,67 @@
-# Worklog — v2.58.0
+# Worklog — v2.59.2 (in progress)
 
 ## Added
-- Printed labels draw the maker's logo in place of the brand name when the brand table has one (`logo_url`, served by the Manager from the CDN `img?type=brand`): read once through the main-process image cache (`img:get`, the CDN's last hop sends no CORS header), made one-colour black (near-white pixels become paper), drawn in the brand box in proportion; the brand text stays while it loads or when there is none — #242. `_brandLogoFor` + `labelInfo.logo` (`renderer/inventory.js`), `buildLabel` + `redrawLabelCard` (`renderer/labels/index.js`).
-- Creality K3 (`F039`, catalogue id 12): picture, detection by model code / default host name, four nozzle pills (E1–E4, only the active one editable), CFS Nano boxes, no external spool — PR #253 (`renderer/printers/creality/index.js`, `probe.js`, `PROTOCOL.md`, `data/printers/cre_printer_models.json`, `assets/img/cre_printers/k3.png`). Not seen on a real K3.
-- Creality SparkX i8 (`F030`, catalogue id 13): picture, detection (`F030`, `i8-XXXX`, before the i7 rule), four-slot rack, no external spool — PR #255 (same files, `assets/img/cre_printers/sparkx_i8.png`). Not seen on a real i8.
 
 ## Changed
-- Snapmaker filament sheet: vendor Polymaker added with its own list from the Snapmaker app — PLA, PETG, ABS, TPU, ASA, PC, PA, PCTG, PE, PHA, PVA, BVOH, HIPS, EVA (`SNAP_FIL_VENDOR_MATERIALS`, `renderer/printers/snapmaker/index.js`).
-- A chip flagged to update (`needUpdateAt`: the catalogue reconcile or an edit changed a field the chip carries) is rewritten automatically as soon as it is read on the TigerPOD — the same verified page-by-page write as the "Please update NFC" window (`rfid:encode-cloud`: identity, timestamp and signature kept, so a TigerTag+ Certified stays certified), then that chip's flag is cleared and a toast says so; the old bytes just read are no longer written back over the record. Not while that window is open or in a friend's view. `_autoUpdateChip` + `_processNfcScans` (`renderer/inventory.js`), CODEMAP. Needs a real-chip test.
 
 ## Fixed
-- Catalogue Material filter lists material FAMILIES only (`material_type` of the product's `id_material`, read from the bundled `id_material.json`): "PLA Silk", "PLA+ Silk"… are PLA, so a silk spool filed as PLA + aspect Silk (Geeetech) is no longer missed — #217 (`_catFamily`, `_catalogFilter`, `_catViewFillFacets`, `_catViewSearch`; the material-family loader shared with the MCP is now `_loadMaterialFamilies` / `_matFamilies`, `renderer/inventory.js`; CODEMAP).
-- Catalogue empty state: when the search finds products that the selectors hide, "It's there — your filters are hiding it" + "Clear the filters" (keeps the search) instead of "create it by hand" — #217.
-- Bambu Lab cloud: Studio sends its own client identity (`tiger-studio-manager`) instead of OrcaSlicer's, which Bambu's edge now answers with 403 — the print thumbnail shows again — PR #251 (`_bblHeaders`, `main.js`; `renderer/printers/bambulab/PROTOCOL.md` headers block updated).
-- Creality temperature pills: `aria-label` instead of `title=` tooltips; comments name the SparkX i8 beside the K3 (`renderer/printers/creality/index.js`).
+- Bambu Lab A2L added by IP is recognised from its serial prefix `26A` instead of falling back to "Select printer" (#244, PR #306); the DevModel code `N9` still wins. Prefix read off a reporter's serial, no real A2L tested. `renderer/printers/bambulab/probe.js` (`BBL_SERIAL_PREFIX_TO_ID`), `renderer/printers/bambulab/PROTOCOL.md`.
+- Catalogue auto-refresh no longer floods `product/get` (#309: ~450 000 calls a day since 2.59.0, the API went down). The spools are reconciled only after a sync that downloaded a CHANGED mirror (`_catalogSignature`, localStorage `tigertag.catalogSig`), not on every inventory snapshot or window focus; every answered call stamps the spool with the mirror entry it was asked for (`tigertag.catalogAsked.<uid>`, kept across restarts), so a spool the API is behind on is not asked again until that entry moves; a 5xx / timeout / network failure stops the run and pauses every automatic ask (`tigertag.catalogBackoff`, 30 min doubling up to 8 h, also honoured by the check on opening a spool); at most 10 spools per run (`CATALOG_REFRESH_MAX`, was 40). The launch refresh of TigerTag+ spools without a photo goes through the same runner (sequential, capped, once a week per spool). Simulated: 30 spools that stay behind cost 30 calls once, then none; a 503 stops after one call. `renderer/inventory.js` (`_catalogAskBatch`, `_catalogRefreshStale`, `_catalogAutoSync`, `_catalogSync`, `_refreshApiData` `report`, `_catalogCheckOnOpen`), `CLAUDE.md` (localStorage keys), `renderer/CODEMAP.md`.
 
 ## Removed
-- Settings → Data → "Copy API URL" (the 6-character API key export URL): the API key is set aside for now, data is reached by signing in to the account — button `btnCopyApiUrl` + `stgApiUrlWarn` (`renderer/inventory.html`), `getOrCreateApiKey6` and its click handler (`renderer/inventory.js`), CODEMAP row; closes #235. The backend `createAccessKey6` / `exportInventory` are left as they are.
 
 ## i18n
-- Added (11 locales): `chipAutoUpdated`.
-- Added (11 locales): `catEmptyFilteredTitle`, `catEmptyFilteredCta`.
-- Removed (11 locales): `stgCopyApiUrl`, `stgCopyApiUrlOk`, `stgCopyApiUrlNoKey`, `stgCopyApiUrlErr`, `stgCopyApiUrlGenerating`.
+
+## Fork additions (kept on top of upstream v2.59.2)
+
+### Added
+
+- A TigerScale can stand in for a TigerPOD: while its TigerPOD tool is open on its screen, its
+  two readers show up in Studio as two more RFID readers ("TigerScale <name> #1" / "#2"), and every
+  chip feature works on them as on a USB reader (open the spool of a chip put down, write a blank
+  chip, TigerTag+ upgrade, restore, erase, NFC tools). `services/scale-pod.js` (`ScalePods`) speaks
+  the reader-process messages of `services/nfc-process.js` over `ws://<scale>/pod?c=<lan_access_code>`
+  for the account's scales that publish `lan_url` + `lan_access_code` (local addresses only, retried
+  every 5 s, the code never logged); `main.js` routes each request to whichever side owns the reader
+  (`_nfcPost`, `_nfcUp`, IPC `tigerscale:pod-scales`); `preload.js` (`tigerscale.podScales`);
+  `renderer/IoT/tigerscale/index.js` hands the list over on every scales snapshot (`_syncPodScales`).
+- A spool can be mounted in a printer slot (AMS / CFS / ACE / holder / Ext.) from its detail
+  panel: the Storage location section gains a printer row and a slot picker (printer → unit →
+  slot). It writes the `uids` already reserved on `printers/{brand}/devices/{id}.units.{unitId}.slots[i]`;
+  assigning evicts the previous occupant and removes the spool from any other slot, twin ids go
+  together. `renderer/inventory.js` (`spoolMountOf`, `assignSpoolToPrinterSlot`, `_detailMountHTML`,
+  `_wireDetailMount`, `_refreshDetailMount`), `renderer/css/10-settings.css`. ROADMAP P1/P2/P4
+  marked partly shipped.
+- A USB barcode / QR scanner works anywhere in the app: a burst of quick keys outside any field,
+  closed by Enter or Tab, is taken as a scan. Its code (or one found inside a QR link) is matched
+  exactly against the catalogue (barcode, SKU, id): the Catalogue view opens on it with the product
+  selected, so its card is ready to add the spool. A spool QR link (qr.tigertag.io) opens the spool;
+  an unknown code stays a search and says so. A field with the focus keeps every key. Digits are
+  read from the physical key (`e.code`), so a scanner set to the US layout works on an AZERTY computer.
+  `renderer/inventory.js` (`_onCodeScanned`, `_catalogProductsForCode`).
+
+- A Bambu Lab chip placed on a PC/SC reader is read: its sectors open with keys derived
+  from its UID (HKDF-SHA256, per the Bambu Research Group's RFID-Tag-Guide), the data
+  blocks are decoded (material, colour, weight, diameter, temperatures…) and the
+  new-chip card shows them above its choices; "Catalogue" opens on Bambu Lab and the
+  detailed type, sorted by closeness to the chip's colour, the closest product's card
+  opened at once within ΔE 10 (`_cpkChipColor`, `_cpkChipRank`). Read only, nothing written, signature not checked. New
+  `services/bambu-tag.js` (`bambuKeysA`, `parseBambuBlocks`); `services/nfc-process.js`
+  (`_readBambu`, no NTAG read for a MIFARE Classic 1K); `main.js` (`bambu` on
+  `rfid-foreign-chip`); `renderer/rfid_protocol/linked/index.js` (`presentBambuInfo`,
+  `_bambuSummaryHtml`), `linked.css` (`.lc-bambu*`); `renderer/inventory.js`
+  (`openCatalogPick` `prefill`); `docs/LINKED-CHIPS.md`. Not tried on a real chip yet.
+
+### Fixed
+
+- A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
+- `.ttag` import in **Import** mode works again: it wrote `id_tigertag: FieldValue.delete()` in a
+  batch `set()` without merge, which Firestore rejects, so every Import-mode file failed with
+  "ttagImportErr" and nothing was written. The field is now left out of the new doc
+  (`_ttagBuildWrites` in `renderer/inventory.js`). Restore mode was not affected.
+
+### i18n
+
+- Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
+- Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
+- Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.

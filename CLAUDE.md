@@ -129,6 +129,8 @@ renderer/
   color-pop.js     — the in-app colour picker that opens beside what was clicked (SV area, hue, HEX) — used for the theme colours instead of the OS colour panel
   ral-classic.js   — the 215 RAL Classic codes → [name, approximate HEX] (data from ral-colors 1.0.1, MIT): names a product's RAL code
   qr-scan.js       — read a TigerQR label with the computer's camera (one side card #qrScanPanel: search bar button + "Add from QR code"; BarcodeDetector, else lib/jsqr)
+  filter-bar.js    — the filter chips written in the search field (Shopify admin's pattern): field list, chip editors, keyboard; the fields and conditions live in inventory.js (FB_FIELDS, state.filters)
+  color-search.js  — find a catalogue product by colour (one side card #colorSearchPanel, the search bar's colour button in the Search views): HEX / RAL / photo within a ΔE, CIEDE2000 as on tigersystem.io
   splash/          — the launch splash page (main.js createSplash), loaded before the main window
   locales/         — en fr de es it zh pt pt-pt pl ru nl (.json, reference: en)
   IoT/             — devices, each with its own CSS
@@ -186,6 +188,9 @@ ONE `ip` field, `host` or `host:port` (the form Studio and the Tiger Touch firmw
 | `tigertag.panelWidth.detail` / `.debug` | panel widths in px |
 | `tigertag.sort.inv` / `tigertag.sort.printer` | table sort `{col,dir}` |
 | `tigertag.theme`, `tigertag.catalog` | theme and catalogue view preferences |
+| `tigertag.catalogSig` | fingerprint of the catalogue mirror at the last sync: the spools are reconciled with the API only when it changed (`_catalogSignature`, #309) |
+| `tigertag.catalogAsked.<id>` | `{spoolId: {k, at}}`: the mirror entry each spool of that account was last asked `product/get` for; not asked again while it holds (`_catalogAskBatch`) |
+| `tigertag.catalogBackoff` | `{until, n}`: automatic `product/get` asks paused after a 5xx / timeout, 30 min doubling up to 8 h |
 | `tigertag.nfc.lastUrl` | last link written to a chip by the NFC tools, offered again |
 | `tigertag.nfc.contact` | the NFC tools' contact card as last typed `{name, phone, email, org, url}` |
 | `tigertag.label` | the label card's last choices `{template, slots, dpi, kind}` (`renderer/labels`) |

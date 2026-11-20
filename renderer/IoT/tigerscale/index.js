@@ -97,6 +97,23 @@ export function scalesReady() {
     .map(s => ({ mac: s.mac, name: s.display_name || "Tiger Scale", url: s.lan_url, code: s.lan_access_code, asleep: scaleConnState(s) === "standby" }));
 }
 
+/* TigerPOD tool (TigerScale firmware that has it): a scale lends its two readers to Studio while
+   that tool is open on its screen, so they work like a TigerPOD's. Main reaches
+   them with the LAN address and code the scale publishes (services/scale-pod.js);
+   this hands it the account's list whenever that list changes. Offline scales
+   stay in it: main retries quietly, and a scale coming back is found at once. */
+let _podScalesSig = null;
+function _syncPodScales() {
+  if (typeof window.tigerscale?.podScales !== "function") return;
+  const list = _ctx.state.scales
+    .filter(s => typeof s.lan_url === "string" && s.lan_access_code)
+    .map(s => ({ mac: s.mac, name: s.display_name || "Tiger Scale", url: s.lan_url, code: s.lan_access_code }));
+  const sig = JSON.stringify(list);
+  if (sig === _podScalesSig) return;
+  _podScalesSig = sig;
+  window.tigerscale.podScales(list);
+}
+
 export function subscribeScales(uid) {
   unsubscribeScales();
   const { state, fbDb } = _ctx;
@@ -124,6 +141,7 @@ export function subscribeScales(uid) {
       }
       renderScaleHealth();
       renderScalesPanel();
+      _syncPodScales();
       _ctx.onScalesChanged?.();   // e.g. the open TigerScale sheet follows its live state
       if (state.debugEnabled) {
         const dt = ((typeof performance !== "undefined") ? performance.now() : 0) - t0;
@@ -138,6 +156,8 @@ export function subscribeScales(uid) {
 export function unsubscribeScales() {
   const { state } = _ctx;
   if (state.unsubScales) { state.unsubScales(); state.unsubScales = null; }
+  _podScalesSig = null;
+  window.tigerscale?.podScales?.([]);
   _scaleLocalState.forEach((_, mac) => disconnectScaleWs(mac));
   _scaleLocalState.clear();
 }

@@ -15400,5 +15400,368 @@
         }
       }
     ]
+  },
+  "2.59.0": {
+    "date": "2026-11-18",
+    "items": [
+      {
+        "icon": "filter",
+        "title": {
+          "en": "Filters live in the search bar now",
+          "fr": "Les filtres vivent dans la barre de recherche",
+          "de": "Filter wohnen jetzt in der Suchleiste",
+          "es": "Los filtros viven en la barra de búsqueda",
+          "it": "I filtri ora vivono nella barra di ricerca",
+          "zh": "筛选条件现在直接写在搜索栏里",
+          "pt": "Os filtros agora moram na barra de busca",
+          "pt-pt": "Os filtros agora vivem na barra de pesquisa",
+          "pl": "Filtry mieszkają teraz w pasku wyszukiwania",
+          "ru": "Фильтры теперь живут в строке поиска",
+          "nl": "Filters wonen nu in de zoekbalk"
+        },
+        "body": {
+          "en": "Click the search bar or type a field name (brand, material, aspect, type, tag, list, weight, rack) and each filter becomes a pill you can combine. The TigerTag and TigerData tiles up top set the type for you. Five dropdowns fewer, one bar more.",
+          "fr": "Clique dans la barre de recherche ou tape un nom de champ (marque, matière, aspect, type, balise, liste, poids, rack) et chaque filtre devient une pastille à combiner. Les tuiles TigerTag et TigerData tout en haut règlent le type pour toi. Cinq menus déroulants en moins, une barre en plus.",
+          "de": "Klick in die Suchleiste oder tippe einen Feldnamen (Marke, Material, Aspekt, Typ, Tag, Liste, Gewicht, Regal) und jeder Filter wird zu einem Baustein, den du kombinieren kannst. Die TigerTag- und TigerData-Kacheln ganz oben setzen den Typ für dich. Fünf Dropdowns weniger, eine Leiste mehr.",
+          "es": "Haz clic en la barra de búsqueda o escribe el nombre de un campo (marca, material, aspecto, tipo, etiqueta, lista, peso, estante) y cada filtro se convierte en una ficha combinable. Los mosaicos TigerTag y TigerData de la cabecera fijan el tipo por ti. Cinco menús desplegables menos, una barra más.",
+          "it": "Clicca la barra di ricerca o scrivi il nome di un campo (marca, materiale, aspetto, tipo, tag, lista, peso, scaffale) e ogni filtro diventa un bollino combinabile. I riquadri TigerTag e TigerData in alto impostano il tipo per te. Cinque menu a tendina in meno, una barra in più.",
+          "zh": "点一下搜索栏，或输入字段名（品牌、材料、外观、类型、标签、清单、重量、货架），每个筛选条件都会变成可组合的小标签。顶部的 TigerTag 和 TigerData 方块会替你设好类型。少了五个下拉菜单，多了一个搜索栏。",
+          "pt": "Clique na barra de busca ou digite o nome de um campo (marca, material, aspecto, tipo, tag, lista, peso, prateleira) e cada filtro vira uma etiqueta combinável. Os blocos TigerTag e TigerData do cabeçalho definem o tipo pra você. Cinco menus a menos, uma barra a mais.",
+          "pt-pt": "Clica na barra de pesquisa ou escreve o nome de um campo (marca, material, aspeto, tipo, etiqueta, lista, peso, prateleira) e cada filtro torna-se uma etiqueta combinável. Os blocos TigerTag e TigerData do cabeçalho definem o tipo por ti. Cinco menus a menos, uma barra a mais.",
+          "pl": "Kliknij pasek wyszukiwania albo wpisz nazwę pola (marka, materiał, wygląd, typ, tag, lista, waga, regał), a każdy filtr stanie się znaczkiem, który możesz łączyć. Kafelki TigerTag i TigerData w nagłówku ustawiają typ za Ciebie. Pięć list rozwijanych mniej, jeden pasek więcej.",
+          "ru": "Щёлкните по строке поиска или введите название поля (бренд, материал, вид, тип, тег, список, вес, стеллаж) — и каждый фильтр станет плашкой, которые можно сочетать. Плитки TigerTag и TigerData наверху сами задают тип. На пять выпадающих списков меньше, на одну строку больше.",
+          "nl": "Klik in de zoekbalk of typ een veldnaam (merk, materiaal, aspect, type, tag, lijst, gewicht, rek) en elk filter wordt een blokje dat je kunt combineren. De TigerTag- en TigerData-tegels bovenaan stellen het type voor je in. Vijf keuzelijsten minder, één balk meer."
+        }
+      },
+      {
+        "icon": "palette",
+        "title": {
+          "en": "Find a product by its colour",
+          "fr": "Trouve un produit par sa couleur",
+          "de": "Finde ein Produkt über seine Farbe",
+          "es": "Encuentra un producto por su color",
+          "it": "Trova un prodotto dal suo colore",
+          "zh": "按颜色找到产品",
+          "pt": "Ache um produto pela cor",
+          "pt-pt": "Encontra um produto pela cor",
+          "pl": "Znajdź produkt po kolorze",
+          "ru": "Найдите продукт по цвету",
+          "nl": "Vind een product op kleur"
+        },
+        "body": {
+          "en": "In the catalogue, the new colour button takes a HEX code, a RAL colour in your own language, or a point of a photo. The closest products come first, with a ΔE badge on each picture. Yes, you can finally match that sofa.",
+          "fr": "Dans le catalogue, le nouveau bouton couleur accepte un code HEX, une couleur RAL dans ta langue, ou un point d’une photo. Les produits les plus proches passent en premier, avec un badge ΔE sur chaque image. Oui, tu peux enfin assortir ce canapé.",
+          "de": "Im Katalog nimmt der neue Farb-Button einen HEX-Code, eine RAL-Farbe in deiner Sprache oder einen Punkt aus einem Foto. Die ähnlichsten Produkte kommen zuerst, mit einem ΔE-Badge auf jedem Bild. Ja, du kannst endlich zum Sofa passen.",
+          "es": "En el catálogo, el nuevo botón de color acepta un código HEX, un color RAL en tu idioma o un punto de una foto. Los productos más cercanos salen primero, con una insignia ΔE en cada imagen. Sí, por fin puedes igualar ese sofá.",
+          "it": "Nel catalogo, il nuovo pulsante colore accetta un codice HEX, un colore RAL nella tua lingua o un punto di una foto. I prodotti più vicini vengono per primi, con un badge ΔE su ogni immagine. Sì, finalmente puoi abbinare quel divano.",
+          "zh": "在目录里，新的颜色按钮可以输入 HEX 代码、用你自己语言写的 RAL 颜色，或者点选照片上的一个点。最接近的产品排在最前，每张图上都有 ΔE 徽章。对，你终于可以去配那张沙发了。",
+          "pt": "No catálogo, o novo botão de cor aceita um código HEX, uma cor RAL no seu idioma ou um ponto de uma foto. Os produtos mais próximos vêm primeiro, com um selo ΔE em cada imagem. Sim, dá pra combinar com aquele sofá.",
+          "pt-pt": "No catálogo, o novo botão de cor aceita um código HEX, uma cor RAL no teu idioma ou um ponto de uma foto. Os produtos mais próximos vêm primeiro, com um selo ΔE em cada imagem. Sim, finalmente podes combinar com aquele sofá.",
+          "pl": "W katalogu nowy przycisk koloru przyjmuje kod HEX, kolor RAL w Twoim języku albo punkt ze zdjęcia. Najbliższe produkty są pierwsze, z plakietką ΔE na każdym obrazku. Tak, w końcu dopasujesz ten fotel.",
+          "ru": "В каталоге новая кнопка цвета принимает код HEX, цвет RAL на вашем языке или точку на фото. Самые близкие продукты идут первыми, на каждой картинке — значок ΔE. Да, наконец-то можно подобрать цвет под тот диван.",
+          "nl": "In de catalogus neemt de nieuwe kleurknop een HEX-code, een RAL-kleur in je eigen taal of een punt van een foto. De dichtstbijzijnde producten komen eerst, met een ΔE-badge op elke afbeelding. Ja, eindelijk kun je die bank matchen."
+        }
+      },
+      {
+        "icon": "bell",
+        "title": {
+          "en": "No more chirp concerto",
+          "fr": "Fini le concert de bips",
+          "de": "Schluss mit dem Piep-Konzert",
+          "es": "Se acabó el concierto de pitidos",
+          "it": "Basta con il concerto di bip",
+          "zh": "不再有一连串提示音",
+          "pt": "Chega do concerto de bipes",
+          "pt-pt": "Acabou o concerto de bipes",
+          "pl": "Koniec koncertu piknięć",
+          "ru": "Концерт писков окончен",
+          "nl": "Het gepiep is voorbij"
+        },
+        "body": {
+          "en": "Opening the catalogue after an update no longer plays the “spool added” sound for every spool you already had. It rings only for a new one.",
+          "fr": "Ouvrir le catalogue après une mise à jour ne joue plus le son « bobine ajoutée » pour chaque bobine que tu avais déjà. Il ne sonne que pour une nouvelle.",
+          "de": "Den Katalog nach einem Update zu öffnen spielt nicht mehr für jede schon vorhandene Spule den „Spule hinzugefügt“-Ton ab. Er klingt nur noch bei einer neuen.",
+          "es": "Abrir el catálogo tras una actualización ya no reproduce el sonido de «bobina añadida» por cada bobina que ya tenías. Solo suena con una nueva.",
+          "it": "Aprire il catalogo dopo un aggiornamento non riproduce più il suono «bobina aggiunta» per ogni bobina che avevi già. Suona solo per una nuova.",
+          "zh": "更新后打开目录，不会再为每一个你已有的线材盘播放“已添加”提示音了。只有新增的才会响。",
+          "pt": "Abrir o catálogo depois de uma atualização não toca mais o som de “carretel adicionado” para cada carretel que você já tinha. Ele só toca para um novo.",
+          "pt-pt": "Abrir o catálogo depois de uma atualização já não toca o som de «bobina adicionada» por cada bobina que já tinhas. Só toca para uma nova.",
+          "pl": "Otwarcie katalogu po aktualizacji nie odtwarza już dźwięku „dodano szpulę” dla każdej szpuli, którą już miałeś. Dzwoni tylko przy nowej.",
+          "ru": "Открытие каталога после обновления больше не проигрывает звук «катушка добавлена» для каждой уже имеющейся катушки. Он звучит только для новой.",
+          "nl": "Na een update de catalogus openen speelt niet meer het geluid ‘spoel toegevoegd’ af voor elke spoel die je al had. Het klinkt alleen bij een nieuwe."
+        }
+      },
+      {
+        "icon": "camera",
+        "title": {
+          "en": "Creality camera starts on the first try",
+          "fr": "La caméra Creality démarre du premier coup",
+          "de": "Creality-Kamera startet beim ersten Versuch",
+          "es": "La cámara Creality arranca a la primera",
+          "it": "La fotocamera Creality parte al primo colpo",
+          "zh": "Creality 摄像头一次就能启动",
+          "pt": "A câmera Creality liga de primeira",
+          "pt-pt": "A câmara Creality arranca à primeira",
+          "pl": "Kamera Creality startuje za pierwszym razem",
+          "ru": "Камера Creality запускается с первого раза",
+          "nl": "Creality-camera start meteen"
+        },
+        "body": {
+          "en": "On the printers board, pressing play on a Creality camera (or letting it start by itself) now opens the live picture right away.",
+          "fr": "Dans le tableau des imprimantes, appuyer sur lecture sur une caméra Creality (ou la laisser démarrer toute seule) ouvre maintenant l’image en direct tout de suite.",
+          "de": "Im Druckerboard öffnet ein Druck auf Play bei einer Creality-Kamera (oder ihr automatischer Start) jetzt sofort das Livebild.",
+          "es": "En el tablero de impresoras, pulsar reproducir en una cámara Creality (o dejar que arranque sola) abre ahora la imagen en directo enseguida.",
+          "it": "Nella bacheca delle stampanti, premere play su una fotocamera Creality (o lasciarla partire da sola) apre ora subito l’immagine dal vivo.",
+          "zh": "在打印机看板上，点击 Creality 摄像头的播放键（或让它自动启动）现在会立刻打开实时画面。",
+          "pt": "No painel de impressoras, apertar play numa câmera Creality (ou deixá-la iniciar sozinha) agora abre a imagem ao vivo na hora.",
+          "pt-pt": "No painel de impressoras, carregar em play numa câmara Creality (ou deixá-la arrancar sozinha) abre agora a imagem em direto logo.",
+          "pl": "Na tablicy drukarek naciśnięcie play na kamerze Creality (lub automatyczny start) od razu otwiera obraz na żywo.",
+          "ru": "На доске принтеров нажатие play на камере Creality (или её автозапуск) теперь сразу открывает живую картинку.",
+          "nl": "Op het printerbord opent play indrukken op een Creality-camera (of hem vanzelf laten starten) nu meteen het live beeld."
+        }
+      },
+      {
+        "icon": "eye",
+        "title": {
+          "en": "The camera wall shows your IP cameras",
+          "fr": "Le mur de caméras affiche tes caméras IP",
+          "de": "Die Kamerawand zeigt deine IP-Kameras",
+          "es": "El muro de cámaras muestra tus cámaras IP",
+          "it": "Il muro di telecamere mostra le tue telecamere IP",
+          "zh": "摄像头墙现在显示你的 IP 摄像头",
+          "pt": "O mural de câmeras mostra suas câmeras IP",
+          "pt-pt": "O mural de câmaras mostra as tuas câmaras IP",
+          "pl": "Ściana kamer pokazuje Twoje kamery IP",
+          "ru": "Стена камер показывает ваши IP-камеры",
+          "nl": "De camerawand toont je IP-camera’s"
+        },
+        "body": {
+          "en": "The detached camera wall now shows the IP cameras of your account, chosen or not linked to a printer, instead of an error card.",
+          "fr": "Le mur de caméras détaché affiche maintenant les caméras IP de ton compte, choisies ou liées à aucune imprimante, au lieu d’une carte d’erreur.",
+          "de": "Die abgelöste Kamerawand zeigt jetzt die IP-Kameras deines Kontos, ausgewählte oder keinem Drucker zugeordnete, statt einer Fehlerkarte.",
+          "es": "El muro de cámaras separado muestra ahora las cámaras IP de tu cuenta, elegidas o sin impresora asociada, en lugar de una tarjeta de error.",
+          "it": "Il muro di telecamere staccato mostra ora le telecamere IP del tuo account, scelte o non collegate a una stampante, invece di una scheda di errore.",
+          "zh": "独立的摄像头墙现在会显示账户里的 IP 摄像头（已选用的，或未关联打印机的），不再是一张错误卡片。",
+          "pt": "O mural de câmeras destacado agora mostra as câmeras IP da sua conta, escolhidas ou sem impressora, em vez de um cartão de erro.",
+          "pt-pt": "O mural de câmaras destacado mostra agora as câmaras IP da tua conta, escolhidas ou sem impressora associada, em vez de um cartão de erro.",
+          "pl": "Odłączona ściana kamer pokazuje teraz kamery IP Twojego konta, wybrane lub niepowiązane z drukarką, zamiast karty z błędem.",
+          "ru": "Отдельная стена камер теперь показывает IP-камеры вашего аккаунта — выбранные или не привязанные к принтеру — вместо карточки с ошибкой.",
+          "nl": "De losgekoppelde camerawand toont nu de IP-camera’s van je account, gekozen of aan geen printer gekoppeld, in plaats van een foutkaart."
+        }
+      }
+    ]
+  },
+  "2.59.1": {
+    "date": "2026-11-19",
+    "items": [
+      {
+        "icon": "camera",
+        "title": {
+          "en": "Bambu cameras that take their time (experimental)",
+          "fr": "Les caméras Bambu qui prennent leur temps (expérimental)",
+          "de": "Bambu-Kameras, die sich Zeit lassen (experimentell)",
+          "es": "Cámaras Bambu que se toman su tiempo (experimental)",
+          "it": "Telecamere Bambu che se la prendono comoda (sperimentale)",
+          "zh": "慢热的 Bambu 摄像头（实验性）",
+          "pt": "Câmeras Bambu que levam seu tempo (experimental)",
+          "pt-pt": "Câmaras Bambu que levam o seu tempo (experimental)",
+          "pl": "Kamery Bambu, które się nie spieszą (eksperymentalne)",
+          "ru": "Камеры Bambu, которые не торопятся (экспериментально)",
+          "nl": "Bambu-camera’s die de tijd nemen (experimenteel)"
+        },
+        "body": {
+          "en": "Some Bambu Lab printers, like the P2S, are slow to send their first picture, and Studio kept restarting the stream before it arrived. Now it waits. Experimental: if your camera still stays black, send us a report from the app.",
+          "fr": "Certaines imprimantes Bambu Lab, comme la P2S, mettent du temps à envoyer leur première image, et Studio relançait le flux avant qu’elle arrive. Maintenant, il attend. Expérimental : si ta caméra reste noire, envoie-nous un signalement depuis l’app.",
+          "de": "Manche Bambu-Lab-Drucker wie der P2S brauchen lange für ihr erstes Bild, und Studio hat den Stream neu gestartet, bevor es ankam. Jetzt wartet es. Experimentell: Bleibt deine Kamera schwarz, schick uns eine Meldung aus der App.",
+          "es": "Algunas impresoras Bambu Lab, como la P2S, tardan en enviar su primera imagen, y Studio reiniciaba el flujo antes de que llegara. Ahora espera. Experimental: si tu cámara sigue en negro, envíanos un reporte desde la app.",
+          "it": "Alcune stampanti Bambu Lab, come la P2S, sono lente a inviare la prima immagine, e Studio riavviava il flusso prima che arrivasse. Ora aspetta. Sperimentale: se la tua telecamera resta nera, mandaci una segnalazione dall’app.",
+          "zh": "部分 Bambu Lab 打印机（例如 P2S）发送第一帧画面较慢，Studio 过去会在画面到达前就重启视频流。现在它会等待。实验性功能：如果摄像头仍然黑屏，请在应用内向我们发送反馈。",
+          "pt": "Algumas impressoras Bambu Lab, como a P2S, demoram para enviar a primeira imagem, e o Studio reiniciava o fluxo antes de ela chegar. Agora ele espera. Experimental: se sua câmera continuar preta, mande um relato pelo app.",
+          "pt-pt": "Algumas impressoras Bambu Lab, como a P2S, demoram a enviar a primeira imagem, e o Studio reiniciava o fluxo antes de ela chegar. Agora espera. Experimental: se a tua câmara continuar preta, envia-nos um relatório a partir da app.",
+          "pl": "Niektóre drukarki Bambu Lab, jak P2S, długo wysyłają pierwszy obraz, a Studio restartowało strumień, zanim dotarł. Teraz czeka. Funkcja eksperymentalna: jeśli kamera nadal jest czarna, wyślij nam zgłoszenie z aplikacji.",
+          "ru": "Некоторые принтеры Bambu Lab, например P2S, долго присылают первый кадр, а Studio перезапускал поток, не дождавшись его. Теперь он ждёт. Экспериментально: если камера всё ещё чёрная, отправьте нам отчёт из приложения.",
+          "nl": "Sommige Bambu Lab-printers, zoals de P2S, sturen hun eerste beeld traag, en Studio herstartte de stream voordat het aankwam. Nu wacht het. Experimenteel: blijft je camera zwart, stuur ons dan een melding vanuit de app."
+        }
+      },
+      {
+        "icon": "filter",
+        "title": {
+          "en": "Printers get the search bar filters too",
+          "fr": "Les imprimantes ont aussi les filtres de la barre de recherche",
+          "de": "Auch Drucker bekommen die Filter der Suchleiste",
+          "es": "Las impresoras también tienen los filtros de la barra de búsqueda",
+          "it": "Anche le stampanti hanno i filtri della barra di ricerca",
+          "zh": "打印机也用上了搜索栏筛选",
+          "pt": "As impressoras também ganham os filtros da barra de busca",
+          "pt-pt": "As impressoras também têm os filtros da barra de pesquisa",
+          "pl": "Drukarki też mają filtry z paska wyszukiwania",
+          "ru": "У принтеров теперь тоже фильтры в строке поиска",
+          "nl": "Printers krijgen ook de filters van de zoekbalk"
+        },
+        "body": {
+          "en": "In the printers views, Brand, Model, State and Tag now work like the spool filters: pills in the search bar, “is” or “is not”, as many as you like. Your spool filters stay out of it.",
+          "fr": "Dans les vues imprimantes, Marque, Modèle, État et Tag fonctionnent comme les filtres des bobines : des pastilles dans la barre de recherche, « est » ou « n’est pas », autant que tu veux. Tes filtres de bobines restent à l’écart.",
+          "de": "In den Druckeransichten funktionieren Marke, Modell, Status und Tag wie die Spulenfilter: Pillen in der Suchleiste, „ist“ oder „ist nicht“, so viele du willst. Deine Spulenfilter bleiben außen vor.",
+          "es": "En las vistas de impresoras, Marca, Modelo, Estado y Etiqueta funcionan como los filtros de bobinas: píldoras en la barra de búsqueda, «es» o «no es», todas las que quieras. Tus filtros de bobinas no se mezclan.",
+          "it": "Nelle viste delle stampanti, Marca, Modello, Stato e Tag funzionano come i filtri delle bobine: pillole nella barra di ricerca, «è» o «non è», quante ne vuoi. I filtri delle bobine restano fuori.",
+          "zh": "在打印机视图中，品牌、型号、状态和标签现在和耗材盘筛选一样：搜索栏里的胶囊，可选“是”或“不是”，想加几个加几个。耗材盘的筛选不会混进来。",
+          "pt": "Nas vistas de impressoras, Marca, Modelo, Estado e Tag agora funcionam como os filtros de carretéis: pílulas na barra de busca, “é” ou “não é”, quantas você quiser. Seus filtros de carretéis ficam de fora.",
+          "pt-pt": "Nas vistas de impressoras, Marca, Modelo, Estado e Tag funcionam como os filtros de bobines: pílulas na barra de pesquisa, “é” ou “não é”, as que quiseres. Os teus filtros de bobines ficam de fora.",
+          "pl": "W widokach drukarek Marka, Model, Stan i Tag działają jak filtry szpul: pigułki na pasku wyszukiwania, „jest” lub „nie jest”, ile chcesz. Filtry szpul nie mieszają się z tym.",
+          "ru": "В видах принтеров Бренд, Модель, Состояние и Тег работают как фильтры катушек: плашки в строке поиска, «это» или «не это», сколько угодно. Фильтры катушек сюда не лезут.",
+          "nl": "In de printerweergaven werken Merk, Model, Status en Tag nu als de spoelfilters: pillen in de zoekbalk, “is” of “is niet”, zoveel je wilt. Je spoelfilters blijven erbuiten."
+        }
+      },
+      {
+        "icon": "search",
+        "title": {
+          "en": "The field list follows your cursor",
+          "fr": "La liste des champs suit ton curseur",
+          "de": "Die Feldliste folgt deinem Cursor",
+          "es": "La lista de campos sigue tu cursor",
+          "it": "L’elenco dei campi segue il cursore",
+          "zh": "字段列表跟着光标走",
+          "pt": "A lista de campos acompanha o cursor",
+          "pt-pt": "A lista de campos acompanha o cursor",
+          "pl": "Lista pól podąża za kursorem",
+          "ru": "Список полей идёт за курсором",
+          "nl": "De veldenlijst volgt je cursor"
+        },
+        "body": {
+          "en": "In the search bar, the list of fields now opens right under where you are typing, not way over at the left edge.",
+          "fr": "Dans la barre de recherche, la liste des champs s’ouvre maintenant juste sous l’endroit où tu tapes, plus tout à gauche.",
+          "de": "In der Suchleiste öffnet sich die Feldliste jetzt direkt unter der Stelle, an der du tippst, nicht mehr ganz links am Rand.",
+          "es": "En la barra de búsqueda, la lista de campos se abre ahora justo debajo de donde escribes, no en el borde izquierdo.",
+          "it": "Nella barra di ricerca, l’elenco dei campi si apre ora proprio sotto il punto in cui scrivi, non all’estremo sinistro.",
+          "zh": "在搜索栏里，字段列表现在直接在你输入的位置下方展开，不再跑到最左边。",
+          "pt": "Na barra de busca, a lista de campos agora abre logo abaixo de onde você digita, e não lá na borda esquerda.",
+          "pt-pt": "Na barra de pesquisa, a lista de campos abre agora mesmo por baixo de onde escreves, e não no canto esquerdo.",
+          "pl": "W pasku wyszukiwania lista pól otwiera się teraz tuż pod miejscem, w którym piszesz, a nie na lewym brzegu.",
+          "ru": "В строке поиска список полей теперь открывается прямо под тем местом, где вы печатаете, а не у левого края.",
+          "nl": "In de zoekbalk opent de veldenlijst nu vlak onder de plek waar je typt, niet helemaal links."
+        }
+      },
+      {
+        "icon": "cart",
+        "title": {
+          "en": "The to-order cart can count again",
+          "fr": "Le panier à commander sait de nouveau compter",
+          "de": "Der Bestellkorb kann wieder zählen",
+          "es": "El carrito de pedidos vuelve a saber contar",
+          "it": "Il carrello da ordinare sa di nuovo contare",
+          "zh": "待订购购物车又会数数了",
+          "pt": "O carrinho de pedidos voltou a saber contar",
+          "pt-pt": "O carrinho de encomendas voltou a saber contar",
+          "pl": "Koszyk do zamówienia znów umie liczyć",
+          "ru": "Корзина заказов снова умеет считать",
+          "nl": "De bestelmand kan weer tellen"
+        },
+        "body": {
+          "en": "A product with spools on your shelf no longer reads “0 in stock”. The cart, the red badge, the favourites and the low-stock alerts all count what you really have.",
+          "fr": "Un produit dont tu as des bobines en stock n’affiche plus « 0 en stock ». Le panier, la pastille rouge, les favoris et les alertes de stock bas comptent ce que tu as vraiment.",
+          "de": "Ein Produkt mit Spulen im Regal zeigt nicht mehr „0 auf Lager“. Korb, rotes Abzeichen, Favoriten und Warnungen bei niedrigem Bestand zählen, was du wirklich hast.",
+          "es": "Un producto con bobinas en tu estante ya no marca «0 en stock». El carrito, la insignia roja, los favoritos y los avisos de stock bajo cuentan lo que de verdad tienes.",
+          "it": "Un prodotto con bobine a scaffale non mostra più «0 in magazzino». Carrello, badge rosso, preferiti e avvisi di scorta bassa contano ciò che hai davvero.",
+          "zh": "架子上有耗材盘的产品不再显示“库存 0”。购物车、红色角标、收藏和低库存提醒都会按你真实的库存来数。",
+          "pt": "Um produto com carretéis na prateleira não mostra mais “0 em estoque”. O carrinho, a bolinha vermelha, os favoritos e os avisos de estoque baixo contam o que você realmente tem.",
+          "pt-pt": "Um produto com bobines na prateleira já não mostra “0 em stock”. O carrinho, o ponto vermelho, os favoritos e os avisos de stock baixo contam o que realmente tens.",
+          "pl": "Produkt ze szpulami na półce nie pokazuje już „0 w magazynie”. Koszyk, czerwona plakietka, ulubione i alerty o niskim stanie liczą to, co naprawdę masz.",
+          "ru": "Товар с катушками на полке больше не показывает «0 на складе». Корзина, красный значок, избранное и уведомления о низком запасе считают то, что у вас правда есть.",
+          "nl": "Een product met spoelen in de kast staat niet meer op “0 op voorraad”. Mand, rode badge, favorieten en lage-voorraadmeldingen tellen wat je echt hebt."
+        }
+      },
+      {
+        "icon": "rack_grid",
+        "title": {
+          "en": "Shrinking a rack no longer eats your spools",
+          "fr": "Réduire un rack ne mange plus tes bobines",
+          "de": "Ein Regal zu verkleinern frisst keine Spulen mehr",
+          "es": "Reducir un rack ya no se come tus bobinas",
+          "it": "Rimpicciolire un rack non mangia più le bobine",
+          "zh": "缩小货架不会再吞掉耗材盘",
+          "pt": "Diminuir um rack não engole mais seus carretéis",
+          "pt-pt": "Reduzir um rack já não come as tuas bobines",
+          "pl": "Zmniejszenie regału nie zjada już szpul",
+          "ru": "Уменьшение стеллажа больше не съедает катушки",
+          "nl": "Een rek verkleinen vreet geen spoelen meer"
+        },
+        "body": {
+          "en": "Spools freed by a smaller rack now land in “Spools not stored” instead of vanishing. Spools already stuck on a slot that no longer exists come back there too.",
+          "fr": "Les bobines libérées par un rack plus petit atterrissent dans « Bobines non rangées » au lieu de disparaître. Celles déjà coincées sur un emplacement qui n’existe plus y reviennent aussi.",
+          "de": "Spulen, die ein kleineres Regal freigibt, landen jetzt in „Nicht eingelagerte Spulen“, statt zu verschwinden. Spulen, die schon an einem nicht mehr existierenden Platz hängen, kommen ebenfalls dorthin zurück.",
+          "es": "Las bobinas liberadas por un rack más pequeño aterrizan en «Bobinas sin guardar» en vez de desaparecer. Las que ya estaban atascadas en un hueco que ya no existe también vuelven allí.",
+          "it": "Le bobine liberate da un rack più piccolo finiscono in «Bobine non riposte» invece di sparire. Anche quelle già bloccate su uno slot che non esiste più tornano lì.",
+          "zh": "被缩小的货架释放出的耗材盘现在会进入“未存放的耗材盘”，不再凭空消失。之前卡在已不存在的格子上的耗材盘也会回到那里。",
+          "pt": "Os carretéis liberados por um rack menor agora vão para “Carretéis não guardados” em vez de sumir. Os que já estavam presos num espaço que não existe mais também voltam para lá.",
+          "pt-pt": "As bobines libertadas por um rack mais pequeno vão agora para “Bobines não guardadas” em vez de desaparecerem. As que já estavam presas num lugar que já não existe também voltam para lá.",
+          "pl": "Szpule zwolnione przez mniejszy regał trafiają teraz do „Szpul nieprzechowywanych” zamiast znikać. Te już utknięte na nieistniejącym miejscu też tam wracają.",
+          "ru": "Катушки, освобождённые уменьшенным стеллажом, теперь попадают в «Катушки без места», а не исчезают. Те, что уже застряли на несуществующем слоте, тоже возвращаются туда.",
+          "nl": "Spoelen die een kleiner rek vrijgeeft komen nu in “Niet opgeslagen spoelen” terecht in plaats van te verdwijnen. Spoelen die al vastzaten op een vak dat niet meer bestaat komen daar ook terug."
+        }
+      },
+      {
+        "icon": "flag",
+        "title": {
+          "en": "Your league flag tells the truth",
+          "fr": "Ton drapeau de ligue dit la vérité",
+          "de": "Deine Ligaflagge sagt die Wahrheit",
+          "es": "Tu bandera de liga dice la verdad",
+          "it": "La tua bandiera di lega dice la verità",
+          "zh": "你的联赛旗帜不再说谎",
+          "pt": "Sua bandeira da liga diz a verdade",
+          "pt-pt": "A tua bandeira da liga diz a verdade",
+          "pl": "Flaga Twojej ligi mówi prawdę",
+          "ru": "Флаг вашей лиги говорит правду",
+          "nl": "Je competitievlag zegt de waarheid"
+        },
+        "body": {
+          "en": "In your profile, the flag now shows the league you are really ranked in. If your new pick is still on hold, you see the date it takes over.",
+          "fr": "Dans ton profil, le drapeau montre maintenant la ligue dans laquelle tu es vraiment classé. Si ton nouveau choix est encore en attente, tu vois la date à laquelle il prend le relais.",
+          "de": "In deinem Profil zeigt die Flagge jetzt die Liga, in der du wirklich platziert bist. Wartet deine neue Wahl noch, siehst du das Datum, an dem sie übernimmt.",
+          "es": "En tu perfil, la bandera muestra ahora la liga en la que estás clasificado de verdad. Si tu nueva elección aún está en espera, ves la fecha en que toma el relevo.",
+          "it": "Nel tuo profilo, la bandiera mostra ora la lega in cui sei davvero classificato. Se la tua nuova scelta è ancora in attesa, vedi la data in cui subentra.",
+          "zh": "在你的资料中，旗帜现在显示你真正所在的联赛。如果你的新选择仍在等待生效，会显示它生效的日期。",
+          "pt": "No seu perfil, a bandeira agora mostra a liga em que você realmente está classificado. Se a sua nova escolha ainda está em espera, você vê a data em que ela assume.",
+          "pt-pt": "No teu perfil, a bandeira mostra agora a liga em que realmente estás classificado. Se a tua nova escolha ainda está em espera, vês a data em que entra em vigor.",
+          "pl": "W Twoim profilu flaga pokazuje teraz ligę, w której naprawdę jesteś sklasyfikowany. Jeśli nowy wybór jeszcze czeka, zobaczysz datę, od której obowiązuje.",
+          "ru": "В вашем профиле флаг теперь показывает лигу, в которой вы реально ранжируетесь. Если новый выбор ещё ждёт, вы увидите дату, когда он вступит в силу.",
+          "nl": "In je profiel toont de vlag nu de competitie waarin je echt staat. Wacht je nieuwe keuze nog, dan zie je de datum waarop die ingaat."
+        }
+      }
+    ]
+  },
+  "2.59.2": {
+    "date": "2026-11-20",
+    "items": [
+      {
+        "icon": "printer",
+        "title": {
+          "en": "The Bambu A2L knows its own name",
+          "fr": "La Bambu A2L connaît enfin son nom",
+          "de": "Der Bambu A2L kennt jetzt seinen Namen",
+          "es": "La Bambu A2L ya sabe cómo se llama",
+          "it": "La Bambu A2L sa finalmente come si chiama",
+          "zh": "Bambu A2L 终于认得自己的名字了",
+          "pt": "A Bambu A2L finalmente sabe o próprio nome",
+          "pt-pt": "A Bambu A2L já sabe o próprio nome",
+          "pl": "Bambu A2L wreszcie zna swoją nazwę",
+          "ru": "Bambu A2L наконец знает своё имя",
+          "nl": "De Bambu A2L kent eindelijk zijn naam"
+        },
+        "body": {
+          "en": "Add an A2L by its IP address and Studio recognises the model from its serial number. No more picking it from the list by hand.",
+          "fr": "Ajoute une A2L par son adresse IP et Studio reconnaît le modèle grâce à son numéro de série. Plus besoin de le choisir à la main dans la liste.",
+          "de": "Füge einen A2L über seine IP-Adresse hinzu und Studio erkennt das Modell an der Seriennummer. Kein Auswählen per Hand mehr.",
+          "es": "Añade una A2L por su dirección IP y Studio reconoce el modelo por su número de serie. Se acabó elegirlo a mano en la lista.",
+          "it": "Aggiungi una A2L tramite il suo indirizzo IP e Studio riconosce il modello dal numero di serie. Niente più scelta a mano dall'elenco.",
+          "zh": "通过 IP 地址添加 A2L，Studio 会根据序列号识别型号，不用再从列表里手动选择。",
+          "pt": "Adicione uma A2L pelo endereço IP e o Studio reconhece o modelo pelo número de série. Nada de escolher na lista à mão.",
+          "pt-pt": "Adiciona uma A2L pelo endereço IP e o Studio reconhece o modelo pelo número de série. Acabou escolhê-lo à mão na lista.",
+          "pl": "Dodaj A2L po adresie IP, a Studio rozpozna model po numerze seryjnym. Koniec z ręcznym wybieraniem z listy.",
+          "ru": "Добавьте A2L по IP-адресу, и Studio узнает модель по серийному номеру. Больше не нужно выбирать её вручную из списка.",
+          "nl": "Voeg een A2L toe via zijn IP-adres en Studio herkent het model aan het serienummer. Nooit meer zelf uit de lijst kiezen."
+        }
+      }
+    ]
   }
 }

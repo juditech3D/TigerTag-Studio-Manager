@@ -239,3 +239,11 @@
 #tagAddPanel .tag-add-skel { min-height: 66px; }
 #tagAddPanel .tag-add-skel .tag-add-skel-thumb { align-self: stretch; width: 66px; border-radius: 0; }
 #tagAddPanel .tag-add-skel .sqb-skel-b i:first-child { width: 55%; }
+
+/* A Bambu Lab chip on the TigerPOD: what it says, above the choices (read only). */
+.lc-bambu { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); }
+.lc-bambu-sws { display: flex; flex: 0 0 auto; }
+.lc-bambu-sw { width: 22px; aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--border); }
+.lc-bambu-sw + .lc-bambu-sw { margin-left: -8px; }
+.lc-bambu-txt { display: flex; flex-direction: column; min-width: 0; }
+.lc-bambu-txt small { color: var(--muted); }
