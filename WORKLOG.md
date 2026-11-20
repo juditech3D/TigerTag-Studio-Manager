@@ -57,6 +57,8 @@
 - `README.md` opens with an "Unofficial fork" warning and gains a "What this fork adds or changes"
   section (base version 2.59.2, no fork installers, additions, fixes, and what is still in progress:
   printer-slot mounting does not work yet).
+- `README.md`: the download buttons, the release / build badges, the `git clone` command and the
+  Issues link point to this fork (juditech3D) instead of the official repository.
 
 ### Fixed
 
