@@ -75,7 +75,7 @@
   **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
   the roll is the one picked in the card's "Roll" list, else read from the printer's status; a QL-580N
   answers none over the network, so the card then asks for the roll instead of sending a job the
-  printer would refuse; the label is turned and scaled down to fit the roll's printable width). An installed Brother QL is printed the same way, on the address behind its Windows printer port or one typed in the card's "Address" field (the QL-580N announces nothing over mDNS).
+  printer would refuse; the label is turned and scaled down to fit the roll's printable width). An installed Brother QL is printed the same way, on the address behind its Windows printer port or one typed in the card's "Address" field (a Windows port names the printer by host name, BRN…, and is read as such). The mDNS search listens on every LAN interface: on a computer with a VPN or Hyper-V adapter the default socket heard nothing.
   A tenth template "Marklife P15" (30 × 15 mm) fits the P15's labels; each printer brings back
   the format last picked with it (`templateBy`), the P15 starting on its own template and never
   keeping a label too wide for its roll, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).

@@ -59,7 +59,14 @@ const bit = (bm, x, y) => x >= 0 && y >= 0 && x < bm.width && y < bm.height
 async function discoverNetworkPrinters(ms = 2500) {
   let Bonjour;
   try { ({ Bonjour } = require('bonjour-service')); } catch (_) { return []; }
-  const bj = new Bonjour();
+  // One browser per LAN interface: on a computer with several (a VPN, Hyper-V…)
+  // the default socket listens on one the printer is not on and hears nothing.
+  const ifaces = Object.values(require('os').networkInterfaces()).flat()
+    .filter(a => a && a.family === 'IPv4' && !a.internal).map(a => a.address);
+  const bjs = [];
+  for (const iface of ifaces.length ? ifaces : [undefined]) {
+    try { const b = new Bonjour(iface ? { interface: iface } : {}); b.server?.mdns?.on?.('error', () => {}); bjs.push(b); } catch (_) {}
+  }
   const byHost = new Map();
   const browsers = [];
   const add = (svc, type) => {
@@ -82,15 +89,17 @@ async function discoverNetworkPrinters(ms = 2500) {
   await new Promise((resolve) => {
     for (const type of ['pdl-datastream', 'ipp', 'printer']) {
       try {
-        const b = bj.find({ type }, svc => add(svc, type));
-        b.on?.('error', () => {});
-        browsers.push(b);
+        for (const bj of bjs) {
+          const b = bj.find({ type }, svc => add(svc, type));
+          b.on?.('error', () => {});
+          browsers.push(b);
+        }
       } catch (_) {}
     }
     setTimeout(resolve, ms);
   });
   browsers.forEach(b => { try { b.stop(); } catch (_) {} });
-  try { bj.destroy(); } catch (_) {}
+  bjs.forEach(bj => { try { bj.destroy(); } catch (_) {} });
   return [...byHost.values()].map(p => ({ ...p, ql: /\bQL-?\d/i.test(p.model) }));
 }
 

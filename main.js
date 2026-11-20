@@ -4418,7 +4418,9 @@ function _printerHosts() {
       try {
         const rows = [].concat(JSON.parse(String(stdout || '').trim() || '[]'));
         for (const r of rows) {
-          const ip = /^\d+\.\d+\.\d+\.\d+$/.test(r.h || '') ? r.h : (String(r.p || '').match(/\d+\.\d+\.\d+\.\d+/) || [])[0];
+          // An IP address or a host name (Brother's own ports name the printer: BRN0080…).
+          const h = String(r.h || '').trim();
+          const ip = /^[\w.-]+$/.test(h) ? h : (String(r.p || '').match(/\d+\.\d+\.\d+\.\d+/) || [])[0];
           if (r.n && ip) out[r.n] = ip;
         }
       } catch (_) {}
