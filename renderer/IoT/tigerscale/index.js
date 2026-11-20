@@ -178,6 +178,7 @@ function _wirePanelHandlers() {
     const s = _ctx.state.scales.find(x => x.mac === b.dataset.mac);
     if (!s) return;
     if (b.dataset.scaleLan === "shot") return _scaleShot(s);
+    if (b.dataset.scaleLan === "wake") return _scaleWake(b, s);
     openScaleLive(s, { t: _ctx.t, esc: _ctx.esc, getDoc: mac => _ctx.state.scales.find(x => x.mac === mac), onShot: _scaleShot });
   });
   $("scalesPanelClose")?.addEventListener("click", closeScalesPanel);
@@ -428,11 +429,28 @@ function _buildScaleCardHtml(s) {
 function _buildScaleLanHtml(s) {
   const { esc, t } = _ctx;
   if (typeof window.tigerscale?.screenshot !== "function" || !scaleLiveAvailable(s)) return "";
-  const off = scaleConnState(s) === "offline" ? " disabled" : "";
-  return `<button type="button" class="ttc-btn ttc-btn--primary" data-scale-lan="live" data-mac="${esc(s.mac)}"${off}>`
+  const cs = scaleConnState(s);
+  const off = cs === "offline" ? " disabled" : "";
+  /* Wake: lights the screen, presses nothing (firmware :81/wake). Offered asleep,
+     and offline too: a scale that stopped beating can still be on the network. */
+  const wake = cs === "active" || typeof window.tigerscale.wake !== "function" ? ""
+    : `<button type="button" class="ttc-btn" data-scale-lan="wake" data-mac="${esc(s.mac)}">`
+      + `<span class="icon icon-bolt icon-14"></span><span>${esc(t("scaleWake"))}</span></button>`;
+  return wake + `<button type="button" class="ttc-btn ttc-btn--primary" data-scale-lan="live" data-mac="${esc(s.mac)}"${off}>`
     + `<span class="icon icon-eye-on icon-14"></span><span>${esc(t("tigertouchLiveView"))}</span></button>`
     + `<button type="button" class="ttc-btn" data-scale-lan="shot" data-mac="${esc(s.mac)}"${off}>`
     + `<span class="icon icon-camera icon-14"></span><span>${esc(t("tigertouchScreenshot"))}</span></button>`;
+}
+
+/* Wake button: the answer is written on the button for a few seconds. Once lit,
+   the scale sends a beat at once, and the card turns green on its own. */
+async function _scaleWake(btn, s) {
+  const { t } = _ctx;
+  const label = btn.querySelector("span:last-child");
+  btn.disabled = true;
+  const r = await window.tigerscale.wake(s.lan_url, s.lan_access_code).catch(() => null);
+  if (label) label.textContent = t(r?.ok ? "scaleWakeDone" : r?.error === "old" ? "scaleWakeOld" : "scaleWakeFail");
+  setTimeout(() => { if (!btn.isConnected) return; btn.disabled = false; if (label) label.textContent = t("scaleWake"); }, 4000);
 }
 
 /* The scale's screenshot, in the shared preview (Save / Copy / Report / Retake). */

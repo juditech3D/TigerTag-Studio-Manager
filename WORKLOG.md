@@ -16,6 +16,18 @@
 
 ### Added
 
+- TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
+  screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
+  the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware
+  without `/wake`). The live view and the screenshot wake a sleeping scale the same way instead of
+  a tap in the middle, which pressed a button when `power_state` was one beat stale; on a firmware
+  without `/wake` the screenshot is read as it is. `main.js` (IPC `tigerscale:wake`,
+  `tigerscale:screenshot`), `preload.js` (`tigerscale.wake`), `renderer/IoT/tigerscale/index.js`
+  (`_buildScaleLanHtml`, `_scaleWake`), `renderer/IoT/tigerscale/live.js`. i18n: `scaleWake`,
+  `scaleWakeDone`, `scaleWakeFail`, `scaleWakeOld` (11 locales).
+- TigerScale live view: its Screenshot button closes the live view before opening the preview,
+  which used to open behind it (two `.modal-overlay` of the same z-index, the live one added last),
+  so the click seemed to do nothing. `renderer/IoT/tigerscale/live.js` (`openScaleLive`).
 - A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
   link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
   `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user
