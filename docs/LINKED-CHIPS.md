@@ -140,7 +140,9 @@ adds the result as `bambu` to the `rfid-foreign-chip` message.
 
 What Studio does with it: the new-chip card shows the material, colour, weight,
 diameter and nozzle range above its choices, and "Catalogue" opens filtered on the
-brand Bambu Lab and the detailed type. Linking still works by UID as above; nothing is
+brand Bambu Lab and the detailed type, the products closest to the chip's colour first
+(CIEDE2000; a SKU carrying the chip's variant code first of all), and the closest
+one's card opens at once when it is within ΔE 10. Linking still works by UID as above; nothing is
 written to the chip and its RSA signature is not checked. The TigerScale's readers
 (`services/scale-pod.js`) do not read these sectors.
 

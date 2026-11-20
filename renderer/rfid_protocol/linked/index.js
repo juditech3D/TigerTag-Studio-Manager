@@ -349,7 +349,7 @@ function openChipWindow(chips, kind) {
       // Opening a creation panel clears any waiting chips, so set them after.
       // A Bambu Lab chip told us brand and material: the catalogue opens on them.
       const bi = foreign ? presentBambuInfo() : null;
-      if (to === "catalogue") ctx.openCatalogue(bi ? { prefill: { brand: "Bambu Lab", query: bi.detailedType || bi.type } } : undefined);
+      if (to === "catalogue") ctx.openCatalogue(bi ? { prefill: { brand: "Bambu Lab", query: bi.detailedType || bi.type, hex: bi.colors?.[0], variant: bi.variantId } } : undefined);
       else ctx.openManual();
       pending = foreign ? { until: Date.now() + 15 * 60e3 } : null;
     }

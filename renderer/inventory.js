@@ -17839,9 +17839,18 @@ import { initScreenTools } from './ai/screen-tools.js';
       _enhanceSelect(brand);
       brand._cselRefresh?.();
     }
+    const chipHex = _csNormHex(String(prefill?.hex || "").slice(0, 7));
+    _cpkChipColor = chipHex ? { lab: hexToLab(chipHex), variant: String(prefill?.variant || "").toUpperCase() } : null;
     if ($("cpkSearch")) { $("cpkSearch").value = prefill?.query || ""; $("cpkSearch").dispatchEvent(new Event("input")); }
     _catalogPickFill();
     $("catalogPickPanel")?.classList.add("open");
+    // The chip's own product (its variant code, else a colour within ΔE 10) opens
+    // at once, as if tapped: its card is ready to add the spool.
+    if (_cpkChipColor) {
+      const first = $("cpkList")?.querySelector(".cpk-row");
+      const it = first && _catalogIndex.find(x => String(x.it.id) === first.dataset.cpkId)?.it;
+      if (it && _cpkChipRank(it) < 10) setTimeout(() => first.click(), 120);
+    }
     _syncPanels();
     setTimeout(() => $("cpkSearch")?.focus(), 80);
   }
@@ -17856,13 +17865,29 @@ import { initScreenTools } from './ai/screen-tools.js';
     _syncPanels();
   }
   let _cpkFilledIndex = null;   // the catalogue index the rows on screen came from
+  // A Bambu Lab chip's colour (and variant code) when it opened the list: the
+  // products closest to it come first (CIEDE2000), cleared on the next opening.
+  let _cpkChipColor = null;     // { lab, variant } | null
+  function _cpkChipRank(it) {
+    const c = _cpkChipColor;
+    if (!c) return 0;
+    if (c.variant && String(it.sku || "").toUpperCase().split("-").slice(0, 2).join("-") === c.variant) return -1;
+    let de = Infinity;
+    for (const h of _catColors(it).map(_csNormHex).filter(Boolean)) {
+      const d = deltaE2000(c.lab, hexToLab(h));
+      if (d < de) de = d;
+    }
+    return de;
+  }
   function _catalogPickFill() {
     const list = $("cpkList");
     if (!list) return;
     // A synced catalogue (new photos, names) rebuilds the rows instead of keeping them.
     if (_cpkFilledIndex !== _catalogIndex) { list.innerHTML = ""; _cpkFilledIndex = _catalogIndex; }
-    const hits = _catalogFilter($("cpkSearch")?.value, $("cpkBrand")?.value || "", "", _cpkHueFilter())
-      .filter(_catIsCreatable).slice(0, CAT_PICK_MAX);
+    let hits = _catalogFilter($("cpkSearch")?.value, $("cpkBrand")?.value || "", "", _cpkHueFilter())
+      .filter(_catIsCreatable);
+    if (_cpkChipColor) hits = hits.map(it => [it, _cpkChipRank(it)]).sort((a, b) => a[1] - b[1]).map(x => x[0]);
+    hits = hits.slice(0, CAT_PICK_MAX);
     if (!hits.length) { list.innerHTML = `<p class="cpk-empty">${esc(t("catEmptyTitle"))}</p>`; return; }
     // Keyed by product id: a row already on screen is kept (moved into place,
     // never rebuilt), so typing a letter only adds and drops rows — the photos

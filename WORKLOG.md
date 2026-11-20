@@ -44,7 +44,8 @@
   from its UID (HKDF-SHA256, per the Bambu Research Group's RFID-Tag-Guide), the data
   blocks are decoded (material, colour, weight, diameter, temperatures…) and the
   new-chip card shows them above its choices; "Catalogue" opens on Bambu Lab and the
-  detailed type. Read only, nothing written, signature not checked. New
+  detailed type, sorted by closeness to the chip's colour, the closest product's card
+  opened at once within ΔE 10 (`_cpkChipColor`, `_cpkChipRank`). Read only, nothing written, signature not checked. New
   `services/bambu-tag.js` (`bambuKeysA`, `parseBambuBlocks`); `services/nfc-process.js`
   (`_readBambu`, no NTAG read for a MIFARE Classic 1K); `main.js` (`bambu` on
   `rfid-foreign-chip`); `renderer/rfid_protocol/linked/index.js` (`presentBambuInfo`,
