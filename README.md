@@ -41,27 +41,27 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
   <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/nl/" hreflang="nl">Nederlands</a>
 </p>
 
-<a href="https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases">
+<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_macos.svg" width="420" height="68" alt="Download for macOS">
 </a>
 <br>
-<a href="https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases">
+<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_windows.svg" width="420" height="68" alt="Download for Windows">
 </a>
 <br>
-<a href="https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases">
+<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_linux.svg" width="420" height="68" alt="Download for Linux">
 </a>
 
 <br><br>
 
-[![Latest release](https://img.shields.io/github/v/release/TigerTag-Project/TigerTag-Studio-Manager?label=Latest&color=FF6B00)](https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/juditech3D/TigerTag-Studio-Manager?label=Latest&color=FF6B00)](https://github.com/juditech3D/TigerTag-Studio-Manager/releases/latest)
 
 *Intel + Apple Silicon · macOS: Signed & Notarized · No installation knowledge required.*
 
 <br>
 
-[![Build & Release](https://github.com/TigerTag-Project/TigerTag-Studio-Manager/actions/workflows/build.yml/badge.svg)](https://github.com/TigerTag-Project/TigerTag-Studio-Manager/actions/workflows/build.yml)
+[![Build & Release](https://github.com/juditech3D/TigerTag-Studio-Manager/actions/workflows/build.yml/badge.svg)](https://github.com/juditech3D/TigerTag-Studio-Manager/actions/workflows/build.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-orange.svg)](LICENSE)
 [![Electron](https://img.shields.io/badge/Electron-41-blue)](https://www.electronjs.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-24-green)](https://nodejs.org/)
@@ -74,8 +74,9 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 This fork follows the official [Tiger Studio Manager](https://github.com/TigerTag-Project/TigerTag-Studio-Manager)
 and is currently based on its **2.59.2** release. Everything else in this README describes the official
-app. The fork publishes no installers: the download buttons above install the **official** app, and the
-fork itself runs from source (see [Install & run](#install--run)).
+app. The download buttons above lead to **this fork's** releases; until the first one is published there,
+the fork runs from source (see [Install & run](#install--run)). The official app downloads from
+[its own releases](https://github.com/TigerTag-Project/TigerTag-Studio-Manager/releases).
 
 ### Added
 
@@ -422,7 +423,7 @@ sudo apt-get install libpcsclite-dev libusb-1.0-0-dev build-essential
 ### Install & run
 
 ```bash
-git clone --recurse-submodules https://github.com/TigerTag-Project/TigerTag-Studio-Manager.git
+git clone --recurse-submodules https://github.com/juditech3D/TigerTag-Studio-Manager.git
 cd TigerTag-Studio-Manager
 npm install   # also runs electron-rebuild for native NFC module
 npm start
@@ -586,7 +587,7 @@ It shows the filament loaded in every slot (AMS, CFS, Canvas, ACE, MMU, Happy Ha
 
 Guidelines: keep the renderer vanilla (no React/Vue), add i18n strings with `npm run i18n:add` (all 11 locales), don't commit `node_modules/` or `dist/`.
 
-**Reporting issues** — use [GitHub Issues](https://github.com/TigerTag-Project/TigerTag-Studio-Manager/issues). Use **Settings → Debug → Report a problem** in the app to copy a self-contained diagnostic report (version, platform, last 50 errors) to paste into your issue.
+**Reporting issues** — use [GitHub Issues](https://github.com/juditech3D/TigerTag-Studio-Manager/issues). Use **Settings → Debug → Report a problem** in the app to copy a self-contained diagnostic report (version, platform, last 50 errors) to paste into your issue.
 
 ---
 
