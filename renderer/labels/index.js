@@ -66,11 +66,31 @@ export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
 // `printer`: where Print sends the label — "dialog" (the system print dialog),
 // "p15" (a Marklife P15 over Bluetooth), "sys:<name>" (an installed printer,
 // silently through its driver) or "net:<address>" (a Brother QL on the network).
-const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog" };
+// `qlRoll`: the roll loaded in the Brother QL ("62x0" continuous, "29x90" die-cut…,
+// services/label-printers.js QL_MEDIA), "" = ask the printer.
+const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "" };
+// The Brother DK rolls offered in the card (QL_MEDIA keys), continuous first.
+const QL_ROLLS = ["62x0", "29x0", "38x0", "50x0", "54x0", "12x0", "102x0", "29x90", "62x29", "62x100", "17x54", "17x87", "23x23", "29x42", "38x90", "39x48", "52x29", "102x51", "102x152"];
 
 export function initLabels(c) {
   ctx = c;
   $("labelClose")?.addEventListener("click", closeLabelCard);
+  // While Studio looks for the P15, every Bluetooth device the scan sees is listed
+  // in the card: the printer can be picked by hand when its name is not a Marklife one.
+  window.electronAPI?.onLabelBtDevices?.(list => drawBtDevices(list));
+}
+
+// The Bluetooth devices seen by the running scan (main.js select-bluetooth-device),
+// drawn into the open card's .lbl-bt; null hides the list (the scan is over).
+function drawBtDevices(list) {
+  document.querySelectorAll(".lbl-bt").forEach(box => {
+    if (!list) { box.hidden = true; box.innerHTML = ""; return; }
+    const { t, esc } = ctx;
+    box.hidden = false;
+    box.innerHTML = `<p class="lbl-hint">${esc(t("labelBtPick"))}</p>
+      <div class="lbl-bt-list">${list.map(d => `<button type="button" class="ghost sm" data-lbl-bt="${esc(d.id)}">${esc(d.name || t("labelBtNoName"))}</button>`).join("")}</div>
+      <button type="button" class="ghost sm" data-lbl-bt="">${esc(t("btnCancel"))}</button>`;
+  });
 }
 
 export function labelCardOpen() { return !!$("labelPanel")?.classList.contains("open"); }
@@ -82,6 +102,7 @@ function prefs() {
   if (!LABEL_TEMPLATES.some(x => x.id === out.template)) out.template = DEFAULT_PREFS.template;
   if (![203, 300].includes(Number(out.dpi))) out.dpi = 203;
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
+  if (!QL_ROLLS.includes(out.qlRoll)) out.qlRoll = "";
   // `templateBy`: { printer id: template id } — the format last picked for each printer.
   const by = out.templateBy && typeof out.templateBy === "object" ? out.templateBy : {};
   out.templateBy = Object.fromEntries(Object.entries(by).filter(([, v]) => LABEL_TEMPLATES.some(x => x.id === v)));
@@ -413,6 +434,16 @@ function render(body, cur) {
       <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt]) => `<option value="${esc(v)}"${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>
       <button type="button" class="ghost sm lbl-printer-search${searching ? " is-busy" : ""}" data-lbl-search aria-label="${esc(t("labelPrinterSearch"))}"><span class="icon icon-refresh icon-14"></span></button>
     </div>
+    ${printer.kind === "p15" ? `<div class="lbl-p15">
+      <span>${esc(p15Connected() ? t("labelPrinterConnected") + " : " + p15Connected() : t("labelBtNotConnected"))}</span>
+      ${p15Connected() ? "" : `<button type="button" class="ghost sm" data-lbl-connect><span class="icon icon-refresh icon-14"></span><span>${esc(t("labelBtConnect"))}</span></button>`}
+    </div><div class="lbl-bt" hidden></div>` : ""}
+    ${printer.kind === "net" ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelQlRoll"))}</span>
+      <select class="lbl-roll-sel" data-lbl-roll>${["", ...QL_ROLLS].map(r => {
+        const [w, l] = r.split("x");
+        const txt = !r ? t("labelQlRollAuto") : l === "0" ? t("labelQlRollContinuous", { w }) : `${w} × ${l} mm`;
+        return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
+      }).join("")}</select></div>` : ""}
     ${noFit ? `<p class="lbl-hint">${esc(t("labelP15NoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
@@ -427,7 +458,7 @@ function render(body, cur) {
   paper?.classList.add("is-loading");
   frame.addEventListener("load", () => paper?.classList.remove("is-loading"), { once: true });
   frame.srcdoc = lbl.html;
-  body.querySelectorAll(".lbl-slot, .lbl-printer-sel").forEach(el => ctx.enhanceSelect?.(el));
+  body.querySelectorAll(".lbl-slot, .lbl-printer-sel, .lbl-roll-sel").forEach(el => ctx.enhanceSelect?.(el));
   // The printers are searched once, the first time a card opens: redrawn when they answer.
   if (!searched && !searching) searchPrinters().then(() => { if (body.isConnected) render(body, cur); });
   body.onclick = e => {
@@ -451,6 +482,8 @@ function render(body, cur) {
       if (out.dataset.lblOut === "print" && printer.kind !== "dialog") printDirect(printer, lbl, row, kind, body, cur);
       else exportLabel(out.dataset.lblOut, lbl, row, kind, body.querySelector(".lbl-msg"));
     }
+    else if (e.target.closest("[data-lbl-bt]")) window.electronAPI?.pickLabelBtDevice?.(e.target.closest("[data-lbl-bt]").dataset.lblBt);
+    else if (e.target.closest("[data-lbl-connect]")) connectP15(body, cur);
     else if (e.target.closest("[data-lbl-search]")) {
       const b = e.target.closest("[data-lbl-search]");
       b.classList.add("is-busy");
@@ -466,6 +499,8 @@ function render(body, cur) {
     }
   };
   body.onchange = e => {
+    const roll = e.target.closest("[data-lbl-roll]");
+    if (roll) { savePrefs({ ...prefs(), qlRoll: roll.value }); return; }
     const pr = e.target.closest("[data-lbl-printer]");
     if (pr) {
       // Each printer brings back the format last printed on it; the P15 starts on its
@@ -483,6 +518,26 @@ function render(body, cur) {
   };
 }
 
+// What a failed P15 connection says: a printer not found or a computer without
+// Bluetooth is said plainly (and not reported); anything else is an error.
+const p15Error = e => Object.assign(new Error(e?.name === "NotFoundError" ? "notFound" : e?.message || "bluetooth"), { p15: true });
+const p15Known = e => e?.p15 && { notFound: "labelP15NotFound", noBluetooth: "labelBtUnavailable", needRoll: "labelQlNeedRoll" }[e.message];
+
+// The P15's Connect button: the scan starts inside the click (Web Bluetooth needs it).
+async function connectP15(body, cur) {
+  const msg = body.querySelector(".lbl-msg");
+  const conn = p15Connect();
+  if (msg) { msg.textContent = ctx.t("labelBtSearching"); msg.classList.add("lbl-msg--ok"); }
+  try {
+    await conn;
+    if (body.isConnected) render(body, cur);
+  } catch (err) {
+    const e = p15Error(err), known = p15Known(e);
+    if (msg) { msg.textContent = ctx.t(known || "labelExportFailed"); msg.classList.remove("lbl-msg--ok"); }
+    if (!known) ctx.reportError?.("label.connect.p15", e);
+  }
+}
+
 // Print without the dialog. The P15's Bluetooth connection is asked for FIRST,
 // before anything is awaited: Web Bluetooth only opens inside the click.
 async function printDirect(printer, lbl, row, kind, body, cur) {
@@ -495,14 +550,16 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
   try {
     let res;
     if (printer.kind === "p15") {
-      try { await conn; } catch (e) { throw Object.assign(new Error(e?.name === "NotFoundError" ? "notFound" : e?.message || "bluetooth"), { p15: true }); }
+      try { await conn; } catch (e) { throw p15Error(e); }
       // The head runs across the roll: the label goes turned when its height is the short side.
       const bm = await window.electronAPI.labelBitmap({ html: lbl.html, wDots: lbl.wDots, hDots: lbl.hDots, rotate: lbl.mmH <= lbl.mmW });
       if (!bm?.ok) throw new Error(bm?.reason || "render failed");
       await p15Print(bm);
       res = { ok: true };
     } else if (printer.kind === "net") {
-      res = await window.electronAPI.printLabelQl({ html: lbl.html, wDots: lbl.wDots, hDots: lbl.hDots, host: printer.host, port: printer.port, model: printer.model });
+      res = await window.electronAPI.printLabelQl({ html: lbl.html, wDots: lbl.wDots, hDots: lbl.hDots, host: printer.host, port: printer.port, model: printer.model, roll: prefs().qlRoll });
+      // The printer does not say which roll it holds: asked for, nothing sent.
+      if (res?.needRoll) throw Object.assign(new Error("needRoll"), { p15: true });
     } else {
       res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName });
     }
@@ -511,7 +568,7 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
     ctx.onLabelOut?.({ row, kind, template: lbl.template, output: "print", dpi: lbl.dpi });
   } catch (e) {
     // Nothing to report for a printer switched off or a computer without Bluetooth: said plainly.
-    const known = e?.p15 && { notFound: "labelP15NotFound", noBluetooth: "labelBtUnavailable" }[e.message];
+    const known = p15Known(e);
     say(ctx.t(known || "labelExportFailed"), false);
     if (!known) ctx.reportError?.("label.print." + printer.kind, e);
   } finally {

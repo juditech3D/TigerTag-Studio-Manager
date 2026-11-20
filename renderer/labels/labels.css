@@ -63,5 +63,12 @@
 .lbl-printer .csel { flex: 1; min-width: 0; }
 .lbl-printer .csel .csel-btn { width: 100%; max-width: none; }
 .lbl-printer-search .icon { background-color: currentColor; }
+.lbl-roll-label { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
 .lbl-printer-search.is-busy .icon { animation: spin .8s linear infinite; }
 .lbl-msg:empty { display: none; }
+/* The P15: its connection state and Connect button; while it is searched, the
+   Bluetooth devices seen, to pick it by hand (main.js select-bluetooth-device). */
+.lbl-p15 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.lbl-p15 .icon { background-color: currentColor; }
+.lbl-bt { display: flex; flex-direction: column; gap: 8px; }
+.lbl-bt-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow-y: auto; }

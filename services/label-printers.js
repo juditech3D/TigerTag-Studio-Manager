@@ -11,7 +11,7 @@
 //   toBitmap(nativeImage, { rotate })  → { width, height, bytesPerRow, data } (1 = black, MSB first)
 //   discoverNetworkPrinters(ms)        → [{ id, name, model, host, port, ql }] (mDNS)
 //   qlHeadDots(model)                  → 720 or 1296 (wide models)
-//   printQl({ host, port, model, image })  → { ok, media, assumed } | { ok:false, reason }
+//   printQl({ host, port, model, image, roll }) → { ok, media, scaled } | { ok:false, reason, needRoll? }
 //
 // The QL raster command set is Brother's ("QL-800/810W/820NWB Raster Command
 // Reference"): invalidate, initialise, status request, raster mode, print
@@ -168,26 +168,37 @@ function qlJob(bitmap, { model, media }) {
   return Buffer.concat(out);
 }
 
-// `image`: the label as a nativeImage at 300 dpi, its width as laid out. It is
-// printed that way when it fits the roll's printable width, else turned a
-// quarter turn (a 40 × 30 label across a 29 mm roll).
-async function printQl({ host, port = 9100, model, image }) {
+// `image`: the label as a nativeImage at 300 dpi, its width as laid out.
+// `roll`: the roll the user said is loaded ("62x0" continuous, "29x90" die-cut…,
+// a QL_MEDIA key); without one, the printer's status is asked (the QL-580N on
+// the network answers none: then the job is refused with needRoll rather than
+// sent for a roll it may not hold, which stops the printer on an error light).
+// The label goes in the orientation that keeps it largest on that roll, and is
+// scaled down when it is wider than the printable width (a 40 × 30 label on a
+// 29 mm roll) or longer than a die-cut label.
+async function printQl({ host, port = 9100, model, image, roll }) {
   if (!host || !image) return { ok: false, reason: 'bad request' };
-  const st = await qlStatus(host, port);
-  let media, assumed = false;
-  if (st && st.width) {
-    if (st.err1 || st.err2) return { ok: false, reason: `printer error ${st.err1.toString(16)}/${st.err2.toString(16)}` };
-    media = { width: st.width, length: st.length, dieCut: st.type === 0x0b || st.type === 0x4b };
+  let media = null;
+  if (typeof roll === 'string' && QL_MEDIA[roll]) {
+    const [w, l] = roll.split('x').map(Number);
+    media = { width: w, length: l, dieCut: l > 0 };
   } else {
-    // No status answered: the commonest roll (62 mm continuous). A different roll
-    // makes the printer stop with its own error light, nothing is lost.
-    media = { width: 62, length: 0, dieCut: false }; assumed = true;
+    const st = await qlStatus(host, port);
+    if (st && st.width) {
+      if (st.err1 || st.err2) return { ok: false, reason: `printer error ${st.err1.toString(16)}/${st.err2.toString(16)}` };
+      media = { width: st.width, length: st.length, dieCut: st.type === 0x0b || st.type === 0x4b };
+    }
   }
+  if (!media) return { ok: false, reason: 'roll unknown', needRoll: true };
   const key = `${media.width}x${media.dieCut ? media.length : 0}`;
   const printable = (QL_MEDIA[key] || QL_MEDIA[`${media.width}x0`] || [qlHeadDots(model)])[0];
+  const maxLen = media.dieCut ? Math.floor(media.length * 300 / 25.4) - 20 : Infinity;
   const { width: w, height: h } = image.getSize();
-  const rotate = w > printable && h <= printable;
-  const bitmap = toBitmap(image, { rotate });
+  const fit = (across, along) => Math.min(1, printable / across, maxLen / along);
+  const rotate = fit(h, w) > fit(w, h);
+  const k = rotate ? fit(h, w) : fit(w, h);
+  const img = k < 1 ? image.resize({ width: Math.floor(w * k), height: Math.floor(h * k), quality: 'best' }) : image;
+  const bitmap = toBitmap(img, { rotate });
   const job = qlJob(bitmap, { model, media });
   return await new Promise((resolve) => {
     const sock = net.createConnection({ host, port });
@@ -196,7 +207,7 @@ async function printQl({ host, port = 9100, model, image }) {
     sock.setTimeout(15000, () => finish({ ok: false, reason: 'timeout' }));
     sock.on('error', e => finish({ ok: false, reason: e.message }));
     // Written, then left open a moment: closing at once can cut the tail of the job.
-    sock.on('connect', () => sock.write(job, () => setTimeout(() => finish({ ok: true, media, assumed }), 1500)));
+    sock.on('connect', () => sock.write(job, () => setTimeout(() => finish({ ok: true, media, scaled: k < 1 }), 1500)));
   });
 }
 

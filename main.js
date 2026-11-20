@@ -651,30 +651,36 @@ function createWindow() {
   mainWindow.on('session-end', () => { _isQuitting = true; });
 
   // Web Bluetooth (the Marklife P15, renderer/labels/p15.js): Chromium asks the
-  // app which device to use. The renderer asks for any device, and the printer
-  // is picked here by its advertised name (P15, P7, LP15, Marklife…): no chooser.
-  // The event repeats while the scan runs, with the growing list; every name
-  // seen is logged, so a printer advertising under another name shows up in
-  // the log. Nothing matching within 15 s → cancelled (the renderer then says no
-  // printer was found).
+  // app which device to use. The renderer asks for any device. A device whose
+  // advertised name is a Marklife one (P15, P7, LP15, Marklife…) is picked at
+  // once; meanwhile every device the scan lists is sent to the label card
+  // (`label:bt-devices`), where the user can pick the printer by hand when it
+  // advertises under another name (`label:bt-pick`, '' cancels). The event
+  // repeats while the scan runs, with the growing list. Nothing picked within
+  // 60 s → cancelled, and every name seen is logged.
   const BT_PRINTER = /^(P15|P7|LP15|iSPACE_LP15|OUT_LPC|S15|S12|P1s|LPC74|M1)|marklife/i;
   let _btPick = null;
+  const _btFinish = (deviceId) => {
+    const p = _btPick;
+    if (!p) return;
+    _btPick = null; clearTimeout(p.timer);
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('label:bt-devices', null);
+    if (!deviceId) log.warn(`[label] Bluetooth scan ended without a printer; seen: ${[...p.seen.values()].map(n => n || '(no name)').join(', ') || 'nothing'}`);
+    p.callback(deviceId || '');
+  };
   mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
     event.preventDefault();
-    if (!_btPick) {
-      _btPick = { callback, seen: new Set(), timer: setTimeout(() => {
-        const p = _btPick; _btPick = null;
-        log.warn(`[label] no Marklife printer in the Bluetooth scan; seen: ${[...(p?.seen || [])].join(', ') || 'nothing'}`);
-        p?.callback('');
-      }, 15000) };
-    } else _btPick.callback = callback;
-    (devices || []).forEach(d => _btPick.seen.add(d.deviceName || `(no name) ${d.deviceId}`));
+    if (!_btPick) _btPick = { callback, seen: new Map(), timer: setTimeout(() => _btFinish(''), 60000) };
+    else _btPick.callback = callback;
+    (devices || []).forEach(d => _btPick.seen.set(d.deviceId, d.deviceName || ''));
     const hit = (devices || []).find(d => BT_PRINTER.test(d.deviceName || ''));
-    if (hit) {
-      const p = _btPick; _btPick = null; clearTimeout(p.timer);
-      log.info(`[label] Bluetooth printer picked: ${hit.deviceName}`);
-      p.callback(hit.deviceId);
-    }
+    if (hit) { log.info(`[label] Bluetooth printer picked by name: ${hit.deviceName}`); _btFinish(hit.deviceId); return; }
+    mainWindow.webContents.send('label:bt-devices', [..._btPick.seen].map(([id, name]) => ({ id, name })));
+  });
+  ipcMain.removeHandler('label:bt-pick');   // createWindow can run again (macOS activate)
+  ipcMain.handle('label:bt-pick', (_evt, deviceId) => {
+    if (_btPick && deviceId) log.info(`[label] Bluetooth device picked by hand: ${_btPick.seen.get(deviceId) || deviceId}`);
+    _btFinish(typeof deviceId === 'string' ? deviceId : '');
   });
 
   // Right-click context menu — native Cut/Copy/Paste/Select-all on any editable
@@ -4418,11 +4424,11 @@ ipcMain.handle('label:bitmap', async (_evt, opts = {}) => {
   } catch (e) { return { ok: false, reason: e.message }; }
 });
 ipcMain.handle('label:print-ql', async (_evt, opts = {}) => {
-  const { host, port, model } = opts || {};
+  const { host, port, model, roll } = opts || {};
   if (!_isLabelPage(opts) || typeof host !== 'string' || !host) return { ok: false, reason: 'bad label' };
   try {
     const img = await _labelImage(opts.html, opts.wDots, opts.hDots);
-    const res = await labelPrinters.printQl({ host, port: Number(port) || 9100, model, image: img });
+    const res = await labelPrinters.printQl({ host, port: Number(port) || 9100, model, image: img, roll });
     if (!res.ok) log.warn(`[label] Brother ${model || ''} at ${host}: ${res.reason}`);
     return res;
   } catch (e) {
