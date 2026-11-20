@@ -68,7 +68,7 @@
 
 - Labels print straight from Studio, without the system print dialog. The label card gains a
   "Printer" list: the system dialog (as before), a **Marklife P15** over Bluetooth LE (found and
-  connected by Studio, Web Bluetooth, `select-bluetooth-device` picks the first P15 the scan lists),
+  connected by Studio, Web Bluetooth, `select-bluetooth-device` picks it by its advertised name and logs every name seen when none matches),
   every printer installed on the computer (printed silently through its driver), and the
   **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
   the roll is read from the printer's status, 62 mm continuous assumed when it does not answer).

@@ -650,26 +650,39 @@ function createWindow() {
   // A Windows shutdown / log-off must never be blocked by that hide.
   mainWindow.on('session-end', () => { _isQuitting = true; });
 
+  // Web Bluetooth (the Marklife P15, renderer/labels/p15.js): Chromium asks the
+  // app which device to use. The renderer asks for any device, and the printer
+  // is picked here by its advertised name (P15, P7, LP15, Marklife…): no chooser.
+  // The event repeats while the scan runs, with the growing list; every name
+  // seen is logged, so a printer advertising under another name shows up in
+  // the log. Nothing matching within 15 s → cancelled (the renderer then says no
+  // printer was found).
+  const BT_PRINTER = /^(P15|P7|LP15|iSPACE_LP15|OUT_LPC|S15|S12|P1s|LPC74|M1)|marklife/i;
+  let _btPick = null;
+  mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
+    event.preventDefault();
+    if (!_btPick) {
+      _btPick = { callback, seen: new Set(), timer: setTimeout(() => {
+        const p = _btPick; _btPick = null;
+        log.warn(`[label] no Marklife printer in the Bluetooth scan; seen: ${[...(p?.seen || [])].join(', ') || 'nothing'}`);
+        p?.callback('');
+      }, 15000) };
+    } else _btPick.callback = callback;
+    (devices || []).forEach(d => _btPick.seen.add(d.deviceName || `(no name) ${d.deviceId}`));
+    const hit = (devices || []).find(d => BT_PRINTER.test(d.deviceName || ''));
+    if (hit) {
+      const p = _btPick; _btPick = null; clearTimeout(p.timer);
+      log.info(`[label] Bluetooth printer picked: ${hit.deviceName}`);
+      p.callback(hit.deviceId);
+    }
+  });
+
   // Right-click context menu — native Cut/Copy/Paste/Select-all on any editable
   // field (text/number/url inputs, textareas, contenteditable), plus Copy on any
   // selected text. Uses `role`s for built-in behaviour, but OVERRIDES each label
   // with the app-language string pushed from the renderer (`_ctxMenuLabels`), so the
   // menu matches the in-app language rather than the OS locale. `editFlags` disable
   // actions that don't apply (e.g. Paste with an empty clipboard, Cut with no selection).
-  // Web Bluetooth (the Marklife P15, renderer/labels/p15.js): Chromium asks the
-  // app which device to use. The renderer's requestDevice is filtered on the
-  // printer's name prefixes and service, so the first device listed IS the
-  // printer: picked at once, no chooser. Nothing within 15 s → cancelled (the
-  // renderer then says no printer was found). The event repeats while the scan
-  // runs; one pick answers it.
-  let _btPick = null;
-  mainWindow.webContents.on('select-bluetooth-device', (event, devices, callback) => {
-    event.preventDefault();
-    if (!_btPick) _btPick = { callback, timer: setTimeout(() => { const p = _btPick; _btPick = null; p?.callback(''); }, 15000) };
-    else _btPick.callback = callback;
-    if (devices?.length) { const p = _btPick; _btPick = null; clearTimeout(p.timer); p.callback(devices[0].deviceId); }
-  });
-
   mainWindow.webContents.on('context-menu', (_e, params) => {
     const ef = params.editFlags || {};
     const hasSel = !!(params.selectionText && params.selectionText.trim());

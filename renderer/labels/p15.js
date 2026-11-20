@@ -18,7 +18,7 @@
  *   p15Connected()           — a P15 is connected (its name) or null
  *   p15Connect()             — finds and connects the printer (must run inside a
  *                              click: Web Bluetooth needs a user gesture); main.js
- *                              picks the first device the scan lists. Throws
+ *                              picks the printer by its advertised name. Throws
  *                              "noBluetooth" without an adapter, NotFoundError when
  *                              no printer answered
  *   p15Print(bitmap, opts)   — one label; resolves once the printer says it is done
@@ -27,7 +27,6 @@
  */
 
 const SERVICE = 0xff00, TX = 0xff02, RX = 0xff01, CX = 0xff03;
-const NAME_PREFIXES = ["P15", "P7", "LP15", "iSPACE_LP15", "OUT_LPC", "S15", "S12", "P1s", "LPC74", "M1"];
 const PACKET = 95, TICK_MS = 30, STARVE_MS = 1000;
 export const P15_MAX_MM = 15;
 
@@ -44,10 +43,9 @@ export async function p15Connect() {
   // Reuse the device picked earlier in this session when it is only out of range / asleep.
   let device = dev?.device || null;
   if (!device) {
-    device = await navigator.bluetooth.requestDevice({
-      filters: NAME_PREFIXES.map(namePrefix => ({ namePrefix })),
-      optionalServices: [SERVICE],
-    });
+    // Any device: main.js picks the printer by its advertised name (BT_PRINTER:
+    // P15, P7, LP15, Marklife…) and logs every name the scan saw when none matched.
+    device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE] });
   }
   const server = await device.gatt.connect();
   const svc = await server.getPrimaryService(SERVICE);
