@@ -10,7 +10,7 @@
  * A label carries the brand, the series on a black bar, the colour name,
  * its hex code(s), up to four value slots, the protocol pill and the QR
  * code — never a value that goes stale (remaining weight, note, rack, owner).
- * Ten templates (LABEL_TEMPLATES / LAYOUTS), each one SVG laid out in tenths
+ * Eleven templates (LABEL_TEMPLATES / LAYOUTS), each one SVG laid out in tenths
  * of a millimetre and scaled to PRINTER DOTS (one CSS px of the page is one dot);
  * every QR module covers a whole number of dots. The QR is one lowercase
  * byte-mode segment, ECC M (29 × 29 for every link).
@@ -44,7 +44,7 @@ let current = null;   // { row } — the spool the card is for
 const $ = id => document.getElementById(id);
 const PREFS_KEY = "tigertag.label";
 
-// The ten templates (width × height in mm), laid out like the common spool
+// The eleven templates (width × height in mm), laid out like the common spool
 // label sizes. `slots`: how many value slots the layout prints (0 = none).
 // "qrOnly" prints the QR and its pill alone (same as the Hub's lib/labels).
 export const LABEL_TEMPLATES = [
@@ -58,6 +58,7 @@ export const LABEL_TEMPLATES = [
   { id: "verticalCompact", w: 25, h: 40, slots: 0 },
   { id: "qrOnly",          w: 25, h: 30, slots: 0 },
   { id: "p15",             w: 30, h: 15, slots: 0 },   // the Marklife P15's 15 × 30 mm labels
+  { id: "ql62x29",         w: 62, h: 29, slots: 4 },   // the Brother QL's DK-11209 62 × 29 mm labels
 ];
 // The values a slot can show; all are print constants of the filament.
 export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
@@ -149,6 +150,8 @@ const LAYOUTS = {
   // `pill: [y, fontSize, height]` centres the pill instead of placing it top right.
   qrOnly:   { pill: [10, 22, 32], qr: [25, 71, 200] },
   // `pillAt: [x, y]` places the pill there (under the name) instead of top right.
+  ql62x29:  { brand: [14, 10, 440, 48], bar: [14, 62, 440, 42, 38, 4, 34], name: [14, 132, 30, 600, 440], hex: [462, 86, 22, 22],
+              slots: { y: [204, 228, 252, 276], lx: 14, vx: 142, fs: 20, vw: 300 }, qr: [470, 144, 136] },
   p15:      { brand: [148, 8, 144, 30], bar: [148, 44, 144, 26, 20, 4, 19], name: [148, 96, 22, 600, 144], pillAt: [148, 114], qr: [8, 8, 134] },
 };
 
@@ -511,7 +514,12 @@ function render(body, cur) {
   };
   body.onchange = e => {
     const roll = e.target.closest("[data-lbl-roll]");
-    if (roll) { savePrefs({ ...prefs(), qlRoll: roll.value }); return; }
+    if (roll) {
+      // A roll with its own template brings it (62 × 29 mm: the Brother template).
+      const q = { ...prefs(), qlRoll: roll.value };
+      if (roll.value === "62x29") q.template = "ql62x29";
+      savePrefs(q); render(body, cur); return;
+    }
     const hostEl = e.target.closest("[data-lbl-host]");
     if (hostEl) {
       const q = prefs(), v = hostEl.value.trim();
@@ -527,6 +535,7 @@ function render(body, cur) {
       const mine = q.templateBy[pr.value];
       if (mine) q.template = mine;
       else if (pr.value === "p15") q.template = "p15";
+      else if (printerFor(pr.value).kind === "net" || printerFor(pr.value).ql) q.template = "ql62x29";
       if (pr.value === "p15" && !fitsP15(LABEL_TEMPLATES.find(x => x.id === q.template))) q.template = "p15";
       savePrefs(q); render(body, cur); return;
     }

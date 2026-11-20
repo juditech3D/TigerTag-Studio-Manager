@@ -2117,6 +2117,7 @@
   "labelTpl_verticalCompact": "Вертикальный компактный",
   "labelTpl_qrOnly": "Только QR",
   "labelTpl_p15": "Marklife P15",
+  "labelTpl_ql62x29": "Brother 62 × 29",
   "chipRestoreNeedChip": "Положи повреждённый или стёртый TigerTag+ на TigerPOD. Если есть резервная копия, он станет точно таким, как с завода.",
   "chipRestoreCertified": "Сертифицирован",
   "backupBadge": "Подпись сохранена",

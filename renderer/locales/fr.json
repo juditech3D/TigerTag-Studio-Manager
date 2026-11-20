@@ -2107,6 +2107,7 @@
   "labelTpl_verticalCompact": "Vertical compact",
   "labelTpl_qrOnly": "QR seul",
   "labelTpl_p15": "Marklife P15",
+  "labelTpl_ql62x29": "Brother 62 × 29",
   "chipRestoreNeedChip": "Pose un TigerTag+ abîmé ou effacé sur le TigerPOD. S'il a une sauvegarde, il revient exactement comme en sortie d'usine.",
   "chipRestoreCertified": "Certifié",
   "backupBadge": "Signature sauvegardée",
