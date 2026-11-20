@@ -83,9 +83,16 @@
   batch `set()` without merge, which Firestore rejects, so every Import-mode file failed with
   "ttagImportErr" and nothing was written. The field is now left out of the new doc
   (`_ttagBuildWrites` in `renderer/inventory.js`). Restore mode was not affected.
+- Settings → "Check for updates" no longer prints electron-updater's raw error (URL, HTTP
+  headers, stack) when a release is tagged but its build has not uploaded `latest.yml` yet: it
+  says an update is being published and to wait a few minutes. A network failure and any other
+  error each get one short sentence; the full error goes to `main.log`. `main.js`
+  (`updaterErrorReason`, sends `reason` instead of `error` on `update-status` and
+  `update:check-now`), `renderer/inventory.js` (`updateErrorText`), `CODEMAP-main.md`.
 
 ### i18n
 
 - Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.
+- Update check: `aboutCheckUpdatePending`, `aboutCheckUpdateOffline` (after `aboutCheckUpdateErr`, whose text is now a full sentence), 11 locales.
