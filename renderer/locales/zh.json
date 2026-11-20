@@ -3208,6 +3208,7 @@
   "eggFoundTitle": "发现秘密！",
   "eggFoundSub": "一个隐藏红包，专属于你。",
   "linkedChipTitle": "您想做什么？",
+  "bambuChipSummary": "拓竹芯片 · {{weight}} g · ⌀ {{diameter}} mm · {{tmin}}–{{tmax}} °C",
   "linkedChipOfferInfo": "仅通过 UID 关联专有协议的标签：不会向这些第三方标签写入任何数据。",
   "linkedChipOfferMany": "关联 {{n}} 个第三方专有标签",
   "linkedChipOffer": "关联第三方专有标签",

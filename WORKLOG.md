@@ -40,6 +40,17 @@
   read from the physical key (`e.code`), so a scanner set to the US layout works on an AZERTY computer.
   `renderer/inventory.js` (`_onCodeScanned`, `_catalogProductsForCode`).
 
+- A Bambu Lab chip placed on a PC/SC reader is read: its sectors open with keys derived
+  from its UID (HKDF-SHA256, per the Bambu Research Group's RFID-Tag-Guide), the data
+  blocks are decoded (material, colour, weight, diameter, temperatures…) and the
+  new-chip card shows them above its choices; "Catalogue" opens on Bambu Lab and the
+  detailed type. Read only, nothing written, signature not checked. New
+  `services/bambu-tag.js` (`bambuKeysA`, `parseBambuBlocks`); `services/nfc-process.js`
+  (`_readBambu`, no NTAG read for a MIFARE Classic 1K); `main.js` (`bambu` on
+  `rfid-foreign-chip`); `renderer/rfid_protocol/linked/index.js` (`presentBambuInfo`,
+  `_bambuSummaryHtml`), `linked.css` (`.lc-bambu*`); `renderer/inventory.js`
+  (`openCatalogPick` `prefill`); `docs/LINKED-CHIPS.md`. Not tried on a real chip yet.
+
 ### Fixed
 
 - A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
@@ -52,3 +63,4 @@
 
 - Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
+- Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.

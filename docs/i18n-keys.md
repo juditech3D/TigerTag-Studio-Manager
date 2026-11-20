@@ -120,6 +120,7 @@
 | `noMatch` | Empty state: no match |
 | `invLoading` | Loading spinner label |
 | `qrScanScanning` / `qrScanFound` | Camera QR card: status pill while scanning / on a read |
+| `bambuChipSummary` | New-chip card: what a Bambu Lab chip says (weight, diameter, nozzle range) under its material |
 | `linkedChipAddQr` / `linkedChipQrTip` | Add chooser: the "Add from QR code" tile and its ⓘ tip |
 | `linkedChipAddTag` / `linkedChipTagTip` | Add chooser: the "Add with TigerTag" tile and its ⓘ tip |
 | `tagAddHint` / `tagAddUnknown` / `tagAddBlank` / `tagAddReplace` / `tagAddKnown` / `tagAddDone` / `tagAddReading` / `tagAddAlready` | Add with TigerTag: the waiting hint, the toast for a new chip scanned outside it, a blank chip, a chip placed before the view opened, one already in the inventory, one just added |

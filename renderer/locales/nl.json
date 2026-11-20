@@ -3219,6 +3219,7 @@
   "eggFoundTitle": "Geheim gevonden!",
   "eggFoundSub": "Een verstopte envelop, speciaal voor jou.",
   "linkedChipTitle": "Wat wilt u doen?",
+  "bambuChipSummary": "Bambu Lab-chip · {{weight}} g · ⌀ {{diameter}} mm · {{tmin}}–{{tmax}} °C",
   "linkedChipOfferInfo": "Een eenvoudige koppeling via UID met de Tags van een eigen protocol: er wordt niets in deze Tags van derden geschreven.",
   "linkedChipOfferMany": "De {{n}} eigen Tags van derden koppelen",
   "linkedChipOffer": "Eigen Tag van derden koppelen",

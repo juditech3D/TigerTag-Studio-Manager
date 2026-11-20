@@ -9,7 +9,8 @@
  *   initLinkedChips({ t, esc, state, fbDb, thumbHTML, gridCard, openDetail, setupHoldToConfirm,
  *                     toast, reportError, onChange, openCatalogue, openManual, openQrScan, closeQrScan })
  *   linkedChipsSignIn(uid) / linkedChipsSignOut()   — follow the account's aliases
- *   onForeignChip({ readerName, uid, chip })        — a scan (buffered 1.5 s)
+ *   onForeignChip({ readerName, uid, chip, bambu }) — a scan (buffered 1.5 s); `bambu` = a Bambu
+ *                                                     Lab chip's decoded content (services/bambu-tag.js)
  *   linkPendingTo(spoolId) / clearPendingLink()     — after a creation started from the window
  *   openBlankChipWindow(n) / closeChipChoice()      — a blank NTAG: catalogue or manual (side card)
  *   openAddChooser()                                — the search bar's "+": the same card, no chip
@@ -127,10 +128,20 @@ export function linkedChipsOf(row) {
 // Every maker's chip seen this session (uid → chip type): with the chips on the
 // TigerPOD (ctx.state.nfcCardPresent) it says which maker chips sit there now.
 const makerUids = new Map();
+// What a Bambu Lab chip says about its spool (uid → decoded fields), read only.
+const bambuInfo = new Map();
 
-export function onForeignChip({ readerName, uid, chip }, { held = false } = {}) {
+/** The decoded Bambu Lab content of the maker chips on the TigerPOD now, if any. */
+export function presentBambuInfo() {
+  const on = [...(ctx.state?.nfcCardPresent?.values() || [])].map(c => norm(c?.uid));
+  for (const u of on) if (bambuInfo.has(u)) return bambuInfo.get(u);
+  return null;
+}
+
+export function onForeignChip({ readerName, uid, chip, bambu }, { held = false } = {}) {
   const u = norm(uid);
   if (UID_RE.test(u)) makerUids.set(u, chip || "unknown");
+  if (UID_RE.test(u) && bambu) bambuInfo.set(u, bambu);
   if (!accountUid || !UID_RE.test(u)) return;
   buffer.set(readerName || "reader", { uid: u, chip: chip || "unknown" });
   bufferHeld = held;
@@ -262,6 +273,17 @@ export function openAddChooser() {
   else openChipWindow([], "add");
 }
 
+// A Bambu Lab chip on the TigerPOD: what it says (material, colour, weight,
+// diameter, nozzle temperatures), above the choices. Read only.
+function _bambuSummaryHtml() {
+  const b = presentBambuInfo();
+  if (!b) return "";
+  const { t, esc } = ctx;
+  const sw = (b.colors || []).map(c => `<span class="lc-bambu-sw" style="background:${esc(String(c).slice(0, 7))}"></span>`).join("");
+  const line = t("bambuChipSummary", { weight: b.weightG ?? "?", diameter: b.diameterMm ?? "?", tmin: b.hotendMinC ?? "?", tmax: b.hotendMaxC ?? "?" });
+  return `<div class="lc-bambu"><span class="lc-bambu-sws" aria-hidden="true">${sw}</span><span class="lc-bambu-txt"><b>${esc(b.detailedType || b.type)}</b><small>${esc(line)}</small></span></div>`;
+}
+
 function openChipWindow(chips, kind) {
   const { t, esc } = ctx;
   const foreign = kind === "foreign";
@@ -284,7 +306,7 @@ function openChipWindow(chips, kind) {
       <b>${esc(label)}</b>
     </button>`;
   ctx.hideTip?.();
-  body.innerHTML = `<div class="lc-choices">${tile("catalogue", "search", t("linkedChipAddCatalogue"), t("linkedChipCatalogueTip"))}${tile("tagadd", "tigertag", t("linkedChipAddTag"), t("linkedChipTagTip"))}${tile("qr", "qr", t("linkedChipAddQr"), t("linkedChipQrTip"))}${tile("manual", "edit", t("linkedChipAddManual"), t("linkedChipManualTip"))}${tile("pick", "link", t("linkedChipExisting"), _pickTip(kind), _pickOff(kind))}${foreign ? "" : tile("erase", "recycle", t("chipEraserTitle"), t("chipEraserTip"))}${tile("restore", "tigertag", t("toolRepairPlus"), t("chipRestoreNeedChip"), true)}</div>`;
+  body.innerHTML = `${foreign ? _bambuSummaryHtml() : ""}<div class="lc-choices">${tile("catalogue", "search", t("linkedChipAddCatalogue"), t("linkedChipCatalogueTip"))}${tile("tagadd", "tigertag", t("linkedChipAddTag"), t("linkedChipTagTip"))}${tile("qr", "qr", t("linkedChipAddQr"), t("linkedChipQrTip"))}${tile("manual", "edit", t("linkedChipAddManual"), t("linkedChipManualTip"))}${tile("pick", "link", t("linkedChipExisting"), _pickTip(kind), _pickOff(kind))}${foreign ? "" : tile("erase", "recycle", t("chipEraserTitle"), t("chipEraserTip"))}${tile("restore", "tigertag", t("toolRepairPlus"), t("chipRestoreNeedChip"), true)}</div>`;
   choiceKind = kind;
   _refreshRestore();
   body.classList.remove("lc-in"); void body.offsetWidth; body.classList.add("lc-in");
@@ -325,7 +347,10 @@ function openChipWindow(chips, kind) {
     } else {
       closeChipLink();
       // Opening a creation panel clears any waiting chips, so set them after.
-      if (to === "catalogue") ctx.openCatalogue(); else ctx.openManual();
+      // A Bambu Lab chip told us brand and material: the catalogue opens on them.
+      const bi = foreign ? presentBambuInfo() : null;
+      if (to === "catalogue") ctx.openCatalogue(bi ? { prefill: { brand: "Bambu Lab", query: bi.detailedType || bi.type } } : undefined);
+      else ctx.openManual();
       pending = foreign ? { until: Date.now() + 15 * 60e3 } : null;
     }
     embed(document.getElementById(NEXT[to]));

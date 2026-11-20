@@ -3253,6 +3253,7 @@
   "eggFoundTitle": "Sekret znaleziony!",
   "eggFoundSub": "Ukryta koperta, tylko dla ciebie.",
   "linkedChipTitle": "Co chcesz zrobić?",
+  "bambuChipSummary": "Chip Bambu Lab · {{weight}} g · ⌀ {{diameter}} mm · {{tmin}}–{{tmax}} °C",
   "linkedChipOfferInfo": "Proste powiązanie przez UID z Tagami zastrzeżonego protokołu: nic nie jest zapisywane w tych obcych Tagach.",
   "linkedChipOfferMany": "Powiąż {{n}} zastrzeżone Tagi innej firmy",
   "linkedChipOffer": "Powiąż zastrzeżony Tag innej firmy",

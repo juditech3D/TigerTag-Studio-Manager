@@ -30,7 +30,8 @@
 //     blockSize=4  → increment = 4 pages → CORRECT: sequential non-overlapping reads
 //   Always pass blockSize=4 for NTAG chips.
 
-const { NFC } = require('nfc-pcsc');
+const { NFC, KEY_TYPE_A } = require('nfc-pcsc');
+const { bambuKeysA, BAMBU_SECTORS } = require('./bambu-tag');
 
 // ── NTAG read parameters ──────────────────────────────────────────────────────
 const READ_START_PAGE = 4;     // first user-memory page (skip UID/lock/CC pages 0-3)
@@ -101,17 +102,24 @@ function startNFC() {
     // Card placed on reader
     reader.on('card', async (card) => {
       const uid = card.uid;
-      let rawPagesHex = null;
-      try {
-        const data = await reader.read(READ_START_PAGE, READ_LENGTH, READ_BLOCK_SIZE);
-        rawPagesHex = data.toString('hex');
-      } catch (_) {
-        // Read failed — emit uid only; main process handles graceful fallback
-      }
       // The ATR names the card type (PC/SC part 3: bytes 13-14 — 0x0001 MIFARE Classic 1K,
       // 0x0002 4K); main.js uses it for chips that are not TigerTags (docs/LINKED-CHIPS.md).
       const atr = card.atr ? Buffer.from(card.atr).toString('hex') : null;
-      process.parentPort.postMessage({ type: 'card', readerName: name, uid, rawPagesHex, atr });
+      let rawPagesHex = null;
+      let bambuBlocksHex = null;
+      if (atr && atr.length >= 30 && atr.slice(26, 30) === '0001') {
+        // A MIFARE Classic 1K is never a TigerTag (NTAG): no NTAG read. It may be a
+        // Bambu Lab chip, whose sectors open with keys derived from its UID.
+        bambuBlocksHex = await _readBambu(reader, uid);
+      } else {
+        try {
+          const data = await reader.read(READ_START_PAGE, READ_LENGTH, READ_BLOCK_SIZE);
+          rawPagesHex = data.toString('hex');
+        } catch (_) {
+          // Read failed — emit uid only; main process handles graceful fallback
+        }
+      }
+      process.parentPort.postMessage({ type: 'card', readerName: name, uid, rawPagesHex, atr, bambuBlocksHex });
     });
 
     // Card removed
@@ -138,6 +146,30 @@ function startNFC() {
     if (!_downReported) { _downReported = true; process.parentPort.postMessage({ type: 'nfc-error', message: err.message }); }
     _scheduleRestart();
   });
+}
+
+// ── Bambu Lab chips (MIFARE Classic 1K, read only) ─────────────────────────────
+// Each sector opens with its own key A derived from the UID (services/bambu-tag.js).
+// Returns { [block]: hex } for the data blocks of BAMBU_SECTORS, or null when the
+// first sector does not open (not a Bambu chip: a Creality one, a blank MIFARE…).
+// A later sector that fails keeps what was read before it.
+async function _readBambu(reader, uid) {
+  const keys = bambuKeysA(uid);
+  if (!keys) return null;
+  const out = {};
+  for (const sector of BAMBU_SECTORS) {
+    const first = sector * 4;
+    try {
+      await reader.authenticate(first, KEY_TYPE_A, keys[sector]);
+      for (let b = first; b < first + 3; b++) {
+        out[b] = (await reader.read(b, 16, 16)).toString('hex');
+      }
+    } catch (_) {
+      if (sector === 0) return null;
+      break;
+    }
+  }
+  return out;
 }
 
 startNFC();

@@ -5056,7 +5056,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     openGroup: key => { closeDetail(); _openGroupPanel(key); }, setupHoldToConfirm,
     toast: msg => _flashMessage(msg), reportError, onChange: () => { if (state.selected) refreshOpenDetail?.(); },
     brandIdOf: r => _catByName("brand", r?.brand, ["name"]),
-    openCatalogue: () => openCatalogPick(), openManual: () => openAddProductPanel(), chipPresent: () => state.nfcCardPresent.size > 0, chipsChanged: () => _refreshChipBanners(), syncPanels: () => _syncPanels(), clearSide: () => _clearSideForChip(), closeAllSide: () => _closeAllSidePanels(),
+    openCatalogue: (o) => openCatalogPick(o || {}), openManual: () => openAddProductPanel(), chipPresent: () => state.nfcCardPresent.size > 0, chipsChanged: () => _refreshChipBanners(), syncPanels: () => _syncPanels(), clearSide: () => _clearSideForChip(), closeAllSide: () => _closeAllSidePanels(),
     showTip: el => _showToolInfoTip(el), hideTip: () => _hideToolInfoTip(), errorTip: (el, msg, opts) => _showErrorTip(el, msg, opts),
     clearCreate: () => { closeCatalogPick(); if ($("productCardPanel")?.classList.contains("open")) closeProductCard(); if ($("addProductPanel")?.classList.contains("open")) _adpCloseAllSheetsAndPanel(); },
     openEraser: () => openChipEraser(), closeEraser: () => closeChipEraser(),
@@ -17810,7 +17810,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   }
   // `upgradeFor`: a TigerTag's spool id — the picked product upgrades that spool to
   // TigerTag+ (its product card offers it) instead of creating a TigerData+.
-  function openCatalogPick({ upgradeFor = null } = {}) {
+  function openCatalogPick({ upgradeFor = null, prefill = null } = {}) {
     if (!state.activeAccountId || state.friendView) return;
     _cpkUpgradeFor = upgradeFor;
     $("upgradePlusBanner")?.classList.toggle("is-active", !!upgradeFor);
@@ -17833,11 +17833,13 @@ import { initScreenTools } from './ai/screen-tools.js';
       for (const e of _catalogIndex) if (e.it.brand) n.set(e.it.brand, (n.get(e.it.brand) || 0) + 1);
       brand.innerHTML = `<option value="">${esc(t("filterAllBrands"))}</option>` +
         [...n].sort((a, b) => a[0].localeCompare(b[0])).map(([v, c]) => `<option value="${esc(v)}">${esc(v)} (${c})</option>`).join("");
-      brand.value = "";
+      // prefill: a maker's chip that names its brand (a Bambu Lab chip) opens the
+      // list on it, when the catalogue has that brand.
+      brand.value = prefill?.brand && n.has(prefill.brand) ? prefill.brand : "";
       _enhanceSelect(brand);
       brand._cselRefresh?.();
     }
-    if ($("cpkSearch")) { $("cpkSearch").value = ""; $("cpkSearch").dispatchEvent(new Event("input")); }
+    if ($("cpkSearch")) { $("cpkSearch").value = prefill?.query || ""; $("cpkSearch").dispatchEvent(new Event("input")); }
     _catalogPickFill();
     $("catalogPickPanel")?.classList.add("open");
     _syncPanels();

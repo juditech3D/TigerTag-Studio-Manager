@@ -3253,6 +3253,7 @@
   "eggFoundTitle": "Секрет найден!",
   "eggFoundSub": "Спрятанный конверт — только для тебя.",
   "linkedChipTitle": "Что вы хотите сделать?",
+  "bambuChipSummary": "Чип Bambu Lab · {{weight}} г · ⌀ {{diameter}} мм · {{tmin}}–{{tmax}} °C",
   "linkedChipOfferInfo": "Простая привязка по UID к тегам проприетарного протокола: в эти сторонние теги ничего не записывается.",
   "linkedChipOfferMany": "Связать {{n}} сторонних проприетарных тега",
   "linkedChipOffer": "Связать сторонний проприетарный тег",

@@ -492,6 +492,7 @@ function normalizeUid(raw) {
 process.env.TIGERTAG_OFFLINE = '1';
 const { TigerTag } = require('tigertag');
 const { ndefImage, ndefSize, USER_BYTES: NDEF_USER_BYTES } = require('./services/ndef');
+const { parseBambuBlocks } = require('./services/bambu-tag');
 
 // IPC payload — toRawDict() first, then rawApi() if TigerTag+.
 /* The chip carries ONE unit byte for BOTH of its quantities — a real 1 kg tag
@@ -811,7 +812,11 @@ async function _onNfcMessage(msg) {
           break;
         }
         const chip = card === '0001' ? 'mifare1k' : card === '0002' ? 'mifare4k' : 'unknown';
-        mainWindow?.webContents.send('rfid-foreign-chip', { readerName: msg.readerName, uid, chip });
+        // A Bambu Lab chip opened with its UID-derived keys (services/nfc-process.js):
+        // its decoded content rides along, read only (services/bambu-tag.js).
+        const bambu = msg.bambuBlocksHex ? parseBambuBlocks(msg.bambuBlocksHex) : null;
+        if (bambu) console.log(`[NFC] Bambu Lab chip on ${msg.readerName} — ${bambu.detailedType || bambu.type} ${bambu.colors[0]} ${bambu.weightG} g`);
+        mainWindow?.webContents.send('rfid-foreign-chip', { readerName: msg.readerName, uid, chip, bambu });
       }
       break;
     }

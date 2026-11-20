@@ -3219,6 +3219,7 @@
   "eggFoundTitle": "Segredo encontrado!",
   "eggFoundSub": "Um envelope escondido, só para você.",
   "linkedChipTitle": "O que você deseja fazer?",
+  "bambuChipSummary": "Chip da Bambu Lab · {{weight}} g · ⌀ {{diameter}} mm · {{tmin}}–{{tmax}} °C",
   "linkedChipOfferInfo": "Uma simples ligação por UID com os Tags de um protocolo proprietário: nenhum dado é gravado nesses Tags de terceiros.",
   "linkedChipOfferMany": "Vincular os {{n}} Tags proprietários de terceiros",
   "linkedChipOffer": "Vincular o Tag proprietário de terceiros",
