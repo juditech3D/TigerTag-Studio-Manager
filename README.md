@@ -1,3 +1,5 @@
+> ⚠️ **Unofficial fork.** This repository is a personal fork of Tiger Studio Manager. It is neither published, maintained nor supported by the TigerTag Project, so please do not contact them about it.
+
 <div align="center">
 
 # Tiger Studio Manager 2
@@ -65,6 +67,39 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 [![Node.js](https://img.shields.io/badge/Node.js-24-green)](https://nodejs.org/)
 
 </div>
+
+---
+
+## What this fork adds or changes
+
+This fork follows the official [Tiger Studio Manager](https://github.com/TigerTag-Project/TigerTag-Studio-Manager)
+and is currently based on its **2.59.2** release. Everything else in this README describes the official
+app. The fork publishes no installers: the download buttons above install the **official** app, and the
+fork itself runs from source (see [Install & run](#install--run)).
+
+### Added
+
+- **A TigerScale as a TigerPOD.** While the TigerPOD tool is open on a scale running the
+  [alternative TigerScale firmware](https://github.com/juditech3D/Tiger-Scale-V3), its two readers show up
+  in Studio as two more RFID readers. Every chip feature works on them as on a USB reader: open the spool
+  of a chip put down, write a blank chip, TigerTag+ upgrade, restore, erase, NFC tools.
+- **Bambu Lab chips are read**, on a USB reader (ACR122U) or on the scale: material, colour, weight,
+  diameter and temperatures are decoded, and the catalogue opens on the Bambu Lab product of the closest
+  colour. Read only, nothing is written to the chip. Tested on two real Bambu Lab spools.
+- **A USB barcode / QR scanner works anywhere in the app**: the scanned code opens the matching catalogue
+  product, ready to add as a spool, and a spool QR link opens that spool. A scanner set to the US (QWERTY)
+  layout also works on an AZERTY computer.
+
+### Fixed
+
+- **`.ttag` import in Import mode** works again (every file failed with an import error before).
+- **A Feitian ROCKEY-ARM licence dongle** is no longer listed as an RFID reader.
+
+### In progress (not working yet)
+
+- Mounting a spool in a printer slot (AMS, CFS, ACE…) from its detail panel: the code is there, but the
+  feature does not work yet.
+- Re-testing after the 2.59.2 merge: barcode scanner, Feitian dongle, `.ttag` import, other brands' chips.
 
 ---
 

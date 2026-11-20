@@ -52,6 +52,12 @@
   `_bambuSummaryHtml`), `linked.css` (`.lc-bambu*`); `renderer/inventory.js`
   (`openCatalogPick` `prefill`); `docs/LINKED-CHIPS.md`. Not tried on a real chip yet.
 
+### Changed
+
+- `README.md` opens with an "Unofficial fork" warning and gains a "What this fork adds or changes"
+  section (base version 2.59.2, no fork installers, additions, fixes, and what is still in progress:
+  printer-slot mounting does not work yet).
+
 ### Fixed
 
 - A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
