@@ -15953,7 +15953,16 @@ import { initScreenTools } from './ai/screen-tools.js';
     return true;
   };
   $("searchInv").addEventListener("keydown", e => {
-    if (e.key === "Enter" && _qrLinkEntered(e.target, _qrTypedReader(e.target))) e.preventDefault();
+    if (e.key !== "Enter") return;
+    if (_qrLinkEntered(e.target, _qrTypedReader(e.target))) { e.preventDefault(); return; }
+    // Scanner mode "search" or "all": a code scanned or pasted into the search
+    // bar and closed by Enter opens its product, as a scan outside any field
+    // does (`_onCodeScanned`). "off" keeps it a plain search.
+    const v = e.target.value.trim();
+    if (_scanMode !== "off" && v.length >= SCAN_MIN_LEN && !v.includes(" ") && _catCodeish(v)) {
+      e.preventDefault();
+      _onCodeScanned(v).catch(err => console.warn("[scan]", err?.message));
+    }
   });
   $("searchInv").addEventListener("input", e => {
     const v = e.target.value;
@@ -15995,6 +16004,34 @@ import { initScreenTools } from './ai/screen-tools.js';
      editable field, closed by Enter/Tab, is now taken as a scan and handled by
      `_onCodeScanned`. A field that has the focus keeps every key: a code
      scanned INTO a field is meant for that field. */
+  /* Where a scan is acted on (fork), chosen with the view row's scanner button:
+     "all" — anywhere (outside a field, and the search bar), the default;
+     "search" — only a code scanned or pasted into the search bar;
+     "off" — nowhere: the search bar is a plain search again.
+     Saved on this computer: localStorage `tigertag.scanMode`. */
+  const SCAN_MODES = ["off", "search", "all"];
+  const SCAN_MODE_LABEL = { off: "scanModeOff", search: "scanModeSearch", all: "scanModeAll" };
+  let _scanMode = "all";
+  try { const m = localStorage.getItem("tigertag.scanMode"); if (SCAN_MODES.includes(m)) _scanMode = m; } catch (_) {}
+  function _paintScanMode() {
+    const btn = $("btnScanMode"), lbl = $("btnScanModeLabel");
+    if (!btn || !lbl) return;
+    btn.classList.toggle("active", _scanMode === "all");
+    btn.classList.toggle("is-off", _scanMode === "off");
+    lbl.dataset.i18n = SCAN_MODE_LABEL[_scanMode];
+    lbl.textContent = t(lbl.dataset.i18n);
+  }
+  function _setScanMode(mode) {
+    if (!SCAN_MODES.includes(mode)) return;
+    _scanMode = mode;
+    try { localStorage.setItem("tigertag.scanMode", mode); } catch (_) {}
+    _paintScanMode();
+  }
+  $("btnScanMode")?.addEventListener("click", () => {
+    _setScanMode(SCAN_MODES[(SCAN_MODES.indexOf(_scanMode) + 1) % SCAN_MODES.length]);
+    _flashMessage(t(SCAN_MODE_LABEL[_scanMode]));
+  });
+  _paintScanMode();
   const SCAN_MAX_GAP_MS = 45;   // a scanner types a character every 5-30 ms; people take 80+
   const SCAN_MIN_LEN = 6;       // shorter than any EAN-8 / SKU — see _catCodeish
   let _scanBuf = "", _scanLastAt = 0;
@@ -16012,7 +16049,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   const _isEditable = el => !!el && (el.isContentEditable
     || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
   document.addEventListener("keydown", e => {
-    if (e.ctrlKey || e.metaKey || e.altKey || _isEditable(e.target)) { _scanBuf = ""; return; }
+    if (_scanMode !== "all" || e.ctrlKey || e.metaKey || e.altKey || _isEditable(e.target)) { _scanBuf = ""; return; }
     const now = performance.now();
     if (now - _scanLastAt > SCAN_MAX_GAP_MS) _scanBuf = "";
     _scanLastAt = now;
