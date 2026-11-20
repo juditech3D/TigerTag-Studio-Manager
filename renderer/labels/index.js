@@ -61,6 +61,8 @@ export const LABEL_TEMPLATES = [
 ];
 // The values a slot can show; all are print constants of the filament.
 export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
+// `templateBy`: the format last picked with each printer, brought back when that
+// printer is picked again.
 // `printer`: where Print sends the label — "dialog" (the system print dialog),
 // "p15" (a Marklife P15 over Bluetooth), "sys:<name>" (an installed printer,
 // silently through its driver) or "net:<address>" (a Brother QL on the network).
@@ -80,6 +82,9 @@ function prefs() {
   if (!LABEL_TEMPLATES.some(x => x.id === out.template)) out.template = DEFAULT_PREFS.template;
   if (![203, 300].includes(Number(out.dpi))) out.dpi = 203;
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
+  // `templateBy`: { printer id: template id } — the format last picked for each printer.
+  const by = out.templateBy && typeof out.templateBy === "object" ? out.templateBy : {};
+  out.templateBy = Object.fromEntries(Object.entries(by).filter(([, v]) => LABEL_TEMPLATES.some(x => x.id === v)));
   out.slots = Array.from({ length: 4 }, (_, i) => (LABEL_SLOTS.includes(out.slots?.[i]) || out.slots?.[i] === "none") ? out.slots[i] : DEFAULT_PREFS.slots[i]);
   return out;
 }
@@ -435,7 +440,12 @@ function render(body, cur) {
       savePrefs({ ...prefs(), kind: k.dataset.lblKind });
       setTimeout(() => render(body, cur), 200);
     }
-    else if (tp) { savePrefs({ ...prefs(), template: tp.dataset.lblTpl }); render(body, cur); }
+    else if (tp) {
+      // The format is remembered for the printer it was picked with.
+      const q = prefs();
+      savePrefs({ ...q, template: tp.dataset.lblTpl, templateBy: { ...q.templateBy, [q.printer]: tp.dataset.lblTpl } });
+      render(body, cur);
+    }
     else if (d) { savePrefs({ ...prefs(), dpi: Number(d.dataset.lblDpi) }); render(body, cur); }
     else if (out) {
       if (out.dataset.lblOut === "print" && printer.kind !== "dialog") printDirect(printer, lbl, row, kind, body, cur);
@@ -458,8 +468,12 @@ function render(body, cur) {
   body.onchange = e => {
     const pr = e.target.closest("[data-lbl-printer]");
     if (pr) {
-      // Picking the P15 with a label too wide for its roll switches to its own template.
+      // Each printer brings back the format last printed on it; the P15 starts on its
+      // own 30 × 15 mm template, and never keeps a label too wide for its roll.
       const q = { ...prefs(), printer: pr.value };
+      const mine = q.templateBy[pr.value];
+      if (mine) q.template = mine;
+      else if (pr.value === "p15") q.template = "p15";
       if (pr.value === "p15" && !fitsP15(LABEL_TEMPLATES.find(x => x.id === q.template))) q.template = "p15";
       savePrefs(q); render(body, cur); return;
     }

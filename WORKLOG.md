@@ -72,8 +72,9 @@
   every printer installed on the computer (printed silently through its driver), and the
   **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
   the roll is read from the printer's status, 62 mm continuous assumed when it does not answer).
-  A tenth template "Marklife P15" (30 × 15 mm) fits the P15's labels; picking the P15 with a wider
-  label switches to it, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).
+  A tenth template "Marklife P15" (30 × 15 mm) fits the P15's labels; each printer brings back
+  the format last picked with it (`templateBy`), the P15 starting on its own template and never
+  keeping a label too wide for its roll, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).
   P15 protocol (L11, service 0xFF00, credit flow control) from the MIT thermoprint project. New
   `renderer/labels/p15.js`, `services/label-printers.js`; `main.js` (`_labelImage`, `label:printers`,
   `label:bitmap`, `label:print-ql`, `label:render` `deviceName`, `select-bluetooth-device`, the
