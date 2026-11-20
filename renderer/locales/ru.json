@@ -2106,6 +2106,7 @@
   "labelQlRollAuto": "Спросить принтер",
   "labelQlRollContinuous": "{{w}} мм непрерывная",
   "labelQlNeedRoll": "Принтер не сообщает свой рулон: выберите его в списке «Рулон».",
+  "labelQlAddress": "Адрес",
   "labelTpl_classic": "Классический",
   "labelTpl_expanded": "Широкий",
   "labelTpl_compact": "Компактный",

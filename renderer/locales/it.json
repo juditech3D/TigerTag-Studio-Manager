@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Chiedi alla stampante",
   "labelQlRollContinuous": "{{w}} mm continuo",
   "labelQlNeedRoll": "La stampante non indica il suo rotolo: sceglilo nell'elenco Rotolo.",
+  "labelQlAddress": "Indirizzo",
   "labelTpl_classic": "Classico",
   "labelTpl_expanded": "Largo",
   "labelTpl_compact": "Compatto",

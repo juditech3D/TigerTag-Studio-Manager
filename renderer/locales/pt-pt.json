@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Perguntar à impressora",
   "labelQlRollContinuous": "{{w}} mm contínuo",
   "labelQlNeedRoll": "A impressora não indica o rolo: escolha-o na lista Rolo.",
+  "labelQlAddress": "Endereço",
   "labelTpl_classic": "Clássico",
   "labelTpl_expanded": "Largo",
   "labelTpl_compact": "Compacto",

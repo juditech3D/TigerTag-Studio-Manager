@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Ask the printer",
   "labelQlRollContinuous": "{{w}} mm continuous",
   "labelQlNeedRoll": "The printer doesn't say which roll it holds: pick it in the Roll list.",
+  "labelQlAddress": "Address",
   "labelTpl_classic": "Classic",
   "labelTpl_expanded": "Wide",
   "labelTpl_compact": "Compact",

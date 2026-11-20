@@ -75,7 +75,7 @@
   **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
   the roll is the one picked in the card's "Roll" list, else read from the printer's status; a QL-580N
   answers none over the network, so the card then asks for the roll instead of sending a job the
-  printer would refuse; the label is turned and scaled down to fit the roll's printable width).
+  printer would refuse; the label is turned and scaled down to fit the roll's printable width). An installed Brother QL is printed the same way, on the address behind its Windows printer port or one typed in the card's "Address" field (the QL-580N announces nothing over mDNS).
   A tenth template "Marklife P15" (30 × 15 mm) fits the P15's labels; each printer brings back
   the format last picked with it (`templateBy`), the P15 starting on its own template and never
   keeping a label too wide for its roll, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).
@@ -111,4 +111,4 @@
 - Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.
-- Label printers: `labelTpl_p15` (after `labelTpl_qrOnly`), `labelPrinter`, `labelPrinterDialog`, `labelPrinterP15`, `labelPrinterConnected`, `labelPrinterNetwork`, `labelPrinterInstalled`, `labelPrinterSearch`, `labelP15NoFit`, `labelPrinting`, `labelPrinted`, `labelP15NotFound`, `labelBtUnavailable`, `labelBtConnect`, `labelBtNotConnected`, `labelBtSearching`, `labelBtPick`, `labelBtNoName`, `labelQlRoll`, `labelQlRollAuto`, `labelQlRollContinuous`, `labelQlNeedRoll` (after `labelExportFailed`), 11 locales.
+- Label printers: `labelTpl_p15` (after `labelTpl_qrOnly`), `labelPrinter`, `labelPrinterDialog`, `labelPrinterP15`, `labelPrinterConnected`, `labelPrinterNetwork`, `labelPrinterInstalled`, `labelPrinterSearch`, `labelP15NoFit`, `labelPrinting`, `labelPrinted`, `labelP15NotFound`, `labelBtUnavailable`, `labelBtConnect`, `labelBtNotConnected`, `labelBtSearching`, `labelBtPick`, `labelBtNoName`, `labelQlRoll`, `labelQlRollAuto`, `labelQlRollContinuous`, `labelQlNeedRoll`, `labelQlAddress` (after `labelExportFailed`), 11 locales.

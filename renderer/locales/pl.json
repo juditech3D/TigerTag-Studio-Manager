@@ -2106,6 +2106,7 @@
   "labelQlRollAuto": "Zapytaj drukarkę",
   "labelQlRollContinuous": "{{w}} mm ciągła",
   "labelQlNeedRoll": "Drukarka nie podaje swojej rolki: wybierz ją z listy Rolka.",
+  "labelQlAddress": "Adres",
   "labelTpl_classic": "Klasyczny",
   "labelTpl_expanded": "Szeroki",
   "labelTpl_compact": "Kompaktowy",

@@ -68,7 +68,9 @@ export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
 // silently through its driver) or "net:<address>" (a Brother QL on the network).
 // `qlRoll`: the roll loaded in the Brother QL ("62x0" continuous, "29x90" die-cut…,
 // services/label-printers.js QL_MEDIA), "" = ask the printer.
-const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "" };
+// `qlHost`: { "sys:<name>": address } — the network address typed for an installed
+// Brother QL, printed directly on its raw port (none found on its Windows port).
+const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {} };
 // The Brother DK rolls offered in the card (QL_MEDIA keys), continuous first.
 const QL_ROLLS = ["62x0", "29x0", "38x0", "50x0", "54x0", "12x0", "102x0", "29x90", "62x29", "62x100", "17x54", "17x87", "23x23", "29x42", "38x90", "39x48", "52x29", "102x51", "102x152"];
 
@@ -103,6 +105,7 @@ function prefs() {
   if (![203, 300].includes(Number(out.dpi))) out.dpi = 203;
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
   if (!QL_ROLLS.includes(out.qlRoll)) out.qlRoll = "";
+  out.qlHost = out.qlHost && typeof out.qlHost === "object" ? out.qlHost : {};
   // `templateBy`: { printer id: template id } — the format last picked for each printer.
   const by = out.templateBy && typeof out.templateBy === "object" ? out.templateBy : {};
   out.templateBy = Object.fromEntries(Object.entries(by).filter(([, v]) => LABEL_TEMPLATES.some(x => x.id === v)));
@@ -318,7 +321,13 @@ function printerFor(id) {
   if (id === "p15") return { id, kind: "p15", name: "Marklife P15", dpi: 203 };
   if (id.startsWith("sys:")) {
     const p = found.installed.find(x => x.id === id);
-    return { id, kind: "sys", name: p?.name || id.slice(4), deviceName: p?.deviceName || id.slice(4) };
+    const name = p?.name || id.slice(4);
+    // An installed Brother QL goes straight to its raw port when its address is
+    // known (its Windows port, or typed in the card): same path as a network QL.
+    const ql = /\bQL-?\d/i.test(name);
+    const host = ql ? (String(prefs().qlHost[id] || "").trim() || p?.host || "") : "";
+    if (host) return { id, kind: "net", ql: true, sys: true, name, host, port: 9100, model: name.replace(/^Brother\s+/i, ""), dpi: 300, deviceName: p?.deviceName || id.slice(4) };
+    return { id, kind: "sys", ql, name, deviceName: p?.deviceName || id.slice(4) };
   }
   if (id.startsWith("net:")) {
     const p = found.network.find(x => x.id === id);
@@ -438,6 +447,8 @@ function render(body, cur) {
       <span>${esc(p15Connected() ? t("labelPrinterConnected") + " : " + p15Connected() : t("labelBtNotConnected"))}</span>
       ${p15Connected() ? "" : `<button type="button" class="ghost sm" data-lbl-connect><span class="icon icon-refresh icon-14"></span><span>${esc(t("labelBtConnect"))}</span></button>`}
     </div><div class="lbl-bt" hidden></div>` : ""}
+    ${printer.ql && printer.id.startsWith("sys:") ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelQlAddress"))}</span>
+      <input type="text" class="lbl-host" data-lbl-host inputmode="decimal" spellcheck="false" placeholder="192.168.1.20" value="${esc(String(p.qlHost[printer.id] || found.installed.find(x => x.id === printer.id)?.host || ""))}"></div>` : ""}
     ${printer.kind === "net" ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelQlRoll"))}</span>
       <select class="lbl-roll-sel" data-lbl-roll>${["", ...QL_ROLLS].map(r => {
         const [w, l] = r.split("x");
@@ -501,6 +512,13 @@ function render(body, cur) {
   body.onchange = e => {
     const roll = e.target.closest("[data-lbl-roll]");
     if (roll) { savePrefs({ ...prefs(), qlRoll: roll.value }); return; }
+    const hostEl = e.target.closest("[data-lbl-host]");
+    if (hostEl) {
+      const q = prefs(), v = hostEl.value.trim();
+      q.qlHost = { ...q.qlHost, [q.printer]: v };
+      if (!v) delete q.qlHost[q.printer];
+      savePrefs(q); render(body, cur); return;
+    }
     const pr = e.target.closest("[data-lbl-printer]");
     if (pr) {
       // Each printer brings back the format last printed on it; the P15 starts on its

@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Drucker fragen",
   "labelQlRollContinuous": "{{w}} mm Endlos",
   "labelQlNeedRoll": "Der Drucker meldet seine Rolle nicht: Wähle sie in der Liste Rolle.",
+  "labelQlAddress": "Adresse",
   "labelTpl_classic": "Klassisch",
   "labelTpl_expanded": "Breit",
   "labelTpl_compact": "Kompakt",

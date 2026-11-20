@@ -4406,13 +4406,33 @@ const _isLabelPage = o => o && typeof o.html === 'string' && o.wDots > 0 && o.hD
 // `label:render` with format 'print' and a `deviceName` prints silently on that
 // installed printer.
 const labelPrinters = require('./services/label-printers');
+// Windows: the network address behind each installed printer's port (a Standard
+// TCP/IP port, or a WSD one), so an installed Brother QL can be printed on its raw
+// port even when it announces nothing over mDNS (the QL-580N does not).
+function _printerHosts() {
+  if (process.platform !== 'win32') return Promise.resolve({});
+  const ps = "Get-Printer | ForEach-Object { $pt = Get-PrinterPort -Name $_.PortName -ErrorAction SilentlyContinue; [pscustomobject]@{ n = $_.Name; p = $_.PortName; h = $pt.PrinterHostAddress } } | ConvertTo-Json -Compress";
+  return new Promise(res => require('child_process').execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps],
+    { timeout: 6000, windowsHide: true }, (err, stdout) => {
+      const out = {};
+      try {
+        const rows = [].concat(JSON.parse(String(stdout || '').trim() || '[]'));
+        for (const r of rows) {
+          const ip = /^\d+\.\d+\.\d+\.\d+$/.test(r.h || '') ? r.h : (String(r.p || '').match(/\d+\.\d+\.\d+\.\d+/) || [])[0];
+          if (r.n && ip) out[r.n] = ip;
+        }
+      } catch (_) {}
+      res(out);
+    }));
+}
 ipcMain.handle('label:printers', async () => {
-  const [installed, network] = await Promise.all([
+  const [installed, network, hosts] = await Promise.all([
     mainWindow?.webContents.getPrintersAsync().catch(() => []) ?? [],
     labelPrinters.discoverNetworkPrinters().catch(() => []),
+    _printerHosts().catch(() => ({})),
   ]);
   return {
-    installed: (installed || []).map(p => ({ id: `sys:${p.name}`, name: p.displayName || p.name, deviceName: p.name, isDefault: !!p.isDefault })),
+    installed: (installed || []).map(p => ({ id: `sys:${p.name}`, name: p.displayName || p.name, deviceName: p.name, isDefault: !!p.isDefault, host: hosts[p.name] || '' })),
     network,
   };
 });
