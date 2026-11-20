@@ -16,6 +16,12 @@
 
 ### Added
 
+- A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
+  link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
+  `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user
+  still ticks that the request is public and presses Send. `renderer/inventory.js`
+  (`_handleReportDeepLink`, `_pendingReportLink`, flushed in `setConnected`), `main.js` (deep-link
+  comment), `CLAUDE.md` (Friends / deep links).
 - A TigerScale can stand in for a TigerPOD: while its TigerPOD tool is open on its screen, its
   two readers show up in Studio as two more RFID readers ("TigerScale <name> #1" / "#2"), and every
   chip feature works on them as on a USB reader (open the spool of a chip put down, write a blank

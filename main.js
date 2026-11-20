@@ -122,12 +122,13 @@ app.on('second-instance', (_event, argv) => {
   if (url) _handleDeepLink(url);
 });
 
-// ── Custom protocol — deep links (tigertag://friend/<code>, tigertag://spool/<id>) ──
+// ── Custom protocol — deep links (tigertag://friend/<code>, tigertag://spool/<id>, tigertag://report?…) ──
 // Lets a shared friend link (the tigersystem.io/friend/<code> landing page
 // redirects to tigertag://friend/<code>) open the app and pre-fill the
-// add-friend flow, and a spool link open that spool for its owner. The renderer
-// parses the URL and only PRE-FILLS — the user still confirms, so a link can
-// never auto-add or auto-accept anyone, nor write a spool's weight or note.
+// add-friend flow, a spool link open that spool for its owner, and a request
+// link open the request card pre-filled. The renderer parses the URL and only
+// PRE-FILLS — the user still confirms, so a link can never auto-add or
+// auto-accept anyone, write a spool's weight or note, nor send a request.
 const DEEPLINK_SCHEME = 'tigertag';
 if (process.defaultApp) {
   // Dev (electron launched with a script path): the scheme must point at the
