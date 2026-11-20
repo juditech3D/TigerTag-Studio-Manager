@@ -5,6 +5,16 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.59.2-fork.2 — 2026-11-20
+
+### Added
+- `tigertag://report?kind=&about=&title=&body=` opens the request card ("Improvements &
+  suggestions") pre-filled, as the AI assistant's `open_ticket` does (`_handleReportDeepLink`,
+  `renderer/inventory.js`). A link that arrives before sign-in opens the card after it. Pre-fill
+  only: the user still ticks that the request is public and sends it.
+
+---
+
 ## v2.59.2-fork.1 — 2026-11-20
 
 First release of the unofficial fork (juditech3D), on top of the official v2.59.2. Windows + Linux

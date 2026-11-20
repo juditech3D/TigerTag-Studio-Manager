@@ -66,6 +66,7 @@
 - `README.md`: the download buttons, the release / build badges, the `git clone` command and the
   Issues link point to this fork (juditech3D) instead of the official repository.
 - Release v2.59.2-fork.1: `package.json` / `package-lock.json` version, `build.publish` owner `juditech3D` (auto-updater follows the fork), `.github/workflows/build.yml` without macOS and Web sync, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.1.md`.
+- Release v2.59.2-fork.2: `package.json` / `package-lock.json` version, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.2.md`, FEATURES / llms.txt version. Bundled data not refreshed (`db_update.py` cannot reach the API from the build session).
 
 ### Fixed
 
