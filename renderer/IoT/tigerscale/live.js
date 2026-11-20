@@ -94,7 +94,11 @@ export function openScaleLive(s, { t, esc, getDoc, onShot }) {
     <div class="ttc-shot-actions"><span class="ttc-live-hint">${esc(t("scaleLiveHint"))}</span>
       <button type="button" class="ttc-btn" data-tsc-live-shot><span class="icon icon-camera icon-14"></span><span>${esc(t("tigertouchScreenshot"))}</span></button></div>`;
   const live = _live = { mac: s.mac, ctl: null, stop: false };
-  body.querySelector("[data-tsc-live-shot]").addEventListener("click", () => { const d = getDoc(s.mac); if (d) onShot(d); });
+  // Close the live view first: the screenshot preview is an overlay of the same
+  // z-index declared earlier in the page, so it opened behind this one and the
+  // click looked like it did nothing. Closing also frees one of the scale's two
+  // stream slots, which the screenshot needs.
+  body.querySelector("[data-tsc-live-shot]").addEventListener("click", () => { const d = getDoc(s.mac); if (!d) return; closeScaleLive(); onShot(d); });
   wireTap(body.querySelector(".ttc-live-frame"), live, getDoc);
   overlay.classList.add("open");
   loop(live, { t, getDoc, asleep: s.power_state === "screen_off" });

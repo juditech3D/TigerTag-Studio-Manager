@@ -25,6 +25,9 @@
   `tigerscale:screenshot`), `preload.js` (`tigerscale.wake`), `renderer/IoT/tigerscale/index.js`
   (`_buildScaleLanHtml`, `_scaleWake`), `renderer/IoT/tigerscale/live.js`. i18n: `scaleWake`,
   `scaleWakeDone`, `scaleWakeFail`, `scaleWakeOld` (11 locales).
+- TigerScale live view: its Screenshot button closes the live view before opening the preview,
+  which used to open behind it (two `.modal-overlay` of the same z-index, the live one added last),
+  so the click seemed to do nothing. `renderer/IoT/tigerscale/live.js` (`openScaleLive`).
 - A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
   link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
   `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user
