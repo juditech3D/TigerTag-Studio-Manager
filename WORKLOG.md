@@ -88,8 +88,8 @@
   `CODEMAP-main.md`, `CLAUDE.md` (`tigertag.label`), `llms.txt`, `docs/i18n-keys.md`, `docs/LABEL-PRINTERS.md`
   (setup, troubleshooting, USB QL via its driver, adding a printer). Printed on a Marklife P15 and a
   Brother QL-580N (62 × 29). The Printer list shows each printer's picture (an option's `data-thumb`,
-  drawn by `_enhanceSelect` in the list and on the button; `assets/img/label_printers/`, pictures
-  still to add).
+  drawn by `_enhanceSelect` in the list and on the button; `assets/img/label_printers/`: Marklife P15,
+  Brother QL-580N for a QL-5xx, QL-800 for any other QL; masters in `assets-src/img/label_printers/`).
 
 ### Changed
 

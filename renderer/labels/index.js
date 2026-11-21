@@ -348,15 +348,19 @@ function printerFor(id) {
   return { id: "dialog", kind: "dialog", name: "" };
 }
 // The printers' pictures, shown in the Printer list (assets/img/label_printers).
-const PRINTER_THUMB = { p15: "marklife_p15.png", ql: "brother_ql.png" };
-const thumbOf = key => PRINTER_THUMB[key] ? `../assets/img/label_printers/${PRINTER_THUMB[key]}` : "";
+// A QL-5xx is drawn as the QL-580N, any other QL as the QL-800.
+const PRINTER_THUMB = { p15: "marklife_p15.png", ql5: "brother_ql580n.png", ql: "brother_ql800.png" };
+const thumbOf = (key, name = "") => {
+  const k = key === "ql" && /\bQL-?5\d\d/i.test(name) ? "ql5" : key;
+  return PRINTER_THUMB[k] ? `../assets/img/label_printers/${PRINTER_THUMB[k]}` : "";
+};
 function printerOptions(sel) {
   const { t } = ctx;
   const isQl = name => /\bQL-?\d/i.test(name || "");
   const opts = [["dialog", t("labelPrinterDialog"), ""], ["p15", t("labelPrinterP15") + (p15Connected() ? " · " + t("labelPrinterConnected") : ""), thumbOf("p15")]];
-  found.network.forEach(p => opts.push([p.id, `${p.model || p.name} · ${t("labelPrinterNetwork")}`, isQl(p.model || p.name) ? thumbOf("ql") : ""]));
-  found.installed.forEach(p => opts.push([p.id, `${p.name} · ${t("labelPrinterInstalled")}`, isQl(p.name) ? thumbOf("ql") : ""]));
-  if (!opts.some(o => o[0] === sel)) { const pr = printerFor(sel); opts.push([sel, pr.name, pr.kind === "p15" ? thumbOf("p15") : pr.ql || isQl(pr.name) ? thumbOf("ql") : ""]); }
+  found.network.forEach(p => opts.push([p.id, `${p.model || p.name} · ${t("labelPrinterNetwork")}`, isQl(p.model || p.name) ? thumbOf("ql", p.model || p.name) : ""]));
+  found.installed.forEach(p => opts.push([p.id, `${p.name} · ${t("labelPrinterInstalled")}`, isQl(p.name) ? thumbOf("ql", p.name) : ""]));
+  if (!opts.some(o => o[0] === sel)) { const pr = printerFor(sel); opts.push([sel, pr.name, pr.kind === "p15" ? thumbOf("p15") : pr.ql || isQl(pr.name) ? thumbOf("ql", pr.model || pr.name) : ""]); }
   return opts;
 }
 // A label fits the P15 when one of its sides is no wider than the roll.
