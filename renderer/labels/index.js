@@ -152,7 +152,7 @@ const LAYOUTS = {
   // `pillAt: [x, y]` places the pill there (under the name) instead of top right.
   ql62x29:  { brand: [14, 10, 440, 48], bar: [14, 62, 440, 42, 38, 4, 34], name: [14, 132, 30, 600, 440], hex: [462, 86, 22, 22],
               slots: { y: [204, 228, 252, 276], lx: 14, vx: 142, fs: 20, vw: 300 }, qr: [470, 144, 136] },
-  p15:      { brand: [129, 6, 110, 26], bar: [129, 32, 110, 26, 22, 0, 20], barPlain: true, name: [129, 76, 18, 600, 110], pillAt: [129, 88], qr: [11, 8, 104] },
+  p15:      { brand: [129, 6, 110, 26], bar: [129, 29, 110, 34, 19, 0, 14], barPlain: true, name: [129, 79, 18, 600, 110], pillAt: [129, 90], qr: [11, 8, 104] },
 };
 
 // Estimated width of a line of Arial (bold runs wider).
@@ -247,7 +247,13 @@ export function buildLabel(info, link, { template = "classic", slots = [], dpi =
     const [rx, ry, rw, rh, rfs, tdx, tdy] = L.bar;
     // `barPlain`: the series as bold black text, no black band — white text that
     // small fills in on a 203 dpi thermal head (the P15).
-    if (barText && L.barPlain) g += svgText(barText, rx + tdx, ry + tdy, rfs, 700, rw - 2 * tdx);
+    // It takes two lines rather than shrink when it is long ("PETG Standard HS");
+    // one that fits on a line sits midway between the brand and the name.
+    if (barText && L.barPlain) {
+      const one = textW(barText, rfs * 0.8, 700) <= rw - 2 * tdx;
+      g += one ? svgText(barText, rx + tdx, ry + rh / 2 + rfs * 0.35, rfs, 700, rw - 2 * tdx)
+        : svgLines(barText, rx + tdx, ry + tdy, rfs, 700, rw - 2 * tdx, rfs * 0.95, 2);
+    }
     else if (barText) g += `<rect x="${rx}" y="${ry}" width="${rw}" height="${rh}" fill="#000"/>` + svgText(barText, rx + tdx, ry + tdy, rfs, 700, rw - 2 * tdx, "#fff");
     let hexBox = null;
     if (L.hex) {
