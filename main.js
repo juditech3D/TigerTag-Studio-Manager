@@ -4331,28 +4331,40 @@ ipcMain.handle('forkReport:send', async (_e, payload = {}) => {
     ],
     timestamp: new Date().toISOString(),
   };
-  const form = new FormData();
-  const files = [];
+  // A forum channel turns each report into a post of its own, which needs a
+  // title (`thread_name`); a text channel refuses that field with a 400. So the
+  // first try carries it and a 400 is retried once without it — the same webhook
+  // works with either kind of channel.
   const img = /^data:image\/(jpeg|png);base64,(.+)$/.exec(String(payload.image || ''));
-  if (img) {
-    const name = `capture.${img[1] === 'png' ? 'png' : 'jpg'}`;
-    form.append(`files[${files.length}]`, new Blob([Buffer.from(img[2], 'base64')], { type: `image/${img[1]}` }), name);
-    files.push(name);
-    embed.image = { url: `attachment://${name}` };
-  }
+  const imgName = img ? `capture.${img[1] === 'png' ? 'png' : 'jpg'}` : '';
+  if (img) embed.image = { url: `attachment://${imgName}` };
   const tail = _forkReportLogTail();
-  if (tail) {
-    form.append(`files[${files.length}]`, new Blob([tail], { type: 'text/plain' }), 'log.txt');
-    files.push('log.txt');
-  }
-  form.append('payload_json', JSON.stringify({
-    username: 'Tiger Studio Fork',
-    embeds: [embed],
-    allowed_mentions: { parse: [] },   // a report can never ping anyone
-    attachments: files.map((filename, id) => ({ id, filename })),
-  }));
+  const firstLine = text.split(/\r?\n/)[0].slice(0, 80);
+  const threadName = `🐞 ${firstLine}${pseudo ? ` (${pseudo})` : ''}`.slice(0, 100);
+  const buildForm = (withThread) => {
+    const form = new FormData();
+    const files = [];
+    if (img) {
+      form.append(`files[${files.length}]`, new Blob([Buffer.from(img[2], 'base64')], { type: `image/${img[1]}` }), imgName);
+      files.push(imgName);
+    }
+    if (tail) {
+      form.append(`files[${files.length}]`, new Blob([tail], { type: 'text/plain' }), 'log.txt');
+      files.push('log.txt');
+    }
+    form.append('payload_json', JSON.stringify({
+      username: 'Tiger Studio Fork',
+      ...(withThread ? { thread_name: threadName } : {}),
+      embeds: [embed],
+      allowed_mentions: { parse: [] },   // a report can never ping anyone
+      attachments: files.map((filename, id) => ({ id, filename })),
+    }));
+    return form;
+  };
   try {
-    const res = await fetch(hook, { method: 'POST', body: form, signal: AbortSignal.timeout(20_000) });
+    const post = (withThread) => fetch(hook, { method: 'POST', body: buildForm(withThread), signal: AbortSignal.timeout(20_000) });
+    let res = await post(true);
+    if (res.status === 400) res = await post(false);
     if (!res.ok) return { ok: false, error: `http-${res.status}` };
     _forkReportLastAt = Date.now();
     return { ok: true };

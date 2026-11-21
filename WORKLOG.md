@@ -20,7 +20,8 @@
   problem, give a Discord name (remembered on the device), attach a capture of the window (card and
   bubble hidden), and send it straight to the fork's Discord channel through a webhook, with the app
   version, the system (macOS version + Apple chip / Intel) and the last 40 lines of `main.log` scrubbed of
-  e-mails, IPs and long keys; mentions disabled, one send per 20 s, text kept on a failure. Reports about
+  e-mails, IPs and long keys; in a Discord forum channel each report becomes its own post titled with
+  its first line (a text channel works too: a 400 on `thread_name` is retried without it); mentions disabled, one send per 20 s, text kept on a failure. Reports about
   the fork never go to the official tracker (`renderer/report`). The webhook comes from the build secret
   `FORK_DISCORD_WEBHOOK`, written into the packed, gitignored `fork-config.json` by
   `scripts/gen-fork-config.mjs` (run by every `build:*` script); without it the bubble is not shown.
