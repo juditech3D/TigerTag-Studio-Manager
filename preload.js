@@ -397,7 +397,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // or { ok: false, needRoll } when no roll was given and the printer does not say which one it holds.
   printLabelQl: (opts) => ipcRenderer.invoke('label:print-ql', opts),
   labelQlRoll: (host) => ipcRenderer.invoke('label:ql-roll', host),
-  labelQlReset: (host) => ipcRenderer.invoke('label:ql-reset', host),
   labelQlState: (host) => ipcRenderer.invoke('label:ql-state', host),
   // While Studio looks for the Marklife P15: every Bluetooth device the scan lists
   // ([{ id, name }]; null once the scan is over), and the one the user picked ('' cancels).

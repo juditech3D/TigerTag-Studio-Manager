@@ -246,6 +246,8 @@ function berOid(oid) {
 // One SNMP v1 request: a GET (`set` undefined) answers the value as text (an
 // OCTET STRING) or a number; a SET of an INTEGER answers its error-status
 // (0 = done, 2 noSuchName, 4 readOnly…). null when nothing answers.
+// (A QL-580N stuck in a media error ignores prtGeneralReset and ESC @ alike:
+// only its Power button clears it, so Studio says so instead of trying.)
 function snmpV1(host, oid, { set, community = 'public', timeoutMs = 1500 } = {}) {
   const dgram = require('dgram');
   const id = (Math.random() * 0x7fffffff) | 0;
@@ -297,16 +299,6 @@ async function qlState(host) {
   const v = await snmpV1(host, QL_STATE_OID).catch(() => null);
   return typeof v === 'string' ? v.trim() : null;
 }
-// Restart the printer from the network: Printer MIB prtGeneralReset
-// (1.3.6.1.2.1.43.5.1.1.3.1) = powerCycleReset (4) — what pressing Power does
-// to clear an error. Tried with the "public" then the "internal" community.
-async function qlReset(host) {
-  for (const community of ['public', 'internal']) {
-    const st = await snmpV1(host, '1.3.6.1.2.1.43.5.1.1.3.1', { set: 4, community }).catch(() => null);
-    if (st === 0) return { ok: true, community };
-  }
-  return { ok: false, reason: 'reset refused' };
-}
 // The roll as a QL_MEDIA key ("62x29", "62x0"…), or null when the printer does not say.
 async function qlRollOf(host) {
   const name = await snmpGetV1(host, MEDIA_NAME_OID).catch(() => null);
@@ -317,4 +309,4 @@ async function qlRollOf(host) {
   return QL_MEDIA[key] ? key : null;
 }
 
-module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, qlRollOf, qlState, qlReset, QL_MEDIA };
+module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, qlRollOf, qlState, QL_MEDIA };
