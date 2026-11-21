@@ -26969,6 +26969,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       showUpdateStatus._t = setTimeout(() => { el.hidden = true; }, 6000);
     }
   }
+  // Short sentence for an updater failure; the raw error stays in main.log.
+  function updateErrorText(reason) {
+    if (reason === "pending") return t("aboutCheckUpdatePending") || "An update is being published. Please wait a few minutes and try again.";
+    if (reason === "offline") return t("aboutCheckUpdateOffline") || "Could not reach the update server. Check your connection.";
+    return t("aboutCheckUpdateErr") || "Could not check for updates. The details are in the log.";
+  }
   $("btnCheckUpdate")?.addEventListener("click", async () => {
     const btn = $("btnCheckUpdate");
     if (!btn || btn.disabled) return;
@@ -26977,12 +26983,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     try {
       const r = await window.electronAPI?.checkForUpdates?.();
       if (!r?.ok) {
-        showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (r?.error || "?"), "err");
+        showUpdateStatus(updateErrorText(r?.reason), r?.reason === "pending" ? "warn" : "err");
       }
       // Success cases (up-to-date / available / ready) are surfaced by the
       // 'update-status' event listener below — no extra UI here.
     } catch (e) {
-      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (e?.message || e), "err");
+      console.warn("[updater] check failed:", e);
+      showUpdateStatus(updateErrorText("other"), "err");
     } finally {
       setTimeout(() => { btn.disabled = false; }, 2000);
     }
@@ -26997,7 +27004,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       else if (status === "up-to-date") showUpdateStatus(t("aboutCheckUpdateUpToDate") || "You're on the latest version.", "ok");
       else if (status === "available")  showUpdateStatus((t("aboutCheckUpdateAvailable") || "New version available") + (info.version ? ` (v${info.version})` : "") + " — downloading…", "info");
       else if (status === "ready")      showUpdateStatus((t("aboutCheckUpdateReady") || "Update ready — restart to install") + (info.version ? ` (v${info.version})` : ""), "ok");
-      else if (status === "error")      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (info.error || "?"), "err");
+      else if (status === "error")      showUpdateStatus(updateErrorText(info.reason), info.reason === "pending" ? "warn" : "err");
     });
   }
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDebug(); });

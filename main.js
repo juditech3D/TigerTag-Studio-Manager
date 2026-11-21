@@ -2722,8 +2722,27 @@ function wireUpdaterEvents() {
     });
   }
   autoUpdater.on('error', (err) => {
-    mainWindow?.webContents.send('update-status', { status: 'error', error: err?.message || String(err) });
+    mainWindow?.webContents.send('update-status', { status: 'error', reason: updaterErrorReason(err) });
   });
+}
+
+// electron-updater errors carry a URL, the HTTP headers and a stack: useful in
+// main.log, unreadable in the Settings line. The renderer only gets a reason
+// and picks a short sentence for it.
+//   'pending' — the release is tagged but its build has not uploaded the
+//               update files yet (latest.yml 404): the update is on its way.
+//   'offline' — GitHub could not be reached.
+//   'other'   — anything else; the full error is in main.log.
+function updaterErrorReason(err) {
+  log.warn('[updater] error:', err?.stack || err?.message || err);
+  const code = String(err?.code || '');
+  const msg  = String(err?.message || err || '');
+  if (['ERR_UPDATER_CHANNEL_FILE_NOT_FOUND', 'ERR_UPDATER_ASSET_NOT_FOUND',
+       'ERR_UPDATER_LATEST_VERSION_NOT_FOUND', 'ERR_UPDATER_NO_PUBLISHED_VERSIONS'].includes(code)
+      || /Cannot find .*\.yml|HttpError: 404|\b404\b/.test(msg)) return 'pending';
+  if (['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH'].includes(code)
+      || /net::ERR_|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN/.test(msg)) return 'offline';
+  return 'other';
 }
 
 function initUpdater() {
@@ -3101,7 +3120,7 @@ ipcMain.handle('update:check-now', async () => {
     await autoUpdater.checkForUpdates();
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, reason: updaterErrorReason(e) };
   }
 });
 

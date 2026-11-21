@@ -62,12 +62,12 @@ L4388-4448   App lifecycle (whenReady, window-all-closed, activate)
 |---|---|---|
 | 1596-1904 | Serial-port watcher, TD/color line parse, state replayed to renderer on reload; IPC `td1s:need` / `td1s:release` | `initTD1S` |
 
-## Auto-updater + migration gate (L2259-2583)
+## Auto-updater + migration gate (L2259-2604)
 
 | L | What | Anchors / IPC |
 |---|---|---|
 | 2135-2157 | Auto-update on/off preference (on disk) | `readAutoUpdatePref`, `writeAutoUpdatePref` |
-| 2158-2273 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `initUpdater` |
+| 2158-2273 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `updaterErrorReason`, `initUpdater` |
 
 ## Google auth loopback, shell, detached cam window (L1769-2031)
 
@@ -143,7 +143,7 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 5770-5835 | Slicer on-disk credential reader (`anycubic:read-slicer-config`) — keyless deobfuscation | `_acuDeobfuscate`, `_acuConfCandidates` |
 | 5836-5900 | LAN scan: TCP probe (`anycubic:tcp-probe`), FLV liveness (`anycubic:flv-probe`, accepts 200/206), `/info` (`anycubic:http-info`) | — |
 
-## Anycubic cloud — REST + cloud MQTT (L6095-6578)
+## Anycubic cloud — REST + cloud MQTT (L6116-6599)
 
 | L | What | Anchors / IPC |
 |---|---|---|
