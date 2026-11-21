@@ -101,6 +101,31 @@ the chip is next resolved).
 5. The spool's detail panel lists its **linked chips** (its own and its twin's), each
    with ONE held "Unlink" (1.2 s) that removes every chip of the material together — never one chip on its own.
 
+## Bambu Lab spools: both chips or nothing (fork)
+
+A Bambu Lab spool carries one chip per flange, two different UIDs holding the same
+**tray UID** (decoded, see below). The founder's rule (2026-11-20): such a spool is
+never saved or linked with one chip only. While a Bambu Lab chip sits on the
+TigerPOD without its twin (`bambuPairGap()`):
+
+- every "Link the proprietary Tag(s)" banner (new-chip card, Add product foot,
+  catalogue card, spool card, link grid) is replaced by a notice, "1 of 2 chips
+  read", that cannot be pressed;
+- creating a spool that would take the waiting chips (catalogue, manual) is refused
+  with the same message, and `linkMakerChipsTo` / `linkPendingTo` link nothing;
+- the notice says what to do on that device: a TigerScale lending its readers
+  (reader name `TigerScale …`) → run Settings → RFID → Auto on the scale with the
+  spool in place (an RF level set too low leaves the weaker reader deaf: seen at
+  level 3, both readers 13/13 after Auto picked level 4); a TigerPOD → set the
+  spool down flat between the two readers.
+
+Only chips whose Bambu Lab content was decoded (a tray UID) are concerned: a
+Creality, Snapmaker or other maker chip links alone, as before. A maker chip read
+without its content (a weak read) counts as the missing twin, since every chip on
+the TigerPOD is linked anyway. Both TigerPOD and TigerScale have two readers and see
+both flanges at once, so no "turn the spool over" memory is kept; a one-reader device
+(TigerSpool) would need one.
+
 ## Phase 2 — resolving a linked chip outside Studio
 
 Every client follows the same rule: a UID that names no inventory doc is looked up in
