@@ -5,6 +5,28 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.59.2-fork.3 — 2026-11-21
+
+### Added
+- Direct label printing (`renderer/labels/p15.js`, `services/label-printers.js`, `docs/LABEL-PRINTERS.md`):
+  Marklife P15 over Web Bluetooth (L11 protocol, three GATT attempts), Brother QL raster on TCP 9100
+  (mDNS search, roll read over SNMP, die-cut 62 x 29 at its printable length, error / ready state),
+  installed printers printed silently through their driver; P15 and Brother 62 x 29 templates.
+- Barcode scanner mode button: everywhere / search bar / off (`_setScanMode`, `tigertag.scanMode`).
+- TigerScale "Wake up" button through the firmware's `POST /wake` (IPC `tigerscale:wake`); the live
+  view and the screenshot wake the scale the same way instead of a tap.
+
+### Changed
+- A Bambu Lab spool is saved or linked only once both chips are read (`bambuPairGap`,
+  `renderer/rfid_protocol/linked/index.js`).
+
+### Fixed
+- "Check for updates" sends a short reason instead of electron-updater's raw error
+  (`updaterErrorReason`, `updateErrorText`).
+- TigerScale live view: Screenshot closes the live view so its preview is not opened behind it.
+
+---
+
 ## v2.59.2-fork.2 — 2026-11-20
 
 ### Added
