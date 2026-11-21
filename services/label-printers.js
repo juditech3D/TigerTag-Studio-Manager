@@ -197,6 +197,11 @@ async function printQl({ host, port = 9100, model, image, roll }) {
       if (st.err1 || st.err2) return { ok: false, reason: `printer error ${st.err1.toString(16)}/${st.err2.toString(16)}` };
       media = { width: st.width, length: st.length, dieCut: st.type === 0x0b || st.type === 0x4b };
     }
+    if (!media) {
+      // No raster status over the network (QL-580N): the roll named over SNMP.
+      const key = await qlRollOf(host);
+      if (key) { const [w, l] = key.split('x').map(Number); media = { width: w, length: l, dieCut: l > 0 }; }
+    }
   }
   if (!media) return { ok: false, reason: 'roll unknown', needRoll: true };
   const key = `${media.width}x${media.dieCut ? media.length : 0}`;
@@ -220,4 +225,58 @@ async function printQl({ host, port = 9100, model, image, roll }) {
   });
 }
 
-module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, QL_MEDIA };
+
+// ── The loaded roll over SNMP ────────────────────────────────────────────────
+// Over the network a QL-580N (NC-12002h print server) answers no raster status
+// request, but it names its roll in the Printer MIB: prtInputMediaName
+// (1.3.6.1.2.1.43.8.2.1.12.1.1) = "62mm x 29mm / 2-3/7" x 1-1/7"", in SNMP v1
+// only (v2c times out), community "public". One GetRequest, built by hand.
+const MEDIA_NAME_OID = '1.3.6.1.2.1.43.8.2.1.12.1.1';
+function berLen(n) { return n < 0x80 ? [n] : n < 0x100 ? [0x81, n] : [0x82, n >> 8, n & 0xff]; }
+const tlv = (tag, bytes) => [tag, ...berLen(bytes.length), ...bytes];
+function berOid(oid) {
+  const p = oid.split('.').map(Number), out = [p[0] * 40 + p[1]];
+  for (const v of p.slice(2)) {
+    const b = [v & 0x7f]; let x = v >> 7;
+    while (x) { b.unshift((x & 0x7f) | 0x80); x >>= 7; }
+    out.push(...b);
+  }
+  return out;
+}
+function snmpGetV1(host, oid, timeoutMs = 1500) {
+  const dgram = require('dgram');
+  const id = (Math.random() * 0x7fffffff) | 0;
+  const intB = n => { const b = []; do { b.unshift(n & 0xff); n >>>= 8; } while (n); if (b[0] & 0x80) b.unshift(0); return b; };
+  const pdu = tlv(0xa0, [...tlv(0x02, intB(id)), ...tlv(0x02, [0]), ...tlv(0x02, [0]),
+    ...tlv(0x30, tlv(0x30, [...tlv(0x06, berOid(oid)), 0x05, 0x00]))]);
+  const msg = Buffer.from(tlv(0x30, [...tlv(0x02, [0]), ...tlv(0x04, [...Buffer.from('public')]), ...pdu]));
+  return new Promise(resolve => {
+    const sock = dgram.createSocket('udp4');
+    const done = v => { clearTimeout(timer); try { sock.close(); } catch (_) {} resolve(v); };
+    const timer = setTimeout(() => done(null), timeoutMs);
+    sock.on('error', () => done(null));
+    sock.on('message', buf => {
+      // The value is the last TLV of the answer: an OCTET STRING here.
+      const want = Buffer.from(tlv(0x06, berOid(oid)));
+      const at = buf.indexOf(want);
+      if (at < 0) return;
+      let i = at + want.length;
+      if (buf[i] !== 0x04) return done(null);
+      let len = buf[i + 1]; i += 2;
+      if (len & 0x80) { const n = len & 0x7f; len = 0; for (let k = 0; k < n; k++) len = (len << 8) | buf[i + k]; i += n; }
+      done(buf.slice(i, i + len).toString('latin1'));
+    });
+    sock.send(msg, 161, host, err => { if (err) done(null); });
+  });
+}
+// The roll as a QL_MEDIA key ("62x29", "62x0"…), or null when the printer does not say.
+async function qlRollOf(host) {
+  const name = await snmpGetV1(host, MEDIA_NAME_OID).catch(() => null);
+  if (!name) return null;
+  const m = name.match(/(\d+(?:\.\d+)?)\s*mm(?:\s*x\s*(\d+(?:\.\d+)?)\s*mm)?/i);
+  if (!m) return null;
+  const key = `${Math.round(Number(m[1]))}x${m[2] ? Math.round(Number(m[2])) : 0}`;
+  return QL_MEDIA[key] ? key : null;
+}
+
+module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, qlRollOf, QL_MEDIA };

@@ -363,6 +363,21 @@ function fitsPrinter(printer, tpl, roll = prefs().qlRoll) {
 }
 // The template to fall back to when the current one does not fit: the printer's
 // own (P15, Brother 62 × 29), else the first one that fits.
+// A Brother QL is asked once a session which roll it holds (SNMP, main.js
+// label:ql-roll); its answer becomes the card's roll, and its template follows.
+const rollAsked = new Set();
+function askRoll(printer, body, cur) {
+  if (printer.kind !== "net" || rollAsked.has(printer.host) || !window.electronAPI?.labelQlRoll) return;
+  rollAsked.add(printer.host);
+  window.electronAPI.labelQlRoll(printer.host).then(key => {
+    const q = prefs();
+    if (!key || key === q.qlRoll || q.printer !== printer.id) return;
+    q.qlRoll = key;
+    q.template = key === "62x29" ? "ql62x29" : fittingTemplate(printer, q.template, key);
+    savePrefs(q);
+    if (body.isConnected) render(body, cur);
+  }).catch(() => {});
+}
 function fittingTemplate(printer, current, roll) {
   const cur = LABEL_TEMPLATES.find(x => x.id === current);
   if (fitsPrinter(printer, cur, roll)) return current;
@@ -443,6 +458,7 @@ function render(body, cur) {
   const lbl = buildLabel(info, link, { ...p, dpi: printer.dpi || p.dpi });
   const tplNow = LABEL_TEMPLATES.find(x => x.id === p.template);
   const noFit = !fitsPrinter(printer, tplNow, p.qlRoll);
+  askRoll(printer, body, cur);
   // Preview: the very page that is printed, scaled to the card.
   const boxW = 340, scale = Math.min(boxW / lbl.wDots, 220 / lbl.hDots);
   const seg = (id, on, label) => `<button type="button" class="lbl-seg-btn${on ? " is-active" : ""}" data-lbl-kind="${id}" aria-pressed="${on}">${esc(label)}</button>`;
