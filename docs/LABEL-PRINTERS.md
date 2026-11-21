@@ -11,7 +11,7 @@ dialog and no driver. The card's **Printer** list offers:
 | `<name> · network` | a Brother QL found on the network (mDNS), raw raster on TCP 9100 | `services/label-printers.js` |
 | `<name> · installed` | a printer installed on the computer, printed silently through its driver; an installed Brother QL is printed like a network one, at the address behind its Windows port or the one typed in **Address** | `main.js` `label:printers` |
 
-Picking a printer picks its template: **Marklife P15** (30 × 12 mm) for the P15, **Brother 62 × 29**
+Picking a printer picks its template: **Marklife P15** (25 × 12 mm, a margin on its 12 × 30 mm labels) for the P15, **Brother 62 × 29**
 for a Brother QL, or the template last printed on that printer. Templates the printer's roll cannot
 take are greyed out.
 

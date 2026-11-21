@@ -57,7 +57,7 @@ export const LABEL_TEMPLATES = [
   { id: "verticalBold",    w: 30, h: 40, slots: 0 },
   { id: "verticalCompact", w: 25, h: 40, slots: 0 },
   { id: "qrOnly",          w: 25, h: 30, slots: 0 },
-  { id: "p15",             w: 30, h: 12, slots: 0 },   // the Marklife P15's 12 × 30 mm labels
+  { id: "p15",             w: 25, h: 12, slots: 0 },   // fits the Marklife P15's 12 × 30 mm labels with a margin
   { id: "ql62x29",         w: 62, h: 29, slots: 4 },   // the Brother QL's DK-11209 62 × 29 mm labels
 ];
 // The values a slot can show; all are print constants of the filament.
@@ -152,7 +152,7 @@ const LAYOUTS = {
   // `pillAt: [x, y]` places the pill there (under the name) instead of top right.
   ql62x29:  { brand: [14, 10, 440, 48], bar: [14, 62, 440, 42, 38, 4, 34], name: [14, 132, 30, 600, 440], hex: [462, 86, 22, 22],
               slots: { y: [204, 228, 252, 276], lx: 14, vx: 142, fs: 20, vw: 300 }, qr: [470, 144, 136] },
-  p15:      { brand: [116, 6, 176, 26], bar: [116, 34, 176, 22, 17, 4, 16], name: [116, 76, 18, 600, 176], pillAt: [116, 88], qr: [8, 8, 104] },
+  p15:      { brand: [116, 6, 126, 26], bar: [116, 34, 126, 22, 17, 4, 16], name: [116, 76, 18, 600, 126], pillAt: [116, 88], qr: [8, 8, 104] },
 };
 
 // Estimated width of a line of Arial (bold runs wider).
@@ -572,7 +572,7 @@ function render(body, cur) {
     const pr = e.target.closest("[data-lbl-printer]");
     if (pr) {
       // Each printer brings back the format last printed on it; the P15 starts on its
-      // own 30 × 12 mm template, and never keeps a label too wide for its roll.
+      // own 25 × 12 mm template, and never keeps a label too wide for its roll.
       const q = { ...prefs(), printer: pr.value };
       const mine = q.templateBy[pr.value];
       if (mine) q.template = mine;
