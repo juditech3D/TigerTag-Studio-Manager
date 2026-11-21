@@ -152,7 +152,7 @@ const LAYOUTS = {
   // `pillAt: [x, y]` places the pill there (under the name) instead of top right.
   ql62x29:  { brand: [14, 10, 440, 48], bar: [14, 62, 440, 42, 38, 4, 34], name: [14, 132, 30, 600, 440], hex: [462, 86, 22, 22],
               slots: { y: [204, 228, 252, 276], lx: 14, vx: 142, fs: 20, vw: 300 }, qr: [470, 144, 136] },
-  p15:      { brand: [116, 6, 126, 26], bar: [116, 32, 126, 26, 22, 0, 20], barPlain: true, name: [116, 76, 18, 600, 126], pillAt: [116, 88], qr: [8, 8, 104] },
+  p15:      { brand: [126, 6, 116, 26], bar: [126, 32, 116, 26, 22, 0, 20], barPlain: true, name: [126, 76, 18, 600, 116], pillAt: [126, 88], qr: [8, 8, 104] },
 };
 
 // Estimated width of a line of Arial (bold runs wider).
