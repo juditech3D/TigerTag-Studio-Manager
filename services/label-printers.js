@@ -113,8 +113,11 @@ const qlHeadDots = model => (qlWide(model) ? 1296 : 720);
 // across the head and the right margin in dots.
 const QL_MEDIA = {
   '12x0': [106, 29], '29x0': [306, 6], '38x0': [413, 12], '50x0': [554, 12], '54x0': [590, 0], '62x0': [696, 12], '102x0': [1164, 12],
-  '17x54': [165, 0], '17x87': [165, 0], '23x23': [202, 42], '29x42': [306, 6], '29x90': [306, 6], '38x90': [413, 12],
-  '39x48': [425, 6], '52x29': [578, 0], '62x29': [696, 12], '62x100': [696, 12], '102x51': [1164, 12], '102x152': [1164, 12],
+  // Die-cut rolls: the third value is the label's printable length in raster
+  // lines. The printer takes a job of exactly that many lines and no other: a
+  // longer or shorter one stops it on its error light.
+  '17x54': [165, 0, 566], '17x87': [165, 0, 956], '23x23': [202, 42, 202], '29x42': [306, 6, 425], '29x90': [306, 6, 991], '38x90': [413, 12, 991],
+  '39x48': [425, 6, 495], '52x29': [578, 0, 271], '62x29': [696, 12, 271], '62x100': [696, 12, 1109], '102x51': [1164, 12, 526], '102x152': [1164, 12, 1660],
 };
 
 // Ask the printer which roll it holds: ESC i S → a 32-byte status. Byte 10 is
@@ -148,7 +151,10 @@ function qlJob(bitmap, { model, media }) {
   const [printable, margin0] = QL_MEDIA[key] || QL_MEDIA[`${media.width}x0`] || [Math.min(head, bitmap.width), 0];
   const rightMargin = margin0 + (qlWide(model) ? 44 : 0);
   const left = Math.floor((printable - bitmap.width) / 2);   // the label, centred in the printable width
-  const rows = bitmap.height;
+  // A die-cut label is sent at its exact printable length, the label centred in it.
+  const dieLen = media.dieCut ? (QL_MEDIA[key] || [])[2] : 0;
+  const rows = dieLen || bitmap.height;
+  const top = dieLen ? Math.floor((dieLen - bitmap.height) / 2) : 0;
   const out = [];
   out.push(Buffer.alloc(200));                                  // invalidate
   out.push(Buffer.from([0x1b, 0x40]));                          // initialise
@@ -166,7 +172,7 @@ function qlJob(bitmap, { model, media }) {
   for (let y = 0; y < rows; y++) {
     const line = Buffer.alloc(lineBytes);
     for (let p = 0; p < printable; p++) {
-      if (!bit(bitmap, p - left, y)) continue;
+      if (!bit(bitmap, p - left, y - top)) continue;
       // Mirrored: printable column p lands at head column rightMargin + printable - 1 - p.
       const col = rightMargin + printable - 1 - p;
       if (col >= 0 && col < head) line[col >> 3] |= 0x80 >> (col & 7);
@@ -206,7 +212,7 @@ async function printQl({ host, port = 9100, model, image, roll }) {
   if (!media) return { ok: false, reason: 'roll unknown', needRoll: true };
   const key = `${media.width}x${media.dieCut ? media.length : 0}`;
   const printable = (QL_MEDIA[key] || QL_MEDIA[`${media.width}x0`] || [qlHeadDots(model)])[0];
-  const maxLen = media.dieCut ? Math.floor(media.length * 300 / 25.4) - 20 : Infinity;
+  const maxLen = media.dieCut ? ((QL_MEDIA[key] || [])[2] || Math.floor(media.length * 300 / 25.4) - 20) : Infinity;
   const { width: w, height: h } = image.getSize();
   const fit = (across, along) => Math.min(1, printable / across, maxLen / along);
   const rotate = fit(h, w) > fit(w, h);

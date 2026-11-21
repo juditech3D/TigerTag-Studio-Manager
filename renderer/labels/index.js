@@ -58,7 +58,7 @@ export const LABEL_TEMPLATES = [
   { id: "verticalCompact", w: 25, h: 40, slots: 0 },
   { id: "qrOnly",          w: 25, h: 30, slots: 0 },
   { id: "p15",             w: 25, h: 12, slots: 0 },   // fits the Marklife P15's 12 × 30 mm labels with a margin
-  { id: "ql62x29",         w: 62, h: 29, slots: 4 },   // the Brother QL's DK-11209 62 × 29 mm labels
+  { id: "ql62x29",         w: 58, h: 23, slots: 4 },   // the printable area of the Brother QL's DK-11209 62 × 29 mm labels
 ];
 // The values a slot can show; all are print constants of the filament.
 export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
@@ -150,8 +150,8 @@ const LAYOUTS = {
   // `pill: [y, fontSize, height]` centres the pill instead of placing it top right.
   qrOnly:   { pill: [10, 22, 32], qr: [25, 71, 200] },
   // `pillAt: [x, y]` places the pill there (under the name) instead of top right.
-  ql62x29:  { brand: [14, 10, 440, 48], bar: [14, 62, 440, 42, 38, 4, 34], name: [14, 132, 30, 600, 440], hex: [462, 86, 22, 22],
-              slots: { y: [204, 228, 252, 276], lx: 14, vx: 142, fs: 20, vw: 300 }, qr: [470, 144, 136] },
+  ql62x29:  { brand: [10, 6, 400, 40], bar: [10, 48, 400, 34, 30, 4, 26], name: [10, 106, 26, 600, 410], hex: [418, 72, 20, 20],
+              slots: { y: [146, 169, 192, 215], lx: 10, vx: 120, fs: 18, vw: 300 }, qr: [446, 96, 124] },
   p15:      { brand: [129, 6, 110, 26], bar: [129, 29, 110, 34, 19, 0, 14], barPlain: true, name: [129, 79, 18, 600, 110], pillAt: [129, 90], qr: [11, 8, 104] },
 };
 
