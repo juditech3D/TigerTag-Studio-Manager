@@ -2100,6 +2100,8 @@
   "labelQlReset": "Riavvia la stampante",
   "labelQlResetDone": "La stampante si sta riavviando: aspetta qualche secondo prima di stampare.",
   "labelQlResetFailed": "La stampante non ha accettato il riavvio: premi una volta il suo tasto Power per cancellare l'errore.",
+  "labelQlStateError": "Stampante in errore",
+  "labelQlStateReady": "Stampante pronta",
   "labelQlAddress": "Indirizzo",
   "labelTpl_classic": "Classico",
   "labelTpl_expanded": "Largo",

@@ -2100,6 +2100,8 @@
   "labelQlReset": "Reiniciar la impresora",
   "labelQlResetDone": "La impresora se está reiniciando: espera unos segundos antes de imprimir.",
   "labelQlResetFailed": "La impresora no aceptó el reinicio: pulsa una vez su botón de encendido para borrar el error.",
+  "labelQlStateError": "Impresora con error",
+  "labelQlStateReady": "Impresora lista",
   "labelQlAddress": "Dirección",
   "labelTpl_classic": "Clásico",
   "labelTpl_expanded": "Ancho",

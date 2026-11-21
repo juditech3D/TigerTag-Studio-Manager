@@ -459,6 +459,7 @@ function render(body, cur) {
   const tplNow = LABEL_TEMPLATES.find(x => x.id === p.template);
   const noFit = !fitsPrinter(printer, tplNow, p.qlRoll);
   askRoll(printer, body, cur);
+  watchQlState(printer, body);
   // Preview: the very page that is printed, scaled to the card.
   const boxW = 340, scale = Math.min(boxW / lbl.wDots, 220 / lbl.hDots);
   const seg = (id, on, label) => `<button type="button" class="lbl-seg-btn${on ? " is-active" : ""}" data-lbl-kind="${id}" aria-pressed="${on}">${esc(label)}</button>`;
@@ -497,7 +498,7 @@ function render(body, cur) {
         const txt = !r ? t("labelQlRollAuto") : l === "0" ? t("labelQlRollContinuous", { w }) : `${w} × ${l} mm`;
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
       }).join("")}</select></div>
-      <div class="lbl-printer"><button type="button" class="ghost sm" data-lbl-reset aria-label="${esc(t("labelQlReset"))}"><span class="icon icon-refresh icon-14"></span><span>${esc(t("labelQlReset"))}</span></button></div>` : ""}
+      <div class="lbl-printer lbl-ql"><span class="lbl-ql-state" data-lbl-ql-state></span><button type="button" class="ghost sm" data-lbl-reset aria-label="${esc(t("labelQlReset"))}"><span class="icon icon-refresh icon-14"></span><span>${esc(t("labelQlReset"))}</span></button></div>` : ""}
     ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
@@ -605,6 +606,25 @@ async function connectP15(body, cur) {
     if (msg) { msg.textContent = ctx.t(known || "labelExportFailed"); msg.classList.remove("lbl-msg--ok"); }
     if (!known) ctx.reportError?.("label.connect.p15", e);
   }
+}
+
+// The QL's state, read over SNMP every 5 s while its card is open: "In error"
+// when the printer says ERROR, "Ready" when it says READY, nothing otherwise.
+let qlStateTimer = null;
+function watchQlState(printer, body) {
+  clearTimeout(qlStateTimer);
+  if (printer.kind !== "net" || !window.electronAPI?.labelQlState) return;
+  const tick = async () => {
+    const el = body.querySelector("[data-lbl-ql-state]");
+    if (!el || !body.isConnected || !$("labelPanel")?.classList.contains("open")) return;
+    const st = await window.electronAPI.labelQlState(printer.host).catch(() => null);
+    if (!el.isConnected) return;
+    const err = /error/i.test(st || ""), ready = /ready/i.test(st || "");
+    el.textContent = err ? ctx.t("labelQlStateError") : ready ? ctx.t("labelQlStateReady") : "";
+    el.classList.toggle("is-error", err);
+    qlStateTimer = setTimeout(tick, 5000);
+  };
+  tick();
 }
 
 // A Brother QL in error (wrong roll…), restarted from the network: what pressing

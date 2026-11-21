@@ -2100,6 +2100,8 @@
   "labelQlReset": "Restart the printer",
   "labelQlResetDone": "The printer is restarting: wait a few seconds before printing.",
   "labelQlResetFailed": "The printer didn't accept the restart: press its Power button once to clear the error.",
+  "labelQlStateError": "Printer in error",
+  "labelQlStateReady": "Printer ready",
   "labelQlAddress": "Address",
   "labelTpl_classic": "Classic",
   "labelTpl_expanded": "Wide",

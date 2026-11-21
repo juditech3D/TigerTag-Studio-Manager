@@ -2110,6 +2110,8 @@
   "labelQlReset": "Uruchom ponownie drukarkę",
   "labelQlResetDone": "Drukarka uruchamia się ponownie: odczekaj kilka sekund przed drukowaniem.",
   "labelQlResetFailed": "Drukarka nie przyjęła ponownego uruchomienia: naciśnij raz jej przycisk zasilania, aby usunąć błąd.",
+  "labelQlStateError": "Drukarka zgłasza błąd",
+  "labelQlStateReady": "Drukarka gotowa",
   "labelQlAddress": "Adres",
   "labelTpl_classic": "Klasyczny",
   "labelTpl_expanded": "Szeroki",

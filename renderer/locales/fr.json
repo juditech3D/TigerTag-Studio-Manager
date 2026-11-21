@@ -2100,6 +2100,8 @@
   "labelQlReset": "Redémarrer l'imprimante",
   "labelQlResetDone": "L'imprimante redémarre : attends quelques secondes avant d'imprimer.",
   "labelQlResetFailed": "L'imprimante n'a pas accepté le redémarrage : appuie une fois sur son bouton Power pour effacer l'erreur.",
+  "labelQlStateError": "Imprimante en erreur",
+  "labelQlStateReady": "Imprimante prête",
   "labelQlAddress": "Adresse",
   "labelTpl_classic": "Classique",
   "labelTpl_expanded": "Large",

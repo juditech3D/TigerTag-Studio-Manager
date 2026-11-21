@@ -2100,6 +2100,8 @@
   "labelQlReset": "Printer herstarten",
   "labelQlResetDone": "De printer herstart: wacht een paar seconden voor je afdrukt.",
   "labelQlResetFailed": "De printer accepteerde de herstart niet: druk één keer op de aan/uit-knop om de fout te wissen.",
+  "labelQlStateError": "Printer in fout",
+  "labelQlStateReady": "Printer gereed",
   "labelQlAddress": "Adres",
   "labelTpl_classic": "Klassiek",
   "labelTpl_expanded": "Breed",

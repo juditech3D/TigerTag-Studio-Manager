@@ -2110,6 +2110,8 @@
   "labelQlReset": "Перезапустить принтер",
   "labelQlResetDone": "Принтер перезапускается: подождите несколько секунд перед печатью.",
   "labelQlResetFailed": "Принтер не принял перезапуск: нажмите один раз кнопку питания, чтобы сбросить ошибку.",
+  "labelQlStateError": "Ошибка принтера",
+  "labelQlStateReady": "Принтер готов",
   "labelQlAddress": "Адрес",
   "labelTpl_classic": "Классический",
   "labelTpl_expanded": "Широкий",

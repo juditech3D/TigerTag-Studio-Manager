@@ -2100,6 +2100,8 @@
   "labelQlReset": "Drucker neu starten",
   "labelQlResetDone": "Der Drucker startet neu: Warte ein paar Sekunden, bevor du druckst.",
   "labelQlResetFailed": "Der Drucker hat den Neustart nicht angenommen: Drücke einmal seine Power-Taste, um den Fehler zu löschen.",
+  "labelQlStateError": "Drucker im Fehlerzustand",
+  "labelQlStateReady": "Drucker bereit",
   "labelQlAddress": "Adresse",
   "labelTpl_classic": "Klassisch",
   "labelTpl_expanded": "Breit",
