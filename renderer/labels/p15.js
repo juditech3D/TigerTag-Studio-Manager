@@ -52,8 +52,20 @@ export async function p15Connect() {
     // P15, P7, LP15, Marklife…) and logs every name the scan saw when none matched.
     device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: [SERVICE] });
   }
-  const server = await device.gatt.connect();
-  const svc = await server.getPrimaryService(SERVICE);
+  // Windows often fails the first GATT connection to a printer just found (or
+  // one that has only just been let go): tried three times before giving up.
+  let svc = null, lastErr = null;
+  for (let attempt = 0; attempt < 3 && !svc; attempt++) {
+    try {
+      const server = await device.gatt.connect();
+      svc = await server.getPrimaryService(SERVICE);
+    } catch (e) {
+      lastErr = e;
+      try { device.gatt.disconnect(); } catch (_) {}
+      await sleep(600 * (attempt + 1));
+    }
+  }
+  if (!svc) throw lastErr || new Error("connect failed");
   const tx = await svc.getCharacteristic(TX);
   const rx = await svc.getCharacteristic(RX);
   let cx = null;
