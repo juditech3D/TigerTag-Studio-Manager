@@ -34,6 +34,11 @@ let dev = null;          // { device, tx, rx, cx, name }
 let credits = 0, lastCredit = 0, hasCx = false;
 let onRx = null;         // the pending "print finished" waiter
 
+// Let go of the printer when the window goes away: a connection left open by a
+// closed or restarted Studio keeps the P15 from advertising until it is switched
+// off and on again.
+if (typeof window !== "undefined") window.addEventListener("beforeunload", () => { try { dev?.device?.gatt?.disconnect(); } catch (_) {} });
+
 export function p15Connected() { return dev?.device?.gatt?.connected ? dev.name : null; }
 
 export async function p15Connect() {
