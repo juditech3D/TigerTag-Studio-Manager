@@ -103,11 +103,11 @@ L4388-4448   App lifecycle (whenReady, window-all-closed, activate)
 | 2876-2966 | LAN /24 subnet list (`net:get-local-subnets`), MAC behind a LAN IP from the OS ARP cache, directly attached subnets only (`net:arp-mac`), mDNS Snapmaker browse (`mdns:browse-snapmaker`) | — |
 | 2966-2976 | App/platform info for diagnostics (`app:info`, `app:renderer-path`); TigerTag DB lookups (`db:*`) | — |
 
-## Printed labels + label printers (L4348-4511)
+## Printed labels + label printers (L4348-4515)
 
 | L | What | Anchors / IPC |
 |---|---|---|
-| 4342-4479 | The label page (renderer/labels) captured at its printer dots (`_labelImage`) and turned into PNG / PDF / SVG / a print job (`label:render`, Save dialog via `_askLabelPath`; `deviceName` prints silently on that installed printer); label printers reached without the dialog: `label:printers` (installed printers + Brother QL announced over mDNS), `label:bitmap` (1-bit bitmap for the Marklife P15, `renderer/labels/p15.js`), `label:print-ql` (Brother QL raster on TCP 9100), `label:ql-roll` (the roll a QL names over SNMP v1, prtInputMediaName). The bitmap / mDNS / QL raster code: `services/label-printers.js`. The P15's Web Bluetooth device pick is `select-bluetooth-device` + `label:bt-pick` in createWindow | `_labelImage`, `_askLabelPath` |
+| 4342-4479 | The label page (renderer/labels) captured at its printer dots (`_labelImage`) and turned into PNG / PDF / SVG / a print job (`label:render`, Save dialog via `_askLabelPath`; `deviceName` prints silently on that installed printer); label printers reached without the dialog: `label:printers` (installed printers + Brother QL announced over mDNS), `label:bitmap` (1-bit bitmap for the Marklife P15, `renderer/labels/p15.js`), `label:print-ql` (Brother QL raster on TCP 9100), `label:ql-roll` (the roll a QL names over SNMP v1, prtInputMediaName), `label:ql-reset` (a QL restarted over SNMP, prtGeneralReset, to clear an error). The bitmap / mDNS / QL raster code: `services/label-printers.js`. The P15's Web Bluetooth device pick is `select-bluetooth-device` + `label:bt-pick` in createWindow | `_labelImage`, `_askLabelPath` |
 
 ## Elegoo MQTT bridge + timelapse + ffmpeg (L3134-3270)
 
@@ -117,13 +117,13 @@ L4388-4448   App lifecycle (whenReady, window-all-closed, activate)
 | 3547-3619 | Elegoo MQTT 1883 bridge (`elegoo:connect` / `disconnect` / `publish`) | — |
 | 3620-3674 | Shared `ffmpeg` binary detection (Bambu RTSP + Anycubic FLV cameras) — each candidate is PROBED, not just stat'ed | — |
 
-## Camera captures — photo/video from printer camera sources, filed per printer under Pictures/Tiger Studio/Captures (cam:* IPC) (L4625-4817)
+## Camera captures — photo/video from printer camera sources, filed per printer under Pictures/Tiger Studio/Captures (cam:* IPC) (L4629-4821)
 
-## Demo mode — printer simulator (L4818-4826)
+## Demo mode — printer simulator (L4822-4830)
 
 Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:state`, `demo:set`) with the detected ffmpeg; stops every face on `will-quit`. The simulator itself lives in `services/demo/` — see `docs/DEMO-MODE.md`.
 
-## Bambu Lab — MQTT + JPEG-TCP/RTSP cameras (L4827-5197)
+## Bambu Lab — MQTT + JPEG-TCP/RTSP cameras (L4831-5201)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -132,7 +132,7 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 3884-4001 | RTSP camera via ffmpeg, port 322 (`bambulab:cam-start-rtsp` / `cam-stop-rtsp`) — 30 fps + low-latency flags; the spawn is guarded (it throws synchronously on a bad CPU type) | — |
 | 4226-4293 | Prusa Buddy3D camera — plain RTSP `rtsp://<camera-ip>/live` via the same ffmpeg pipeline, 15 fps (`prusa:cam-start-rtsp` / `prusa:cam-stop-rtsp`, frames on `prusa:cam-frame`) | — |
 
-## Bambu Lab cloud — REST + shared cloud MQTT (L5198-6087)
+## Bambu Lab cloud — REST + shared cloud MQTT (L5202-6091)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -140,7 +140,7 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 4095-4218 | Auth: `cloud-send-code`, `cloud-login` (code / password, `verifyCode` + `tfa` branches), `cloud-tfa` (token arrives in a COOKIE), `cloud-uid` (token is NOT a JWT), `cloud-bind` (machines + their LAN access codes), `cloud-device-version` | — |
 | 4219-4388 | ONE cloud-MQTT client per ACCOUNT: `cloud-connect` (us→eu fallback), `cloud-subscribe` (+ `pushall`), `cloud-publish`, `cloud-unsubscribe`, `cloud-disconnect`. Telemetry is emitted on the LAN `bambulab:message` channel — same payload, same parser | `_bblCloudOpen`, `_bblCloudPushAll` |
 
-## Anycubic LAN — MQTT, provisioning, FLV camera (L5890-6214)
+## Anycubic LAN — MQTT, provisioning, FLV camera (L5894-6218)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -149,7 +149,7 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 5770-5835 | Slicer on-disk credential reader (`anycubic:read-slicer-config`) — keyless deobfuscation | `_acuDeobfuscate`, `_acuConfCandidates` |
 | 5836-5900 | LAN scan: TCP probe (`anycubic:tcp-probe`), FLV liveness (`anycubic:flv-probe`, accepts 200/206), `/info` (`anycubic:http-info`) | — |
 
-## Anycubic cloud — REST + cloud MQTT (L6215-6698)
+## Anycubic cloud — REST + cloud MQTT (L6219-6702)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -159,7 +159,7 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 4186-4222 | Cloud-uploaded files (§9c): `cloud-files-list` (POST `/work/index/files`), `cloud-file-delete` (POST `/work/index/delFiles`); print reuses `cloud-send-order` order 1 | — |
 | 4223-4396 | Shared cloud-MQTT client (one per user): `cloud-connect` / `subscribe` / `publish` / `unsubscribe`; RSA-encrypted token login | `_buildCloudLogin`, `_routeCloudMessage`, `_ensureCloudClient` |
 
-## App lifecycle (L6436-6504)
+## App lifecycle (L6440-6508)
 
 | L | What |
 |---|---|

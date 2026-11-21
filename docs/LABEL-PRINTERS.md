@@ -23,8 +23,9 @@ take are greyed out.
   the **Roll** list and the template with it. A QL-580N answers that question but no raster status
   request over the network. When the printer says nothing, pick the roll by hand: a job sent for the
   wrong roll puts the printer in error.
-- **The printer is in error** (error light on, nothing prints): press its **Power** button once to
-  clear the error, then print again.
+- **The printer is in error** (error light on, nothing prints): click **Restart the printer** in the
+  card (SNMP `prtGeneralReset` = power-cycle reset), or press the printer's **Power** button once.
+  Either clears the error; print again once it is back.
 
 ## Marklife P15 (Bluetooth)
 

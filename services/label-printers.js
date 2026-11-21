@@ -243,31 +243,69 @@ function berOid(oid) {
   }
   return out;
 }
-function snmpGetV1(host, oid, timeoutMs = 1500) {
+// One SNMP v1 request: a GET (`set` undefined) answers the value as text (an
+// OCTET STRING) or a number; a SET of an INTEGER answers its error-status
+// (0 = done, 2 noSuchName, 4 readOnly…). null when nothing answers.
+function snmpV1(host, oid, { set, community = 'public', timeoutMs = 1500 } = {}) {
   const dgram = require('dgram');
   const id = (Math.random() * 0x7fffffff) | 0;
   const intB = n => { const b = []; do { b.unshift(n & 0xff); n >>>= 8; } while (n); if (b[0] & 0x80) b.unshift(0); return b; };
-  const pdu = tlv(0xa0, [...tlv(0x02, intB(id)), ...tlv(0x02, [0]), ...tlv(0x02, [0]),
-    ...tlv(0x30, tlv(0x30, [...tlv(0x06, berOid(oid)), 0x05, 0x00]))]);
-  const msg = Buffer.from(tlv(0x30, [...tlv(0x02, [0]), ...tlv(0x04, [...Buffer.from('public')]), ...pdu]));
+  const value = set === undefined ? [0x05, 0x00] : tlv(0x02, intB(set));
+  const pdu = tlv(set === undefined ? 0xa0 : 0xa3, [...tlv(0x02, intB(id)), ...tlv(0x02, [0]), ...tlv(0x02, [0]),
+    ...tlv(0x30, tlv(0x30, [...tlv(0x06, berOid(oid)), ...value]))]);
+  const msg = Buffer.from(tlv(0x30, [...tlv(0x02, [0]), ...tlv(0x04, [...Buffer.from(community)]), ...pdu]));
+  // A TLV at `i`: [tag, start of value, length].
+  const read = (buf, i) => {
+    let len = buf[i + 1], at = i + 2;
+    if (len & 0x80) { const n = len & 0x7f; len = 0; for (let k = 0; k < n; k++) len = (len << 8) | buf[at + k]; at += n; }
+    return [buf[i], at, len];
+  };
+  const int = (buf, at, len) => { let v = 0; for (let k = 0; k < len; k++) v = v * 256 + buf[at + k]; return v; };
   return new Promise(resolve => {
     const sock = dgram.createSocket('udp4');
     const done = v => { clearTimeout(timer); try { sock.close(); } catch (_) {} resolve(v); };
     const timer = setTimeout(() => done(null), timeoutMs);
     sock.on('error', () => done(null));
     sock.on('message', buf => {
-      // The value is the last TLV of the answer: an OCTET STRING here.
-      const want = Buffer.from(tlv(0x06, berOid(oid)));
-      const at = buf.indexOf(want);
-      if (at < 0) return;
-      let i = at + want.length;
-      if (buf[i] !== 0x04) return done(null);
-      let len = buf[i + 1]; i += 2;
-      if (len & 0x80) { const n = len & 0x7f; len = 0; for (let k = 0; k < n; k++) len = (len << 8) | buf[i + k]; i += n; }
-      done(buf.slice(i, i + len).toString('latin1'));
+      try {
+        // message: SEQ { version, community, GetResponse { request-id, error-status, error-index, varbinds } }
+        let [, at] = read(buf, 0);
+        for (let k = 0; k < 2; k++) { const [, a, l] = read(buf, at); at = a + l; }
+        const [tag, pAt] = read(buf, at);
+        if (tag !== 0xa2) return;
+        let [, a1, l1] = read(buf, pAt);
+        if (int(buf, a1, l1) !== id) return;
+        const [, a2, l2] = read(buf, a1 + l1);
+        const status = int(buf, a2, l2);
+        if (set !== undefined) return done(status);
+        if (status) return done(null);
+        // The value is the last TLV of the only varbind.
+        const want = Buffer.from(tlv(0x06, berOid(oid)));
+        const o = buf.indexOf(want, a2);
+        if (o < 0) return done(null);
+        const [vt, va, vl] = read(buf, o + want.length);
+        done(vt === 0x04 ? buf.slice(va, va + vl).toString('latin1') : vt === 0x02 ? int(buf, va, vl) : null);
+      } catch (_) { done(null); }
     });
     sock.send(msg, 161, host, err => { if (err) done(null); });
   });
+}
+const snmpGetV1 = (host, oid) => snmpV1(host, oid);
+// The printer's own state line ("READY", "ERROR"…, Brother NC print servers).
+const QL_STATE_OID = '1.3.6.1.4.1.2435.2.4.3.1240.3.2.1.5.1';
+async function qlState(host) {
+  const v = await snmpV1(host, QL_STATE_OID).catch(() => null);
+  return typeof v === 'string' ? v.trim() : null;
+}
+// Restart the printer from the network: Printer MIB prtGeneralReset
+// (1.3.6.1.2.1.43.5.1.1.3.1) = powerCycleReset (4) — what pressing Power does
+// to clear an error. Tried with the "public" then the "internal" community.
+async function qlReset(host) {
+  for (const community of ['public', 'internal']) {
+    const st = await snmpV1(host, '1.3.6.1.2.1.43.5.1.1.3.1', { set: 4, community }).catch(() => null);
+    if (st === 0) return { ok: true, community };
+  }
+  return { ok: false, reason: 'reset refused' };
 }
 // The roll as a QL_MEDIA key ("62x29", "62x0"…), or null when the printer does not say.
 async function qlRollOf(host) {
@@ -279,4 +317,4 @@ async function qlRollOf(host) {
   return QL_MEDIA[key] ? key : null;
 }
 
-module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, qlRollOf, QL_MEDIA };
+module.exports = { toBitmap, discoverNetworkPrinters, qlHeadDots, qlJob, printQl, qlRollOf, qlState, qlReset, QL_MEDIA };

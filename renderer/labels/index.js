@@ -496,7 +496,8 @@ function render(body, cur) {
         const [w, l] = r.split("x");
         const txt = !r ? t("labelQlRollAuto") : l === "0" ? t("labelQlRollContinuous", { w }) : `${w} × ${l} mm`;
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
-      }).join("")}</select></div>` : ""}
+      }).join("")}</select></div>
+      <div class="lbl-printer"><button type="button" class="ghost sm" data-lbl-reset aria-label="${esc(t("labelQlReset"))}"><span class="icon icon-refresh icon-14"></span><span>${esc(t("labelQlReset"))}</span></button></div>` : ""}
     ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
@@ -537,6 +538,7 @@ function render(body, cur) {
     }
     else if (e.target.closest("[data-lbl-bt]")) window.electronAPI?.pickLabelBtDevice?.(e.target.closest("[data-lbl-bt]").dataset.lblBt);
     else if (e.target.closest("[data-lbl-connect]")) connectP15(body, cur);
+    else if (e.target.closest("[data-lbl-reset]")) resetQl(printer, body);
     else if (e.target.closest("[data-lbl-search]")) {
       const b = e.target.closest("[data-lbl-search]");
       b.classList.add("is-busy");
@@ -603,6 +605,16 @@ async function connectP15(body, cur) {
     if (msg) { msg.textContent = ctx.t(known || "labelExportFailed"); msg.classList.remove("lbl-msg--ok"); }
     if (!known) ctx.reportError?.("label.connect.p15", e);
   }
+}
+
+// A Brother QL in error (wrong roll…), restarted from the network: what pressing
+// its Power button once does.
+async function resetQl(printer, body) {
+  const msg = body.querySelector(".lbl-msg"), btn = body.querySelector("[data-lbl-reset]");
+  if (btn) btn.disabled = true;
+  const res = await window.electronAPI?.labelQlReset?.(printer.host).catch(() => null);
+  if (msg) { msg.textContent = ctx.t(res?.ok ? "labelQlResetDone" : "labelQlResetFailed"); msg.classList.toggle("lbl-msg--ok", !!res?.ok); }
+  if (btn) setTimeout(() => { btn.disabled = false; }, res?.ok ? 10000 : 0);
 }
 
 // Print without the dialog. The P15's Bluetooth connection is asked for FIRST,

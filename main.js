@@ -4404,6 +4404,7 @@ const _isLabelPage = o => o && typeof o.html === 'string' && o.wDots > 0 && o.hD
 //                      turn (the Marklife P15, renderer/labels/p15.js)
 //   label:print-ql   — the label sent to a Brother QL at host:port
 //   label:ql-roll    — the roll a Brother QL holds, read over SNMP
+//   label:ql-reset   — a Brother QL restarted over SNMP, to clear an error
 // `label:render` with format 'print' and a `deviceName` prints silently on that
 // installed printer.
 const labelPrinters = require('./services/label-printers');
@@ -4449,6 +4450,9 @@ ipcMain.handle('label:bitmap', async (_evt, opts = {}) => {
 // The roll a Brother QL holds, as it names it over SNMP ("62x29"), or null.
 ipcMain.handle('label:ql-roll', async (_evt, host) =>
   (typeof host === 'string' && /^[\w.-]+$/.test(host)) ? labelPrinters.qlRollOf(host).catch(() => null) : null);
+// Restart a Brother QL from the network to clear an error (SNMP prtGeneralReset).
+ipcMain.handle('label:ql-reset', async (_evt, host) =>
+  (typeof host === 'string' && /^[\w.-]+$/.test(host)) ? labelPrinters.qlReset(host).catch(e => ({ ok: false, reason: e.message })) : { ok: false, reason: 'bad host' });
 ipcMain.handle('label:print-ql', async (_evt, opts = {}) => {
   const { host, port, model, roll } = opts || {};
   if (!_isLabelPage(opts) || typeof host !== 'string' || !host) return { ok: false, reason: 'bad label' };
