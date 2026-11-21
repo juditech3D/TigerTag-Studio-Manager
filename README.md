@@ -57,7 +57,7 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 [![Latest release](https://img.shields.io/github/v/release/juditech3D/TigerTag-Studio-Manager?label=Latest&color=FF6B00)](https://github.com/juditech3D/TigerTag-Studio-Manager/releases/latest)
 
-*Intel + Apple Silicon · macOS: Signed & Notarized · No installation knowledge required.*
+*Intel + Apple Silicon · This fork's macOS build is not signed by Apple: see [Opening the app on macOS](#opening-the-app-on-macos--ouvrir-lapplication-sur-macos) · No installation knowledge required.*
 
 <br>
 
@@ -80,6 +80,10 @@ the fork runs from source (see [Install & run](#install--run)). The official app
 
 ### Added
 
+- **A macOS version** (Apple Silicon and Intel), built with every release. It is not signed with an Apple
+  Developer ID, so macOS asks you once to allow it: see
+  [Opening the app on macOS](#opening-the-app-on-macos--ouvrir-lapplication-sur-macos). It does not update
+  itself: download the new `.dmg` from the releases page.
 - **A TigerScale as a TigerPOD.** While the TigerPOD tool is open on a scale running the
   [alternative TigerScale firmware](https://github.com/juditech3D/Tiger-Scale-V3), its two readers show up
   in Studio as two more RFID readers. Every chip feature works on them as on a USB reader: open the spool
@@ -95,6 +99,61 @@ the fork runs from source (see [Install & run](#install--run)). The official app
 
 - **`.ttag` import in Import mode** works again (every file failed with an import error before).
 - **A Feitian ROCKEY-ARM licence dongle** is no longer listed as an RFID reader.
+
+### Opening the app on macOS / Ouvrir l'application sur macOS
+
+**🇫🇷 En français**
+
+Cette version de Tiger Studio Manager pour Mac **n'est pas signée par Apple** : il faudrait un compte
+développeur Apple payant, que ce fork n'a pas. L'application n'est pas dangereuse pour autant, mais macOS
+la bloque à la première ouverture avec un message du type *« Apple n'a pas pu vérifier que
+« Tiger Studio Manager » ne contient pas de logiciel malveillant »*. Il suffit de l'autoriser **une seule
+fois** :
+
+1. **Choisissez le bon fichier** dans la page [Releases](https://github.com/juditech3D/TigerTag-Studio-Manager/releases/latest),
+   rubrique *Assets* :
+   - Mac avec puce Apple (M1, M2, M3, M4…) → `Tiger-Studio-Manager-…-mac-arm64.dmg`
+   - Mac avec processeur Intel → `Tiger-Studio-Manager-…-mac-x64.dmg`
+
+   (Pour savoir lequel vous avez : menu Pomme (en haut à gauche) → *À propos de ce Mac*, ligne *Puce* ou *Processeur*.)
+2. Ouvrez le `.dmg` et **glissez l'application dans le dossier Applications**.
+3. Ouvrez-la une première fois. macOS la bloque : cliquez sur **OK** (ou *Terminé*), **pas** sur
+   *Placer dans la corbeille*.
+4. Autorisez-la, au choix :
+   - **macOS 15 Sequoia et plus récent** : ouvrez **Réglages Système → Confidentialité et sécurité**,
+     descendez jusqu'à la rubrique *Sécurité* : un message parle de « Tiger Studio Manager ». Cliquez sur
+     **Ouvrir quand même**, confirmez avec **Ouvrir quand même** puis votre mot de passe (ou Touch ID).
+   - **macOS 14 Sonoma et plus ancien** : dans le dossier Applications, faites un **clic droit** (ou
+     Ctrl + clic) sur l'application → **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche.
+5. C'est fait : les fois suivantes, elle s'ouvre normalement, d'un double-clic.
+
+**Si macOS dit que l'application « est endommagée »** (ou si l'étape 4 ne propose rien), ouvrez
+l'application **Terminal** (dans Applications → Utilitaires), collez cette ligne puis appuyez sur Entrée :
+
+```bash
+xattr -cr "/Applications/Tiger Studio Manager.app"
+```
+
+Elle retire l'étiquette « téléchargé depuis Internet » que macOS pose sur le fichier ; l'application
+s'ouvre ensuite normalement. Ne faites cela que pour une application téléchargée depuis cette page.
+
+**Mises à jour** : la version Mac ne se met pas à jour toute seule (macOS refuse d'installer une mise à
+jour non signée). Pour passer à une nouvelle version, téléchargez le nouveau `.dmg` et remplacez
+l'application dans le dossier Applications ; vos données ne sont pas touchées. Il faudra refaire
+l'autorisation de l'étape 4 une fois.
+
+**🇬🇧 In English**
+
+This fork's Mac build is **not signed or notarized by Apple** (that needs a paid Apple Developer account),
+so macOS blocks it the first time. Download the `mac-arm64.dmg` (Apple chip) or `mac-x64.dmg` (Intel),
+drag the app into Applications and open it once, click **OK**, then allow it **once**:
+
+- **macOS 15 Sequoia or later**: *System Settings → Privacy & Security*, *Security* section →
+  **Open Anyway**, confirm with your password.
+- **macOS 14 Sonoma or earlier**: **right-click** (Ctrl-click) the app → **Open** → **Open**.
+- **"The app is damaged"**: in Terminal, run `xattr -cr "/Applications/Tiger Studio Manager.app"`.
+
+It does not update itself: download each new `.dmg` by hand.
 
 ### In progress (not working yet)
 
@@ -442,7 +501,7 @@ npm start
 | NFC parsing | [TigerTag SDK for JavaScript](https://github.com/TigerTag-Project/TigerTag-SDK-JS) — parse, verify, write TigerTag chips |
 | Auto-update | [electron-updater](https://www.electron.build/auto-update) via GitHub Releases |
 | Build & packaging | [electron-builder](https://www.electron.build/) |
-| macOS signing | Apple Developer ID + `notarytool` (App Store Connect API Key) |
+| macOS signing | Fork: ad-hoc signature only, not notarized (no Apple Developer ID). Official app: Apple Developer ID + `notarytool` |
 | Windows signing | Not yet signed (planned — Microsoft Trusted Signing) |
 | CI / Releases | GitHub Actions — triggered on `v*` tag push |
 
@@ -459,7 +518,7 @@ git push origin v1.7.0
 
 | Platform | Command | Output | Signed |
 |---|---|---|---|
-| macOS (signed) | `npm run build:mac` | `.dmg` + `.zip` (x64 + arm64) | ✅ Developer ID + Notarized |
+| macOS (fork release) | `npm run build:mac:fork` | `.dmg` + `.zip` (x64 + arm64) | Ad-hoc only, not notarized |
 | macOS (fast, local) | `npm run build:mac:unsigned` | `.dmg` | ❌ |
 | Windows | `npm run build:win` | `.exe` NSIS | ❌ Not yet signed |
 | Linux | `npm run build:linux` | `.AppImage` | N/A |
@@ -467,7 +526,7 @@ git push origin v1.7.0
 
 Built artifacts go to `dist/` (git-ignored).
 
-> `npm run build:mac` requires Apple Developer credentials in a local `.env` file (see `.env.example`). The signing + notarization pipeline is documented in `docs/code-signing.md`.
+> In this fork, `build.mac` in `package.json` signs ad-hoc (`identity: "-"`) and does not notarize, since the fork holds no Apple Developer ID. The official app's signing + notarization pipeline is documented in `docs/code-signing.md`.
 
 ---
 

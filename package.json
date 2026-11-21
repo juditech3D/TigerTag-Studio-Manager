@@ -16,6 +16,7 @@
     "build:mac": "node scripts/prepare-ffmpeg.mjs darwin && node scripts/gen-oauth-config.mjs && electron-builder --mac --publish always",
     "build:mac:local": "bash build/sign-and-notarize.sh",
     "build:mac:unsigned": "node scripts/prepare-ffmpeg.mjs darwin && node scripts/gen-oauth-config.mjs && electron-builder --mac -c.mac.identity=null -c.mac.notarize=false",
+    "build:mac:fork": "node scripts/prepare-ffmpeg.mjs darwin && node scripts/gen-oauth-config.mjs && electron-builder --mac --publish never",
     "build:mac:nopublish": "node scripts/prepare-ffmpeg.mjs darwin && node scripts/gen-oauth-config.mjs && electron-builder --mac -c.mac.identity=null -c.mac.notarize=false --publish never",
     "build:linux": "node scripts/gen-oauth-config.mjs && electron-builder --linux --publish always",
     "build:linux:nopublish": "node scripts/gen-oauth-config.mjs && electron-builder --linux --publish never",
@@ -130,15 +131,16 @@
       ],
       "icon": "assets/img/icon.icns",
       "category": "public.app-category.utilities",
-      "identity": "3D France (RT4W5WC9P2)",
-      "hardenedRuntime": true,
+      "artifactName": "Tiger-Studio-Manager-${version}-mac-${arch}.${ext}",
+      "identity": "-",
+      "hardenedRuntime": false,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "extendInfo": {
         "NSCameraUsageDescription": "Tiger Studio Manager uses the camera to read the QR code on a spool label."
       },
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "notarize": true
+      "notarize": false
     },
     "dmg": {
       "sign": false

@@ -45,11 +45,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Fork: no macOS build. It needs the TigerTag Project's Apple certificate
-        # and notarization key, which this repository does not hold.
+        # Fork: the macOS build is NOT signed with an Apple Developer ID and NOT
+        # notarized (this repository holds no Apple certificate). It is signed
+        # ad-hoc (package.json build.mac.identity "-"), which Apple Silicon needs
+        # to run it at all; Gatekeeper still asks the user to allow it once
+        # (README "Opening the app on macOS").
         include:
           - os: windows-latest
             platform: win
+          - os: macos-latest
+            platform: mac
           - os: ubuntu-latest
             platform: linux
 
@@ -77,100 +82,66 @@ jobs:
 
       - run: npm ci
 
-      # --- macOS only: decode the App Store Connect API Key (.p8) into a file so notarytool can read it ---
-      - name: Decode App Store Connect API Key (.p8)
-        if: matrix.os == 'macos-latest'
-        env:
-          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-        run: |
-          mkdir -p ~/private_keys
-          echo -n "$APPLE_API_KEY_BASE64" | base64 --decode > ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
-          chmod 600 ~/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8
-          # Export the resolved path for the next step
-          echo "APPLE_API_KEY=$HOME/private_keys/AuthKey_${APPLE_API_KEY_ID}.p8" >> "$GITHUB_ENV"
-
       # ─────────────────────────────────────────────────────────────────
-      # macOS signing keychain — built HERE rather than by electron-builder.
-      #
-      # Its own path passes the certificate's IMPORT password to
-      # `security set-key-partition-list -k`, but that flag authenticates
-      # against the KEYCHAIN, not against the .p12. The two are different
-      # secrets, and macOS used not to check — the runner image that ships
-      # macOS 26 does, so signing began failing with
-      #   security: SecKeychainUnlock: The user name or passphrase you
-      #   entered is not correct
-      # on 2026-09-12, with nothing changed on our side: same certificate
-      # (valid to 2031), same secrets (untouched since May), same
-      # electron-builder (26.15.3). Only the image moved, 20260728 → 20260907.
-      #
-      # Upstream fixed it in PR #10101, but that sits in 27.0.0-alpha.8 and is
-      # in NO stable release — 26.15.7 and 26.16.1 both lack it. So we own the
-      # keychain instead of waiting: create it, import the cert, and authorise
-      # codesign with the keychain's OWN password. `CSC_KEYCHAIN` then tells
-      # electron-builder to use it and skip the broken path entirely.
-      #
-      # The keychain password is generated per run and never leaves the runner.
-      # Delete this step once the fix lands in a stable electron-builder and
-      # the dependency is bumped — not before.
+      # Linux — build & publish in one step (no post-build signing).
       # ─────────────────────────────────────────────────────────────────
-      - name: Prepare macOS signing keychain
-        if: matrix.os == 'macos-latest'
-        env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-        run: |
-          set -euo pipefail
-          KEYCHAIN="$RUNNER_TEMP/tigertag-signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-
-          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
-          security import "$RUNNER_TEMP/cert.p12" -k "$KEYCHAIN" \
-            -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          rm -f "$RUNNER_TEMP/cert.p12"
-
-          # The keychain's OWN password — this is the line electron-builder gets wrong.
-          security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
-
-          # Put it in the search list so codesign can find the identity.
-          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
-
-          echo "CSC_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
-          echo "Identities available for signing:"
-          security find-identity -v -p codesigning "$KEYCHAIN" | sed 's/[A-F0-9]\{40\}/<hash>/'
-
-      # ─────────────────────────────────────────────────────────────────
-      # macOS / Linux — build & publish in one step (no post-build signing).
-      # Windows is handled in the next 4 steps so we can SIGN the .exe with
-      # Microsoft Trusted Signing (Azure) BEFORE publishing it to the Release.
-      # ─────────────────────────────────────────────────────────────────
-      - name: Build & publish (macOS / Linux)
-        if: matrix.os != 'windows-latest'
-        run: npm run build:${{ matrix.platform }}
+      - name: Build & publish (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: npm run build:linux
         env:
           # GitHub Releases publish (electron-builder reads GH_TOKEN automatically)
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-          # macOS code signing — the identity lives in the keychain prepared above
-          # (CSC_KEYCHAIN, exported to GITHUB_ENV). CSC_LINK is deliberately NOT
-          # set: passing it makes electron-builder build its own keychain again
-          # and take the path this works around.
-          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-
-          # macOS notarization via App Store Connect API Key (preferred over Apple ID + password)
-          # APPLE_API_KEY is set in the previous step via GITHUB_ENV (path to decoded .p8)
-          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
           # Google Desktop OAuth — Touch ID / loopback sign-in
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+
+      # ─────────────────────────────────────────────────────────────────
+      # macOS (fork) — ad-hoc signed, not notarized, built without publishing
+      # so that latest-mac.yml can be left out of the release on purpose:
+      # Squirrel.Mac only installs an update signed by the same Developer ID
+      # as the running app, which an ad-hoc build never is. With the manifest
+      # the app would download ~300 MB and then refuse it; without it the Mac
+      # user downloads the new .dmg by hand (release note "Known limitations").
+      # ─────────────────────────────────────────────────────────────────
+      - name: Build macOS (ad-hoc signed, no publish)
+        if: matrix.os == 'macos-latest'
+        run: npm run build:mac:fork
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No Developer ID in this repository: never go looking for one.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
+          TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+
+      - name: Check the macOS app carries a valid (ad-hoc) signature
+        if: matrix.os == 'macos-latest'
+        run: |
+          set -euo pipefail
+          for app in dist/mac*/*.app; do
+            echo "== $app"
+            codesign --verify --deep --verbose=2 "$app"
+            codesign -dv "$app" 2>&1 | grep -E "^(Signature|Identifier|Format)"
+          done
+
+      - name: Release version (strip leading v)
+        if: matrix.os == 'macos-latest'
+        id: vermac
+        run: echo "num=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish macOS artifacts to GitHub Release
+        if: matrix.os == 'macos-latest'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ steps.vermac.outputs.num }}
+          draft: true
+          # latest-mac.yml deliberately NOT attached (see the build step above).
+          files: |
+            dist/*.dmg
+            dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ─────────────────────────────────────────────────────────────────
       # Windows path — split into:
@@ -304,8 +275,8 @@ jobs:
           set -euo pipefail
           names=$(gh release view "$TAG" --json assets -q '.assets[].name')
           missing=0
-          # Fork: Windows + Linux only (no macOS build, see the matrix).
-          for want in '^latest\.yml$' '^latest-linux\.yml$' 'Setup-.*\.exe$' 'portable\.exe$' '\.AppImage$'; do
+          # Fork: no latest-mac.yml on purpose (ad-hoc macOS build, see the matrix).
+          for want in '^latest\.yml$' '^latest-linux\.yml$' 'Setup-.*\.exe$' 'portable\.exe$' '\.AppImage$' 'mac-arm64\.dmg$' 'mac-x64\.dmg$'; do
             if ! grep -Eq "$want" <<<"$names"; then echo "::error::missing release file matching $want"; missing=1; fi
           done
           [ "$missing" = 0 ] || exit 1

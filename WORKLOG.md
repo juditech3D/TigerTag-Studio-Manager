@@ -16,6 +16,18 @@
 
 ### Added
 
+- A macOS build (Apple Silicon `mac-arm64` + Intel `mac-x64`, `.dmg` + `.zip`) in every release. It is
+  signed ad-hoc (`build.mac.identity: "-"`, no hardened runtime, no notarization: the fork holds no
+  Apple Developer ID), which Apple Silicon needs to start it at all; Gatekeeper still asks the user to
+  allow it once. `latest-mac.yml` is deliberately left out of the release: Squirrel.Mac only installs an
+  update signed by the same Developer ID, so Mac users download each new `.dmg` by hand. README
+  "Opening the app on macOS / Ouvrir l'application sur macOS" gives the end-user steps in French and
+  English (Open Anyway on Sequoia+, right-click → Open on Sonoma and older, `xattr -cr` for "damaged");
+  the next fork release note must carry the same steps and drop "Windows and Linux only" from its
+  Known limitations. `package.json` (`build.mac`, script `build:mac:fork`),
+  `.github/workflows/build.yml` (mac matrix entry, Apple signing steps removed, ad-hoc signature check,
+  draft upload without `latest-mac.yml`, publish check for both `.dmg`), `.github/workflows/test-build.yml`
+  (mac test build uses `build:mac:fork`), `README.md`.
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
   the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware

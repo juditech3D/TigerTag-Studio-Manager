@@ -4,8 +4,8 @@ name: Test build (all platforms)
 # WITHOUT cutting a release: artifacts only — no git tag, no GitHub Release, no
 # auto-update feed, nothing published. Every binary is UNSIGNED:
 #   • Windows → SmartScreen warns ("More info" → "Run anyway")
-#   • macOS   → Gatekeeper blocks it (right-click → Open, or `xattr -dr
-#               com.apple.quarantine <app>`); it is NOT notarized
+#   • macOS   → ad-hoc signed, NOT notarized: Gatekeeper asks once (README
+#               "Opening the app on macOS")
 #   • Linux   → AppImage, chmod +x and run
 #
 # Two ways to run it:
@@ -80,8 +80,10 @@ jobs:
 
       - run: npm ci
 
+      # macOS uses the release's own ad-hoc build (build:mac:fork): a build with
+      # no signature at all does not start on Apple Silicon.
       - name: Build ${{ matrix.platform }} (unsigned, no publish)
-        run: npm run build:${{ matrix.platform }}:nopublish
+        run: npm run build:${{ matrix.platform }}:${{ matrix.platform == 'mac' && 'fork' || 'nopublish' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Baked in so Google sign-in works in the test build.
