@@ -88,6 +88,31 @@
   `_bambuSummaryHtml`), `linked.css` (`.lc-bambu*`); `renderer/inventory.js`
   (`openCatalogPick` `prefill`); `docs/LINKED-CHIPS.md`. Not tried on a real chip yet.
 
+- Labels print straight from Studio, without the system print dialog. The label card gains a
+  "Printer" list: the system dialog (as before), a **Marklife P15** over Bluetooth LE (found and
+  connected by Studio, Web Bluetooth, `select-bluetooth-device` picks it by its advertised name; a Connect
+  button starts the scan alone, and while it runs every device seen is listed in the card to pick by
+  hand, the names seen being logged when nothing was picked),
+  every printer installed on the computer (printed silently through its driver), and the
+  **Brother QL** printers announced on the network over mDNS (raster sent to TCP 9100, no driver;
+  the roll is the one picked in the card's "Roll" list, else read from the printer's status; a QL-580N
+  answers none over the network, so the card then asks for the roll instead of sending a job the
+  printer would refuse; the label is turned and scaled down to fit the roll's printable width). An installed Brother QL is printed the same way, on the address behind its Windows printer port or one typed in the card's "Address" field (a Windows port names the printer by host name, BRN…, and is read as such). The mDNS search listens on every LAN interface: on a computer with a VPN or Hyper-V adapter the default socket heard nothing.
+  A tenth template "Marklife P15" (25 × 12 mm, a margin on the P15's 12 × 30 mm labels, its series in bold black text rather than white on a black band, which fills in at 203 dpi) fits the P15's labels, and an eleventh "Brother 62 × 29" (four value slots, laid out on the 58 × 23 mm printable area of the QL's DK-11209 labels; a die-cut job is sent at the exact printable length, 271 lines for 62 × 29, or the printer stops on an error), picked with a Brother QL or its 62 × 29 roll (a QL is asked which roll it holds over SNMP v1 — prtInputMediaName, which the QL-580N fills while answering no raster status over the network — and the card takes that roll and its template; the card shows "Printer ready", or "In error: press the printer's Power button once", from the printer's SNMP state line, read every 5 s while it is open; the card's messages and the printer's state are coloured pills — blue while printing or searching, green once sent or ready, red on an error, the message right under the printer rows — a QL-580N in a media error is not cleared from the network); a size the chosen printer's roll cannot take (P15, or the QL roll picked, 5 % leeway) is greyed out, and changing printer or roll moves off it; each printer brings back
+  the format last picked with it (`templateBy`), the P15 starting on its own template and never
+  keeping a label too wide for its roll, and a direct printer prints at its own resolution (P15 203 dpi, QL 300 dpi).
+  P15 protocol (L11, service 0xFF00, credit flow control) from the MIT thermoprint project. New
+  `renderer/labels/p15.js`, `services/label-printers.js`; `main.js` (`_labelImage`, `label:printers`,
+  `label:bitmap`, `label:print-ql`, `label:render` `deviceName`, `select-bluetooth-device`, the
+  `enable-blink-features=WebBluetooth` switch that Linux needs);
+  `preload.js` (`listLabelPrinters`, `labelBitmap`, `printLabelQl`); `renderer/labels/index.js`
+  (`printDirect`, `searchPrinters`, `printerFor`, layout `p15` with `pillAt`), `labels.css`;
+  `CODEMAP-main.md`, `CLAUDE.md` (`tigertag.label`), `llms.txt`, `docs/i18n-keys.md`, `docs/LABEL-PRINTERS.md`
+  (setup, troubleshooting, USB QL via its driver, adding a printer). Printed on a Marklife P15 and a
+  Brother QL-580N (62 × 29). The Printer list shows each printer's picture (an option's `data-thumb`,
+  drawn by `_enhanceSelect` in the list and on the button; `assets/img/label_printers/`: Marklife P15,
+  Brother QL-580N for a QL-5xx, QL-800 for any other QL; masters in `assets-src/img/label_printers/`).
+
 ### Changed
 
 - `README.md` opens with an "Unofficial fork" warning and gains a "What this fork adds or changes"
@@ -117,4 +142,5 @@
 - Spool → printer slot: `mountSectionLabel`, `mountNone`, `mountPick`, `mountChange`, `mountClear`, `mountSlotEmpty`, `mountNoSlots`, `mountHint` (after `storageNotPlaced`), 11 locales.
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.
+- Label printers: `labelTpl_p15` (after `labelTpl_qrOnly`), `labelPrinter`, `labelPrinterDialog`, `labelPrinterP15`, `labelPrinterConnected`, `labelPrinterNetwork`, `labelPrinterInstalled`, `labelPrinterSearch`, `labelP15NoFit`, `labelPrinting`, `labelPrinted`, `labelP15NotFound`, `labelBtUnavailable`, `labelBtConnect`, `labelBtNotConnected`, `labelBtSearching`, `labelBtPick`, `labelBtNoName`, `labelQlRoll`, `labelQlRollAuto`, `labelQlRollContinuous`, `labelQlNeedRoll`, `labelQlAddress`, `labelQlNoFit`, `labelQlStateError`, `labelQlStateReady` (after `labelExportFailed`), `labelTpl_ql62x29` (after `labelTpl_p15`), 11 locales.
 - Update check: `aboutCheckUpdatePending`, `aboutCheckUpdateOffline` (after `aboutCheckUpdateErr`, whose text is now a full sentence), 11 locales.

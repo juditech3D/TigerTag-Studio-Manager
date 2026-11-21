@@ -1420,6 +1420,11 @@
      current value. */
   .csel-opt.is-cursor { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--primary); }
   .csel-opt[hidden] { display: none; }
+  /* An option's picture (data-thumb), in the list and on the button. */
+  .csel-thumb { width: 22px; height: 22px; object-fit: contain; flex: none; }
+  .csel-opt:has(.csel-thumb), .csel-btn:has(.csel-thumb:not([hidden])) { display: flex; align-items: center; justify-content: flex-start; gap: 8px; }
+  .csel-thumb[hidden] { display: none; }
+  .csel-btn:has(.csel-thumb:not([hidden])) .csel-label { min-width: 0; }
   /* The filter field, pinned above the list so it stays put while the options
      scroll under it. */
   .csel-pop-head { padding: 6px 6px 4px; }
