@@ -502,6 +502,7 @@ function render(body, cur) {
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
       }).join("")}</select></div>
       <div class="lbl-printer lbl-ql"><span class="lbl-ql-state" data-lbl-ql-state></span></div>` : ""}
+    <p class="lbl-msg"></p>
     ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
@@ -510,7 +511,7 @@ function render(body, cur) {
       <button type="button" class="ghost sm" data-lbl-out="png"><span class="icon icon-download icon-14"></span><span>PNG</span></button>
       <button type="button" class="ghost sm" data-lbl-out="svg"><span class="icon icon-download icon-14"></span><span>SVG</span></button>
     </div>
-    <p class="lbl-msg"></p>`;
+`;
   // The preview draws inside its frame: a spinner on the paper until it has loaded.
   const frame = body.querySelector(".lbl-frame"), paper = body.querySelector(".lbl-paper");
   paper?.classList.add("is-loading");
