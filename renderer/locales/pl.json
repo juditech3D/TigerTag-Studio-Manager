@@ -2106,6 +2106,7 @@
   "labelQlRollAuto": "Zapytaj drukarkę",
   "labelQlRollContinuous": "{{w}} mm ciągła",
   "labelQlNeedRoll": "Drukarka nie podaje swojej rolki: wybierz ją z listy Rolka.",
+  "labelQlNoFit": "Ten format nie mieści się na wybranej rolce: wybierz jeden z formatów, które nie są wyszarzone.",
   "labelQlAddress": "Adres",
   "labelTpl_classic": "Klasyczny",
   "labelTpl_expanded": "Szeroki",

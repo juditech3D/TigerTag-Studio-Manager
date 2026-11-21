@@ -46,6 +46,7 @@
 .lbl-tpl.is-active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--surface-2)); }
 .lbl-tpl b { font-size: 12px; line-height: 1.2; text-align: center; }
 .lbl-tpl small { font-size: 10.5px; color: var(--muted); }
+.lbl-tpl:disabled { opacity: .4; cursor: not-allowed; border-color: var(--border); }
 
 .lbl-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 /* The QR's link, copied: under the preview, which opens it on a click. */

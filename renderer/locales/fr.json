@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Demander à l'imprimante",
   "labelQlRollContinuous": "{{w}} mm continu",
   "labelQlNeedRoll": "L'imprimante n'indique pas son rouleau : choisis-le dans la liste Rouleau.",
+  "labelQlNoFit": "Ce format ne tient pas sur le rouleau choisi : prends un des formats qui ne sont pas grisés.",
   "labelQlAddress": "Adresse",
   "labelTpl_classic": "Classique",
   "labelTpl_expanded": "Large",

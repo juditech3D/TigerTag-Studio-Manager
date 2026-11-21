@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Chiedi alla stampante",
   "labelQlRollContinuous": "{{w}} mm continuo",
   "labelQlNeedRoll": "La stampante non indica il suo rotolo: sceglilo nell'elenco Rotolo.",
+  "labelQlNoFit": "Questo formato non entra nel rotolo scelto: scegli uno dei formati non in grigio.",
   "labelQlAddress": "Indirizzo",
   "labelTpl_classic": "Classico",
   "labelTpl_expanded": "Largo",

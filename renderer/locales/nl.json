@@ -2096,6 +2096,7 @@
   "labelQlRollAuto": "Printer vragen",
   "labelQlRollContinuous": "{{w}} mm doorlopend",
   "labelQlNeedRoll": "De printer meldt zijn rol niet: kies hem in de lijst Rol.",
+  "labelQlNoFit": "Dit formaat past niet op de gekozen rol: kies een van de formaten die niet grijs zijn.",
   "labelQlAddress": "Adres",
   "labelTpl_classic": "Klassiek",
   "labelTpl_expanded": "Breed",

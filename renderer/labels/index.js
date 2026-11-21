@@ -348,6 +348,28 @@ function printerOptions(sel) {
 }
 // A label fits the P15 when one of its sides is no wider than the roll.
 const fitsP15 = tpl => Math.min(tpl.w, tpl.h) <= P15_MAX_MM;
+// A label fits a printer's roll: the P15's 15 mm roll; a Brother QL's roll as
+// picked in the card — a continuous roll by its width, a die-cut one by its label,
+// either way round (5 % leeway: the job is scaled to the printable area). Any
+// other printer, or a QL whose roll is not known, takes every size.
+function fitsPrinter(printer, tpl, roll = prefs().qlRoll) {
+  if (!tpl) return false;
+  if (printer.kind === "p15") return fitsP15(tpl);
+  if (printer.kind !== "net" || !roll) return true;
+  const [w, l] = roll.split("x").map(Number), k = 1.05;
+  const short = Math.min(tpl.w, tpl.h), long = Math.max(tpl.w, tpl.h);
+  if (!l) return short <= w * k;
+  return (tpl.w <= w * k && tpl.h <= l * k) || (tpl.h <= w * k && tpl.w <= l * k) || (short <= Math.min(w, l) * k && long <= Math.max(w, l) * k);
+}
+// The template to fall back to when the current one does not fit: the printer's
+// own (P15, Brother 62 × 29), else the first one that fits.
+function fittingTemplate(printer, current, roll) {
+  const cur = LABEL_TEMPLATES.find(x => x.id === current);
+  if (fitsPrinter(printer, cur, roll)) return current;
+  const own = LABEL_TEMPLATES.find(x => x.id === (printer.kind === "p15" ? "p15" : "ql62x29"));
+  if (fitsPrinter(printer, own, roll)) return own.id;
+  return (LABEL_TEMPLATES.find(x => fitsPrinter(printer, x, roll)) || cur || LABEL_TEMPLATES[0]).id;
+}
 
 // ── The card ─────────────────────────────────────────────────────────────────
 // `row` is a normalized spool row; ctx.labelInfo(row) gives the printed texts.
@@ -420,11 +442,12 @@ function render(body, cur) {
   const printer = printerFor(p.printer);
   const lbl = buildLabel(info, link, { ...p, dpi: printer.dpi || p.dpi });
   const tplNow = LABEL_TEMPLATES.find(x => x.id === p.template);
-  const noFit = printer.kind === "p15" && !fitsP15(tplNow);
+  const noFit = !fitsPrinter(printer, tplNow, p.qlRoll);
   // Preview: the very page that is printed, scaled to the card.
   const boxW = 340, scale = Math.min(boxW / lbl.wDots, 220 / lbl.hDots);
   const seg = (id, on, label) => `<button type="button" class="lbl-seg-btn${on ? " is-active" : ""}" data-lbl-kind="${id}" aria-pressed="${on}">${esc(label)}</button>`;
-  const tplBtn = x => `<button type="button" class="lbl-tpl${x.id === p.template ? " is-active" : ""}" data-lbl-tpl="${x.id}" aria-pressed="${x.id === p.template}">
+  // A size the chosen printer's roll cannot take is greyed out and cannot be picked.
+  const tplBtn = x => `<button type="button" class="lbl-tpl${x.id === p.template ? " is-active" : ""}" data-lbl-tpl="${x.id}" aria-pressed="${x.id === p.template}"${fitsPrinter(printer, x, p.qlRoll) ? "" : " disabled"}>
       <b>${esc(t("labelTpl_" + x.id))}</b><small>${x.w} × ${x.h} mm</small></button>`;
   const tpl = LABEL_TEMPLATES.find(x => x.id === p.template);
   const slotSel = i => `<select class="lbl-slot" data-lbl-slot="${i}"${i >= tpl.slots ? " disabled" : ""}>
@@ -458,7 +481,7 @@ function render(body, cur) {
         const txt = !r ? t("labelQlRollAuto") : l === "0" ? t("labelQlRollContinuous", { w }) : `${w} × ${l} mm`;
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
       }).join("")}</select></div>` : ""}
-    ${noFit ? `<p class="lbl-hint">${esc(t("labelP15NoFit"))}</p>` : ""}
+    ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
       <button type="button" class="primary sm" data-lbl-out="print"${noFit ? " disabled" : ""}><span class="icon icon-printer icon-14"></span><span>${esc(t("labelPrint"))}</span></button>
@@ -518,6 +541,7 @@ function render(body, cur) {
       // A roll with its own template brings it (62 × 29 mm: the Brother template).
       const q = { ...prefs(), qlRoll: roll.value };
       if (roll.value === "62x29") q.template = "ql62x29";
+      else q.template = fittingTemplate(printerFor(q.printer), q.template, roll.value);
       savePrefs(q); render(body, cur); return;
     }
     const hostEl = e.target.closest("[data-lbl-host]");
@@ -536,7 +560,7 @@ function render(body, cur) {
       if (mine) q.template = mine;
       else if (pr.value === "p15") q.template = "p15";
       else if (printerFor(pr.value).kind === "net" || printerFor(pr.value).ql) q.template = "ql62x29";
-      if (pr.value === "p15" && !fitsP15(LABEL_TEMPLATES.find(x => x.id === q.template))) q.template = "p15";
+      q.template = fittingTemplate(printerFor(pr.value), q.template, q.qlRoll);
       savePrefs(q); render(body, cur); return;
     }
     const s = e.target.closest("[data-lbl-slot]");
