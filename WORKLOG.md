@@ -28,6 +28,16 @@
 - TigerScale live view: its Screenshot button closes the live view before opening the preview,
   which used to open behind it (two `.modal-overlay` of the same z-index, the live one added last),
   so the click seemed to do nothing. `renderer/IoT/tigerscale/live.js` (`openScaleLive`).
+- A Bambu Lab spool is saved or linked only once BOTH of its chips are read (two UIDs,
+  same tray UID): while one is missing, every Link banner gives way to a "1 of 2 chips
+  read" notice saying what to do (TigerScale: Settings → RFID → Auto with the spool in
+  place; TigerPOD: set the spool down flat between the readers), and creations that
+  would take the chips are refused. Other makers' chips are unchanged.
+  `renderer/rfid_protocol/linked/index.js` (`bambuPairGap`, `bambuPairGapHtml`,
+  `_pairBlocked`, `_paintPairGap`, `makerReader`), `renderer/rfid_protocol/linked/linked.css`
+  (`.lc-pair-gap`), `renderer/inventory.js` (`saveAddProduct`, `_catalogCreate`,
+  `_adpRenderFoot`), `docs/LINKED-CHIPS.md`. i18n: `bambuPairMissing`,
+  `bambuPairHintPod`, `bambuPairHintScale`.
 - A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
   link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
   `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user

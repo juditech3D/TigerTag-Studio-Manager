@@ -3,7 +3,7 @@ import { decimalSpoolIdToHex, repairTruncatedNtagUid, isDecimalSpoolId, planTrun
 import { initRfidTester } from './rfid_protocol/tigertag/index.js';
 import { RAL_CLASSIC } from './ral-classic.js';
 import { openColorPop } from './color-pop.js';
-import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
+import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
 import { initLabels, openLabelCard, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
@@ -3972,7 +3972,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const makers = HAS_NATIVE && brandHasMakerChips(parseInt($("adpBrand")?.value, 10)) ? presentMakerChips().length : 0;
     const burn = !makers && HAS_NATIVE && state.nfcReaderCount > 0;
     const chip = burn && state.nfcCardPresent.size > 0;
-    const mode = makers ? `link:${makers}` : chip ? "burn:chip" : burn ? "burn" : "";
+    const mode = makers ? `link:${makers}${bambuPairGap() ? ":gap" : ""}` : chip ? "burn:chip" : burn ? "burn" : "";
     if (slot.dataset.mode === mode) return;
     slot.dataset.mode = mode;
     slot.innerHTML = makers ? makerLinkBannerHtml("adpLinkBanner", makers)
@@ -4026,6 +4026,8 @@ import { initScreenTools } from './ai/screen-tools.js';
 
     const uid = state.activeAccountId;
     if (!uid) return showErr(t("invalidKey", { r: "no account" }));
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || pendingMakerChips()) && bambuPairGap()) return showErr(t("bambuPairMissing"));
 
     const get = id => $(id)?.value;
     const { r, g, b } = _adpHexToRgb(_adpColorSlots[0]);
@@ -17779,6 +17781,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!keepLink) clearPendingLink();
     // Feedback goes to whichever surface the user actually triggered this from.
     const res$ = $("pcCatMsg") || $("roSaveResult");
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || (keepLink && pendingMakerChips())) && bambuPairGap()) { toast(res$, "bad", t("bambuPairMissing")); return; }
     _catalogSetBusy(true);
     try {
       // The one network call of this path — the same detail endpoint the

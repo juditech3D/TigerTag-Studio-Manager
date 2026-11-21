@@ -17,6 +17,8 @@
  *   chooseChipView(to)                              — switch the open card's view (the QR read → "catalogue")
  *   closeChipLink()                                 — the link grid side card
  *   linkedChipsHtml(row) / wireLinkedChips(root)    — the detail panel's section
+ *   bambuPairGap() / bambuPairGapHtml()             — a Bambu Lab spool's second chip not read yet:
+ *                                                     no link, no creation (LINKED-CHIPS.md)
  */
 
 let ctx = null;
@@ -138,10 +140,76 @@ export function presentBambuInfo() {
   return null;
 }
 
+// The reader each maker chip was last read on: says whether a missing twin is a
+// TigerScale's reader to calibrate or a TigerPOD's spool to set down again.
+const makerReader = new Map();
+
+/** A Bambu Lab spool carries one chip per flange, both holding the same tray UID.
+ *  It is saved or linked only once BOTH are read (founder, 2026-11-20): a Bambu
+ *  chip on the TigerPOD whose twin is not there blocks every link and every
+ *  creation that would take the maker chips. Only Bambu Lab chips (decoded
+ *  content with a tray UID) are concerned — any other maker's chip links alone.
+ *  A maker chip read without its content (a weak read) counts as the twin, since
+ *  Studio links every chip on the TigerPOD anyway.
+ *  Returns null when nothing is missing, else { scale } (true: read by a TigerScale). */
+export function bambuPairGap() {
+  const on = [...new Set([...(ctx?.state?.nfcCardPresent?.values() || [])].map(c => norm(c?.uid)))].filter(u => makerUids.has(u));
+  const trays = new Map();
+  let unknown = 0;
+  for (const u of on) {
+    const tray = bambuInfo.get(u)?.trayUid;
+    if (!tray) { unknown++; continue; }
+    if (!trays.has(tray)) trays.set(tray, []);
+    trays.get(tray).push(u);
+  }
+  for (const uids of trays.values()) {
+    if (uids.length >= 2) continue;
+    if (unknown > 0) { unknown--; continue; }
+    return { scale: /tigerscale/i.test(makerReader.get(uids[0]) || "") };
+  }
+  return null;
+}
+
+/** The notice shown in place of every Link / Add while a Bambu Lab twin chip is
+ *  missing: "1 of 2 chips read", and what to do on that device. Not clickable. */
+export function bambuPairGapHtml(gap = bambuPairGap()) {
+  if (!gap) return "";
+  const { t, esc } = ctx;
+  return `
+    <div class="lc-pair-gap" role="status" data-lc-gap>
+      <span class="lc-pair-gap-ic"><span class="icon icon-alert icon-18" aria-hidden="true"></span></span>
+      <span class="lc-pair-gap-txt"><b>${esc(t("bambuPairMissing"))}</b><small>${esc(t(gap.scale ? "bambuPairHintScale" : "bambuPairHintPod"))}</small></span>
+    </div>`;
+}
+
+// Refused: a Bambu Lab spool whose second chip has not been read.
+function _pairBlocked() {
+  const gap = bambuPairGap();
+  if (!gap) return false;
+  ctx.toast?.(ctx.t("bambuPairMissing"));
+  return true;
+}
+
+// The open chooser follows the chips: the notice comes and goes in place.
+function _paintPairGap() {
+  const body = document.querySelector("#chipChoicePanel.open #chipChoiceBody");
+  if (!body || choiceKind !== "foreign") return;
+  const html = bambuPairGapHtml();
+  const cur = body.querySelector("[data-lc-gap]");
+  if (!html) { cur?.remove(); return; }
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  const next = tmp.firstElementChild;
+  if (cur) { if (cur.outerHTML !== next.outerHTML) cur.replaceWith(next); }
+  else body.querySelector(".lc-choices")?.before(next);
+}
+
 export function onForeignChip({ readerName, uid, chip, bambu }, { held = false } = {}) {
   const u = norm(uid);
   if (UID_RE.test(u)) makerUids.set(u, chip || "unknown");
   if (UID_RE.test(u) && bambu) bambuInfo.set(u, bambu);
+  if (UID_RE.test(u)) makerReader.set(u, readerName || "");
+  _paintPairGap();
   if (!accountUid || !UID_RE.test(u)) return;
   buffer.set(readerName || "reader", { uid: u, chip: chip || "unknown" });
   bufferHeld = held;
@@ -183,6 +251,8 @@ export function presentMakerChips() {
 /** "Link the proprietary third-party Tag(s)" — the held banner shown instead of a
  *  burn when maker chips are there (a maker's chip is linked, never written). */
 export function makerLinkBannerHtml(id, n) {
+  const gap = bambuPairGap();
+  if (gap) return bambuPairGapHtml(gap);
   const { t, esc } = ctx;
   return `
     <button type="button" class="chip-update-banner lc-offer-banner" id="${esc(id)}" data-hold-tip="linkedChipOfferTip">
@@ -196,7 +266,7 @@ export function makerLinkBannerHtml(id, n) {
 /** Links the maker chips on the TigerPOD (unlinked ones) to an existing spool. */
 export async function linkMakerChipsTo(spoolId) {
   const chips = presentMakerChips(), row = rowById(spoolId);
-  if (!chips.length || !row) return false;
+  if (!chips.length || !row || _pairBlocked()) return false;
   try { await link(chips, row); ctx.toast?.(ctx.t("linkedChipDone")); return true; }
   catch (e) { ctx.reportError?.("linkedChips.linkMaker", e); ctx.toast?.(ctx.t("squadDealsErr")); return false; }
 }
@@ -245,7 +315,7 @@ export async function linkPendingTo(spoolId) {
   pending = null;
   if (!p || Date.now() > p.until || !accountUid) return false;
   const row = rowById(spoolId), chips = presentMakerChips();
-  if (!row || !chips.length) return false;
+  if (!row || !chips.length || _pairBlocked()) return false;
   try { await link(chips, row); closeChipChoice(); ctx.toast?.(ctx.t("linkedChipDone")); return true; }
   catch (e) { ctx.reportError?.("linkedChips.linkPending", e); return false; }
 }
@@ -306,7 +376,7 @@ function openChipWindow(chips, kind) {
       <b>${esc(label)}</b>
     </button>`;
   ctx.hideTip?.();
-  body.innerHTML = `${foreign ? _bambuSummaryHtml() : ""}<div class="lc-choices">${tile("catalogue", "search", t("linkedChipAddCatalogue"), t("linkedChipCatalogueTip"))}${tile("tagadd", "tigertag", t("linkedChipAddTag"), t("linkedChipTagTip"))}${tile("qr", "qr", t("linkedChipAddQr"), t("linkedChipQrTip"))}${tile("manual", "edit", t("linkedChipAddManual"), t("linkedChipManualTip"))}${tile("pick", "link", t("linkedChipExisting"), _pickTip(kind), _pickOff(kind))}${foreign ? "" : tile("erase", "recycle", t("chipEraserTitle"), t("chipEraserTip"))}${tile("restore", "tigertag", t("toolRepairPlus"), t("chipRestoreNeedChip"), true)}</div>`;
+  body.innerHTML = `${foreign ? _bambuSummaryHtml() + bambuPairGapHtml() : ""}<div class="lc-choices">${tile("catalogue", "search", t("linkedChipAddCatalogue"), t("linkedChipCatalogueTip"))}${tile("tagadd", "tigertag", t("linkedChipAddTag"), t("linkedChipTagTip"))}${tile("qr", "qr", t("linkedChipAddQr"), t("linkedChipQrTip"))}${tile("manual", "edit", t("linkedChipAddManual"), t("linkedChipManualTip"))}${tile("pick", "link", t("linkedChipExisting"), _pickTip(kind), _pickOff(kind))}${foreign ? "" : tile("erase", "recycle", t("chipEraserTitle"), t("chipEraserTip"))}${tile("restore", "tigertag", t("toolRepairPlus"), t("chipRestoreNeedChip"), true)}</div>`;
   choiceKind = kind;
   _refreshRestore();
   body.classList.remove("lc-in"); void body.offsetWidth; body.classList.add("lc-in");
@@ -429,7 +499,7 @@ export function refreshChipChoice() {
   const el = document.getElementById("chipChoicePanel");
   if (!el?.classList.contains("open") || !choiceKind) return;
   _refreshRestore();
-  if (choiceKind === "foreign") return;
+  if (choiceKind === "foreign") { _paintPairGap(); return; }
   const b = el.querySelector('[data-lc-go="pick"]');
   if (!b) return;
   const off = _pickOff(choiceKind), tip = _pickTip(choiceKind);
@@ -624,6 +694,8 @@ export function linkOfferHtml(row) {
   // no Link offer, the card falls back to its own banner (the burn).
   const n = offer ? presentMakerChips().length : 0;
   if (!n || !row || row.deleted || row.isFriend || linkedChipsOf(row).length || !rowBrandOk(row)) return "";
+  const gap = bambuPairGap();
+  if (gap) return bambuPairGapHtml(gap);
   const { t, esc } = ctx;
   return `
     <button type="button" class="chip-update-banner lc-offer-banner" id="lcOfferBanner" data-lc-offer="${esc(row.spoolId)}" data-hold-tip="linkedChipOfferTip">
@@ -646,7 +718,7 @@ export function wireLinkOffer(root) {
   }
   ctx.setupHoldToConfirm(btn, 1500, async () => {
     const row = rowById(btn.dataset.lcOffer), chips = presentMakerChips();
-    if (!offer || !row || !chips.length) return;
+    if (!offer || !row || !chips.length || _pairBlocked()) return;
     try {
       await link(chips, row);
       // Done: every side card closes, then the linked material's card opens alone.
