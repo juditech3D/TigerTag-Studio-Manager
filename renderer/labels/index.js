@@ -592,17 +592,26 @@ function render(body, cur) {
 const p15Error = e => Object.assign(new Error(e?.name === "NotFoundError" ? "notFound" : e?.message || "bluetooth"), { p15: true });
 const p15Known = e => e?.p15 && { notFound: "labelP15NotFound", noBluetooth: "labelBtUnavailable", needRoll: "labelQlNeedRoll" }[e.message];
 
+// The card's message, as a coloured pill: "busy" (blue: printing, searching),
+// "ok" (green: sent, connected) or "error" (red). Empty text hides it.
+function setMsg(msg, text, state = "error") {
+  if (!msg) return;
+  msg.textContent = text || "";
+  msg.classList.remove("is-busy", "is-ok", "is-error");
+  if (text) msg.classList.add("is-" + state);
+}
+
 // The P15's Connect button: the scan starts inside the click (Web Bluetooth needs it).
 async function connectP15(body, cur) {
   const msg = body.querySelector(".lbl-msg");
   const conn = p15Connect();
-  if (msg) { msg.textContent = ctx.t("labelBtSearching"); msg.classList.add("lbl-msg--ok"); }
+  setMsg(msg, ctx.t("labelBtSearching"), "busy");
   try {
     await conn;
     if (body.isConnected) render(body, cur);
   } catch (err) {
     const e = p15Error(err), known = p15Known(e);
-    if (msg) { msg.textContent = ctx.t(known || "labelExportFailed"); msg.classList.remove("lbl-msg--ok"); }
+    setMsg(msg, ctx.t(known || "labelExportFailed"));
     if (!known) ctx.reportError?.("label.connect.p15", e);
   }
 }
@@ -621,6 +630,7 @@ function watchQlState(printer, body) {
     const err = /error/i.test(st || ""), ready = /ready/i.test(st || "");
     el.textContent = err ? ctx.t("labelQlStateError") : ready ? ctx.t("labelQlStateReady") : "";
     el.classList.toggle("is-error", err);
+    el.classList.toggle("is-ok", ready && !err);
     qlStateTimer = setTimeout(tick, 5000);
   };
   tick();
@@ -630,10 +640,10 @@ function watchQlState(printer, body) {
 // before anything is awaited: Web Bluetooth only opens inside the click.
 async function printDirect(printer, lbl, row, kind, body, cur) {
   const msg = body.querySelector(".lbl-msg"), btn = body.querySelector('[data-lbl-out="print"]');
-  const say = (text, ok) => { if (msg) { msg.textContent = text; msg.classList.toggle("lbl-msg--ok", !!ok); } };
+  const say = (text, state) => setMsg(msg, text, state);
   const conn = printer.kind === "p15" ? p15Connect() : null;
   conn?.catch(() => {});   // reported below, once awaited
-  say(ctx.t("labelPrinting", { printer: printer.name }), true);
+  say(ctx.t("labelPrinting", { printer: printer.name }), "busy");
   if (btn) btn.disabled = true;
   try {
     let res;
@@ -652,12 +662,12 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
       res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName });
     }
     if (!res?.ok) throw new Error(res?.reason || "print failed");
-    say(ctx.t("labelPrinted", { printer: printer.name }), true);
+    say(ctx.t("labelPrinted", { printer: printer.name }), "ok");
     ctx.onLabelOut?.({ row, kind, template: lbl.template, output: "print", dpi: lbl.dpi });
   } catch (e) {
     // Nothing to report for a printer switched off or a computer without Bluetooth: said plainly.
     const known = p15Known(e);
-    say(ctx.t(known || "labelExportFailed"), false);
+    say(ctx.t(known || "labelExportFailed"), "error");
     if (!known) ctx.reportError?.("label.print." + printer.kind, e);
   } finally {
     if (btn) btn.disabled = false;
@@ -667,7 +677,7 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
 }
 
 async function exportLabel(format, lbl, row, kind, msg) {
-  if (msg) { msg.textContent = ""; msg.classList.remove("lbl-msg--ok"); }
+  setMsg(msg, "");
   const id = kind === "product" ? productLink(row.idProduct).split("/").pop() : String(row.spoolId).replace(/^TigerData_/, "");
   const fileName = `tigertag-${kind}-${id}-${lbl.mmW}x${lbl.mmH}`;
   const svg = format === "svg" ? lbl.svg : undefined;   // the label itself, sized in millimetres
@@ -677,7 +687,7 @@ async function exportLabel(format, lbl, row, kind, msg) {
     // A label actually printed or saved (not a cancelled dialog): counted (print_label).
     if (res?.ok) ctx.onLabelOut?.({ row, kind, template: lbl.template, output: format, dpi: lbl.dpi });
   } catch (e) {
-    if (msg) msg.textContent = ctx.t("labelExportFailed");
+    setMsg(msg, ctx.t("labelExportFailed"));
     ctx.reportError?.("label." + format, e);
   }
 }
