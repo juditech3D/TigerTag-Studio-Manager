@@ -3399,5 +3399,21 @@
     "one": "{{n}} zone blurred",
     "other": "{{n}} zones blurred"
   },
-  "friendNoName": "New member"
+  "friendNoName": "New member",
+  "forkReportBubble": "Something wrong?",
+  "forkReportTitle": "Report a problem",
+  "forkReportClose": "Close",
+  "forkReportPlaceholder": "What happened? What were you doing just before?",
+  "forkReportName": "Your Discord name (optional)",
+  "forkReportCapture": "Add a capture of the window",
+  "forkReportRecapture": "Take it again",
+  "forkReportRemove": "Remove",
+  "forkReportAuto": "Sent with it: the app version, your system and the last lines of the app's log. No e-mail, password or stock.",
+  "forkReportSend": "Send",
+  "forkReportSending": "Sending…",
+  "forkReportEmpty": "Describe the problem first.",
+  "forkReportFailed": "Could not send it. Check your Internet connection and try again: your text is kept.",
+  "forkReportTooSoon": "Wait a few seconds before sending another one.",
+  "forkReportSent": "Thanks, it's sent!",
+  "forkReportSentSub": "It is now on the fork's Discord."
 }

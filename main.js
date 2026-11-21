@@ -4281,6 +4281,86 @@ ipcMain.handle('report:capture', async (event) => {
   return img.isEmpty() ? null : `data:image/jpeg;base64,${img.toJPEG(88).toString('base64')}`;
 });
 
+// ── Fork: "Something wrong?" bubble → the fork's Discord channel ─────────────
+// renderer/fork-report posts a tester's report straight to a Discord webhook, so
+// reports about this unofficial fork never reach the official project's request
+// tracker (renderer/report). The webhook comes from fork-config.json, written at
+// build time by scripts/gen-fork-config.mjs (secret FORK_DISCORD_WEBHOOK); with
+// none, `available` is false and the bubble is not shown.
+function _forkReportWebhook() {
+  try { return require('./fork-config.json').reportWebhook || ''; } catch { return ''; }
+}
+// The last lines of main.log, with what could identify the user taken out
+// (e-mail addresses, IPv4 addresses, long tokens / keys). Best effort.
+function _forkReportLogTail(maxLines = 40) {
+  try {
+    const file = log.transports.file.getFile().path;
+    const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).slice(-maxLines);
+    return lines.join('\n')
+      .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, '<e-mail>')
+      .replace(/\b\d{1,3}(\.\d{1,3}){3}\b/g, '<ip>')
+      .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '<key>');
+  } catch { return ''; }
+}
+function _forkReportSystem() {
+  const os = require('os');
+  if (process.platform === 'darwin') {
+    const chip = process.arch === 'arm64' ? 'puce Apple' : 'Intel';
+    return `macOS ${process.getSystemVersion()} · ${chip}`;
+  }
+  const name = process.platform === 'win32' ? os.version() : `${os.type()} ${os.release()}`;
+  return `${name} · ${process.arch}`;
+}
+ipcMain.handle('forkReport:available', () => !!_forkReportWebhook());
+let _forkReportLastAt = 0;
+ipcMain.handle('forkReport:send', async (_e, payload = {}) => {
+  const hook = _forkReportWebhook();
+  if (!hook) return { ok: false, error: 'not-configured' };
+  if (Date.now() - _forkReportLastAt < 20_000) return { ok: false, error: 'too-soon' };
+  const text = String(payload.text || '').trim().slice(0, 3500);
+  if (!text) return { ok: false, error: 'empty' };
+  const pseudo = String(payload.pseudo || '').trim().slice(0, 60);
+  const embed = {
+    // The channel is the fork maintainer's (French-speaking) Discord.
+    title: `🐞 ${pseudo ? `Problème signalé par ${pseudo}` : 'Problème signalé'}`.slice(0, 250),
+    description: text,
+    color: 0xff6b00,
+    fields: [
+      { name: 'Version', value: app.getVersion(), inline: true },
+      { name: 'Système', value: _forkReportSystem(), inline: true },
+    ],
+    timestamp: new Date().toISOString(),
+  };
+  const form = new FormData();
+  const files = [];
+  const img = /^data:image\/(jpeg|png);base64,(.+)$/.exec(String(payload.image || ''));
+  if (img) {
+    const name = `capture.${img[1] === 'png' ? 'png' : 'jpg'}`;
+    form.append(`files[${files.length}]`, new Blob([Buffer.from(img[2], 'base64')], { type: `image/${img[1]}` }), name);
+    files.push(name);
+    embed.image = { url: `attachment://${name}` };
+  }
+  const tail = _forkReportLogTail();
+  if (tail) {
+    form.append(`files[${files.length}]`, new Blob([tail], { type: 'text/plain' }), 'log.txt');
+    files.push('log.txt');
+  }
+  form.append('payload_json', JSON.stringify({
+    username: 'Tiger Studio Fork',
+    embeds: [embed],
+    allowed_mentions: { parse: [] },   // a report can never ping anyone
+    attachments: files.map((filename, id) => ({ id, filename })),
+  }));
+  try {
+    const res = await fetch(hook, { method: 'POST', body: form, signal: AbortSignal.timeout(20_000) });
+    if (!res.ok) return { ok: false, error: `http-${res.status}` };
+    _forkReportLastAt = Date.now();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e?.name === 'TimeoutError' ? 'timeout' : 'network' };
+  }
+});
+
 ipcMain.handle('app:info', () => {
   const os = require('os');
   return {

@@ -16,6 +16,21 @@
 
 ### Added
 
+- A "Something wrong?" bubble at the bottom right of the desktop app: a small card to describe a
+  problem, give a Discord name (remembered on the device), attach a capture of the window (card and
+  bubble hidden), and send it straight to the fork's Discord channel through a webhook, with the app
+  version, the system (macOS version + Apple chip / Intel) and the last 40 lines of `main.log` scrubbed of
+  e-mails, IPs and long keys; mentions disabled, one send per 20 s, text kept on a failure. Reports about
+  the fork never go to the official tracker (`renderer/report`). The webhook comes from the build secret
+  `FORK_DISCORD_WEBHOOK`, written into the packed, gitignored `fork-config.json` by
+  `scripts/gen-fork-config.mjs` (run by every `build:*` script); without it the bubble is not shown.
+  `main.js` (IPC `forkReport:available`, `forkReport:send`), `preload.js` (`forkReport`),
+  `renderer/fork-report/fork-report.js` + `.css`, `renderer/inventory.html`, `renderer/inventory.js`
+  (`initForkReport`), `package.json`, `.gitignore`, both workflows. i18n: `forkReportBubble`,
+  `forkReportTitle`, `forkReportClose`, `forkReportPlaceholder`, `forkReportName`, `forkReportCapture`,
+  `forkReportRecapture`, `forkReportRemove`, `forkReportAuto`, `forkReportSend`, `forkReportSending`,
+  `forkReportEmpty`, `forkReportFailed`, `forkReportTooSoon`, `forkReportSent`, `forkReportSentSub`
+  (11 locales).
 - A macOS build (Apple Silicon `mac-arm64` + Intel `mac-x64`, `.dmg` + `.zip`) in every release. It is
   signed ad-hoc (`build.mac.identity: "-"`, no hardened runtime, no notarization: the fork holds no
   Apple Developer ID), which Apple Silicon needs to start it at all; Gatekeeper still asks the user to

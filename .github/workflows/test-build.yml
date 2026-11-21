@@ -94,6 +94,8 @@ jobs:
           # Baked in so Google sign-in works in the test build.
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          # Fork: Discord webhook of the report bubble (scripts/gen-fork-config.mjs)
+          FORK_DISCORD_WEBHOOK: ${{ secrets.FORK_DISCORD_WEBHOOK }}
           # Belt and braces on macOS: without this electron-builder still hunts
           # the keychain for an identity and can fail the build on a runner that
           # has none, even with identity=null in the script.
@@ -141,12 +143,14 @@ jobs:
         run: >-
           node scripts/prepare-ffmpeg.mjs darwin &&
           node scripts/gen-oauth-config.mjs &&
+          node scripts/gen-fork-config.mjs &&
           npx electron-builder --mac --publish never
           -c.productName="Tiger Studio Fork"
           -c.appId=io.tigertag.inventory.forktest
           -c.mac.artifactName='Tiger-Studio-Fork-test-${version}-mac-${arch}.${ext}'
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          FORK_DISCORD_WEBHOOK: ${{ secrets.FORK_DISCORD_WEBHOOK }}
 
       - name: Check the signature
         run: |

@@ -3399,5 +3399,21 @@
     "one": "{{n}} zona sfocata",
     "other": "{{n}} zone sfocate"
   },
-  "friendNoName": "Nuovo membro"
+  "friendNoName": "Nuovo membro",
+  "forkReportBubble": "Un problema?",
+  "forkReportTitle": "Segnala un problema",
+  "forkReportClose": "Chiudi",
+  "forkReportPlaceholder": "Cos'è successo? Cosa stavi facendo poco prima?",
+  "forkReportName": "Il tuo nome Discord (facoltativo)",
+  "forkReportCapture": "Allega una cattura della finestra",
+  "forkReportRecapture": "Rifai la cattura",
+  "forkReportRemove": "Rimuovi",
+  "forkReportAuto": "Inviati insieme: la versione dell'app, il tuo sistema e le ultime righe del registro dell'app. Niente e-mail, password o magazzino.",
+  "forkReportSend": "Invia",
+  "forkReportSending": "Invio…",
+  "forkReportEmpty": "Descrivi prima il problema.",
+  "forkReportFailed": "Invio non riuscito. Controlla la connessione Internet e riprova: il testo resta qui.",
+  "forkReportTooSoon": "Attendi qualche secondo prima di inviarne un altro.",
+  "forkReportSent": "Grazie, inviato!",
+  "forkReportSentSub": "Ora è sul Discord del fork."
 }

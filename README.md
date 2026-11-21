@@ -84,6 +84,9 @@ the fork runs from source (see [Install & run](#install--run)). The official app
   Developer ID, so macOS asks you once to allow it: see
   [Opening the app on macOS](#opening-the-app-on-macos--ouvrir-lapplication-sur-macos). It does not update
   itself: download the new `.dmg` from the releases page.
+- **A "Something wrong?" bubble** at the bottom right of the app sends a problem, with an optional
+  capture of the window, straight to the fork's Discord, together with the app version and the system.
+  Reports about the fork never go to the official project.
 - **A TigerScale as a TigerPOD.** While the TigerPOD tool is open on a scale running the
   [alternative TigerScale firmware](https://github.com/juditech3D/Tiger-Scale-V3), its two readers show up
   in Studio as two more RFID readers. Every chip feature works on them as on a USB reader: open the spool

@@ -95,6 +95,8 @@ jobs:
           # Google Desktop OAuth — Touch ID / loopback sign-in
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          # Fork: Discord webhook of the report bubble (scripts/gen-fork-config.mjs)
+          FORK_DISCORD_WEBHOOK: ${{ secrets.FORK_DISCORD_WEBHOOK }}
 
       # ─────────────────────────────────────────────────────────────────
       # macOS (fork) — ad-hoc signed, not notarized, built without publishing
@@ -113,6 +115,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          # Fork: Discord webhook of the report bubble (scripts/gen-fork-config.mjs)
+          FORK_DISCORD_WEBHOOK: ${{ secrets.FORK_DISCORD_WEBHOOK }}
 
       - name: Check the macOS app carries a valid (ad-hoc) signature
         if: matrix.os == 'macos-latest'
@@ -160,6 +164,8 @@ jobs:
           # Google Desktop OAuth — Touch ID / loopback sign-in
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_ID }}
           TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.TIGERTAG_GOOGLE_DESKTOP_CLIENT_SECRET }}
+          # Fork: Discord webhook of the report bubble (scripts/gen-fork-config.mjs)
+          FORK_DISCORD_WEBHOOK: ${{ secrets.FORK_DISCORD_WEBHOOK }}
 
       - name: Check Trusted Signing secrets availability
         id: check_signing

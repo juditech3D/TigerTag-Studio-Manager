@@ -163,6 +163,7 @@ import { sdcpWireLive } from './printers/elegoo/sdcp.js';
 import { elgFanStep } from './printers/elegoo/widget_control.js';
 import { jobBar, jobBarFill } from './printers/job-bar.js';
 import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, reportDragState, syncReports, refreshSquadCard, reportCall } from './report/index.js';
+import { initForkReport } from './fork-report/fork-report.js';
 import { initSupportTools } from './ai/support-tools.js';
 import { initScreenTools } from './ai/screen-tools.js';
 
@@ -27614,6 +27615,8 @@ import { initScreenTools } from './ai/screen-tools.js';
   $("sbMakerWorldBtn").addEventListener("click", () => _clickCommunityBtn("makerworld"));
   $("sbDiscordBtn").addEventListener("click", () => _clickCommunityBtn("discord"));
   $("sbCoffeeBtn")?.addEventListener("click", _openCoffee);
+  // Fork: "Something wrong?" bubble → the fork's Discord channel, never the official tracker (fork-report/).
+  initForkReport({ t });
   // Improvements & suggestions → in-app report that becomes a public GitHub issue (report/index.js).
   initReport({
     t, esc,

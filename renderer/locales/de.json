@@ -3399,5 +3399,21 @@
     "one": "{{n}} Bereich verwischt",
     "other": "{{n}} Bereiche verwischt"
   },
-  "friendNoName": "Neues Mitglied"
+  "friendNoName": "Neues Mitglied",
+  "forkReportBubble": "Ein Problem?",
+  "forkReportTitle": "Problem melden",
+  "forkReportClose": "Schließen",
+  "forkReportPlaceholder": "Was ist passiert? Was haben Sie kurz davor gemacht?",
+  "forkReportName": "Ihr Discord-Name (optional)",
+  "forkReportCapture": "Bildschirmfoto des Fensters anhängen",
+  "forkReportRecapture": "Erneut aufnehmen",
+  "forkReportRemove": "Entfernen",
+  "forkReportAuto": "Wird mitgesendet: App-Version, Ihr System und die letzten Zeilen des App-Protokolls. Keine E-Mail, kein Passwort, kein Bestand.",
+  "forkReportSend": "Senden",
+  "forkReportSending": "Wird gesendet…",
+  "forkReportEmpty": "Beschreiben Sie zuerst das Problem.",
+  "forkReportFailed": "Senden fehlgeschlagen. Prüfen Sie Ihre Internetverbindung und versuchen Sie es erneut: Ihr Text bleibt erhalten.",
+  "forkReportTooSoon": "Warten Sie ein paar Sekunden, bevor Sie eine weitere senden.",
+  "forkReportSent": "Danke, gesendet!",
+  "forkReportSentSub": "Sie ist jetzt im Discord des Forks."
 }
