@@ -22,7 +22,12 @@ on:
   push:
     branches:
       - 'test/**'
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      mac_prerelease:
+        description: 'Also publish the macOS build as a GitHub pre-release for testers (mac-test-N)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -101,3 +106,71 @@ jobs:
           path: ${{ matrix.path }}
           if-no-files-found: error
           retention-days: 7
+
+  # ─────────────────────────────────────────────────────────────────
+  # Optional: hand the macOS build to testers who have no GitHub account.
+  # Artifacts need a signed-in account and expire after 7 days, so this
+  # publishes the two .dmg as a PRE-release instead.
+  #
+  # Why it cannot reach anyone's auto-updater:
+  #   • the tag is `mac-test-<run>`, not semver — electron-updater skips any
+  #     release whose tag is not a valid version (GitHubProvider), and the
+  #     stable path reads /releases/latest, which never returns a pre-release;
+  #   • it is not marked latest and carries no latest*.yml;
+  #   • a `mac-test-*` tag does not match build.yml's `v*` trigger.
+  #
+  # The app is renamed "Tiger Studio Fork" (own bundle id) so that dragging
+  # it into Applications does not replace an official Tiger Studio Manager.
+  # Delete the pre-release and its tag once the test is over.
+  # ─────────────────────────────────────────────────────────────────
+  mac-prerelease:
+    if: github.event_name == 'workflow_dispatch' && inputs.mac_prerelease
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - run: npm ci
+
+      - name: Build macOS test app (ad-hoc signed, own name)
+        run: >-
+          node scripts/prepare-ffmpeg.mjs darwin &&
+          node scripts/gen-oauth-config.mjs &&
+          npx electron-builder --mac --publish never
+          -c.productName="Tiger Studio Fork"
+          -c.appId=io.tigertag.inventory.forktest
+          -c.mac.artifactName='Tiger-Studio-Fork-test-${version}-mac-${arch}.${ext}'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+
+      - name: Check the signature
+        run: |
+          set -euo pipefail
+          for app in dist/mac*/*.app; do
+            echo "== $app"
+            codesign --verify --deep --verbose=2 "$app"
+          done
+
+      - name: Publish the pre-release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: mac-test-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          name: macOS test ${{ github.run_number }} (not a release)
+          prerelease: true
+          make_latest: false
+          body: |
+            ⚠️ **macOS test build, not a release.** Unofficial fork, not supported by the TigerTag Project. Windows and Linux users: use the latest release instead.
+
+            - Apple chip (M1, M2, M3, M4…): `Tiger-Studio-Fork-test-…-mac-arm64.dmg`
+            - Intel: `Tiger-Studio-Fork-test-…-mac-x64.dmg`
+
+            The app is called **Tiger Studio Fork** and installs next to an official Tiger Studio Manager without replacing it. It is not signed by Apple: macOS asks once to allow it, see [Opening the app on macOS / Ouvrir l'application sur macOS](https://github.com/juditech3D/TigerTag-Studio-Manager/blob/claude/project-thread-7fv8tn/README.md#opening-the-app-on-macos--ouvrir-lapplication-sur-macos) (the app name there is "Tiger Studio Manager": use "Tiger Studio Fork" instead). Sign in with your e-mail and password; Google sign-in does not work in this build.
+          files: dist/*.dmg
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

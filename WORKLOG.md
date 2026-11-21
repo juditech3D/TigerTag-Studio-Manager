@@ -27,7 +27,10 @@
   Known limitations. `package.json` (`build.mac`, script `build:mac:fork`),
   `.github/workflows/build.yml` (mac matrix entry, Apple signing steps removed, ad-hoc signature check,
   draft upload without `latest-mac.yml`, publish check for both `.dmg`), `.github/workflows/test-build.yml`
-  (mac test build uses `build:mac:fork`), `README.md`.
+  (mac test build uses `build:mac:fork`; on a manual run with `mac_prerelease` it also publishes the two `.dmg` as a
+  `mac-test-<run>` pre-release for testers without a GitHub account, app renamed "Tiger Studio Fork" with its
+  own bundle id so it installs next to the official app; not semver, never latest, no `latest*.yml`, so no
+  updater can pick it up), `README.md`.
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
   the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware
