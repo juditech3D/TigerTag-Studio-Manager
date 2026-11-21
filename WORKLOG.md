@@ -16,6 +16,28 @@
 
 ### Added
 
+- TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
+  screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
+  the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware
+  without `/wake`). The live view and the screenshot wake a sleeping scale the same way instead of
+  a tap in the middle, which pressed a button when `power_state` was one beat stale; on a firmware
+  without `/wake` the screenshot is read as it is. `main.js` (IPC `tigerscale:wake`,
+  `tigerscale:screenshot`), `preload.js` (`tigerscale.wake`), `renderer/IoT/tigerscale/index.js`
+  (`_buildScaleLanHtml`, `_scaleWake`), `renderer/IoT/tigerscale/live.js`. i18n: `scaleWake`,
+  `scaleWakeDone`, `scaleWakeFail`, `scaleWakeOld` (11 locales).
+- TigerScale live view: its Screenshot button closes the live view before opening the preview,
+  which used to open behind it (two `.modal-overlay` of the same z-index, the live one added last),
+  so the click seemed to do nothing. `renderer/IoT/tigerscale/live.js` (`openScaleLive`).
+- A Bambu Lab spool is saved or linked only once BOTH of its chips are read (two UIDs,
+  same tray UID): while one is missing, every Link banner gives way to a "1 of 2 chips
+  read" notice saying what to do (TigerScale: Settings → RFID → Auto with the spool in
+  place; TigerPOD: set the spool down flat between the readers), and creations that
+  would take the chips are refused. Other makers' chips are unchanged.
+  `renderer/rfid_protocol/linked/index.js` (`bambuPairGap`, `bambuPairGapHtml`,
+  `_pairBlocked`, `_paintPairGap`, `makerReader`), `renderer/rfid_protocol/linked/linked.css`
+  (`.lc-pair-gap`), `renderer/inventory.js` (`saveAddProduct`, `_catalogCreate`,
+  `_adpRenderFoot`), `docs/LINKED-CHIPS.md`. i18n: `bambuPairMissing`,
+  `bambuPairHintPod`, `bambuPairHintScale`.
 - A `tigertag://report?kind=<bug|idea|improve|question>&about=<studio|tigertouch|tigerpod|tigerscale|tigerspool|mobile>&title=…&body=…`
   link opens the request card ("Improvements & suggestions") pre-filled, as the AI assistant's
   `open_ticket` does; a link that arrives before sign-in opens it after. Pre-fill only: the user
@@ -108,6 +130,12 @@
   batch `set()` without merge, which Firestore rejects, so every Import-mode file failed with
   "ttagImportErr" and nothing was written. The field is now left out of the new doc
   (`_ttagBuildWrites` in `renderer/inventory.js`). Restore mode was not affected.
+- Settings → "Check for updates" no longer prints electron-updater's raw error (URL, HTTP
+  headers, stack) when a release is tagged but its build has not uploaded `latest.yml` yet: it
+  says an update is being published and to wait a few minutes. A network failure and any other
+  error each get one short sentence; the full error goes to `main.log`. `main.js`
+  (`updaterErrorReason`, sends `reason` instead of `error` on `update-status` and
+  `update:check-now`), `renderer/inventory.js` (`updateErrorText`), `CODEMAP-main.md`.
 
 ### i18n
 
@@ -115,3 +143,4 @@
 - Barcode scan: `scanUnknownCode` (after `catalogTypeUnsupported`), 11 locales.
 - Bambu Lab chip: `bambuChipSummary` (after `linkedChipTitle`), 11 locales.
 - Label printers: `labelTpl_p15` (after `labelTpl_qrOnly`), `labelPrinter`, `labelPrinterDialog`, `labelPrinterP15`, `labelPrinterConnected`, `labelPrinterNetwork`, `labelPrinterInstalled`, `labelPrinterSearch`, `labelP15NoFit`, `labelPrinting`, `labelPrinted`, `labelP15NotFound`, `labelBtUnavailable`, `labelBtConnect`, `labelBtNotConnected`, `labelBtSearching`, `labelBtPick`, `labelBtNoName`, `labelQlRoll`, `labelQlRollAuto`, `labelQlRollContinuous`, `labelQlNeedRoll`, `labelQlAddress`, `labelQlNoFit`, `labelQlStateError`, `labelQlStateReady` (after `labelExportFailed`), `labelTpl_ql62x29` (after `labelTpl_p15`), 11 locales.
+- Update check: `aboutCheckUpdatePending`, `aboutCheckUpdateOffline` (after `aboutCheckUpdateErr`, whose text is now a full sentence), 11 locales.

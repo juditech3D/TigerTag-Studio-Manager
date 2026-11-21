@@ -70,6 +70,8 @@ contextBridge.exposeInMainWorld('tigerspool', {
 // TigerScale V3 — one picture of its screen, read from its :81 live stream by main.
 contextBridge.exposeInMainWorld('tigerscale', {
   screenshot: (url, code, wake) => ipcRenderer.invoke('tigerscale:screenshot', { url, code, wake }),
+  // Light its screen without touching it (POST :81/wake).
+  wake: (url, code) => ipcRenderer.invoke('tigerscale:wake', { url, code }),
   // The scales whose readers can stand in for a TigerPOD (services/scale-pod.js).
   podScales: (list) => ipcRenderer.invoke('tigerscale:pod-scales', list),
 });

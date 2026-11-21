@@ -11,8 +11,9 @@
  * reads it directly. `POST {lan_url}/tap?c=&x=&y=` is a finger (480×320).
  *
  * The scale serves TWO viewers at most: the stream is aborted the moment the
- * view closes, never left open. A screen asleep is black: one tap in the middle
- * wakes it (swallowed, it opens nothing) before the stream starts.
+ * view closes, never left open. A screen asleep is black: it is woken with
+ * `/wake` (through main, which lights it and presses nothing) before the stream
+ * starts. Never with a tap: on a screen already lit, a tap presses a button.
  *
  * The modal is built here on the Tiger Touch live view's classes (tigertouch.css)
  * so the two devices' live views look the same.
@@ -93,7 +94,11 @@ export function openScaleLive(s, { t, esc, getDoc, onShot }) {
     <div class="ttc-shot-actions"><span class="ttc-live-hint">${esc(t("scaleLiveHint"))}</span>
       <button type="button" class="ttc-btn" data-tsc-live-shot><span class="icon icon-camera icon-14"></span><span>${esc(t("tigertouchScreenshot"))}</span></button></div>`;
   const live = _live = { mac: s.mac, ctl: null, stop: false };
-  body.querySelector("[data-tsc-live-shot]").addEventListener("click", () => { const d = getDoc(s.mac); if (d) onShot(d); });
+  // Close the live view first: the screenshot preview is an overlay of the same
+  // z-index declared earlier in the page, so it opened behind this one and the
+  // click looked like it did nothing. Closing also frees one of the scale's two
+  // stream slots, which the screenshot needs.
+  body.querySelector("[data-tsc-live-shot]").addEventListener("click", () => { const d = getDoc(s.mac); if (!d) return; closeScaleLive(); onShot(d); });
   wireTap(body.querySelector(".ttc-live-frame"), live, getDoc);
   overlay.classList.add("open");
   loop(live, { t, getDoc, asleep: s.power_state === "screen_off" });
@@ -113,8 +118,8 @@ async function loop(live, { t, getDoc, asleep }) {
     const q = `c=${encodeURIComponent(s.lan_access_code)}`;
     if (asleep) {
       asleep = false;
-      try { await fetch(`${base}/tap?${q}&x=240&y=160`, { method: "POST" }); } catch (_) {}
-      await nap(1500);
+      const r = await window.tigerscale?.wake?.(s.lan_url, s.lan_access_code).catch(() => null);
+      if (r?.ok) await nap(1500);
     }
     live.ctl = new AbortController();
     try {

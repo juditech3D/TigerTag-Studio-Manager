@@ -3,7 +3,7 @@ import { decimalSpoolIdToHex, repairTruncatedNtagUid, isDecimalSpoolId, planTrun
 import { initRfidTester } from './rfid_protocol/tigertag/index.js';
 import { RAL_CLASSIC } from './ral-classic.js';
 import { openColorPop } from './color-pop.js';
-import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
+import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
 import { initLabels, openLabelCard, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
@@ -3972,7 +3972,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const makers = HAS_NATIVE && brandHasMakerChips(parseInt($("adpBrand")?.value, 10)) ? presentMakerChips().length : 0;
     const burn = !makers && HAS_NATIVE && state.nfcReaderCount > 0;
     const chip = burn && state.nfcCardPresent.size > 0;
-    const mode = makers ? `link:${makers}` : chip ? "burn:chip" : burn ? "burn" : "";
+    const mode = makers ? `link:${makers}${bambuPairGap() ? ":gap" : ""}` : chip ? "burn:chip" : burn ? "burn" : "";
     if (slot.dataset.mode === mode) return;
     slot.dataset.mode = mode;
     slot.innerHTML = makers ? makerLinkBannerHtml("adpLinkBanner", makers)
@@ -4026,6 +4026,8 @@ import { initScreenTools } from './ai/screen-tools.js';
 
     const uid = state.activeAccountId;
     if (!uid) return showErr(t("invalidKey", { r: "no account" }));
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || pendingMakerChips()) && bambuPairGap()) return showErr(t("bambuPairMissing"));
 
     const get = id => $(id)?.value;
     const { r, g, b } = _adpHexToRgb(_adpColorSlots[0]);
@@ -17786,6 +17788,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!keepLink) clearPendingLink();
     // Feedback goes to whichever surface the user actually triggered this from.
     const res$ = $("pcCatMsg") || $("roSaveResult");
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || (keepLink && pendingMakerChips())) && bambuPairGap()) { toast(res$, "bad", t("bambuPairMissing")); return; }
     _catalogSetBusy(true);
     try {
       // The one network call of this path — the same detail endpoint the
@@ -26972,6 +26976,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       showUpdateStatus._t = setTimeout(() => { el.hidden = true; }, 6000);
     }
   }
+  // Short sentence for an updater failure; the raw error stays in main.log.
+  function updateErrorText(reason) {
+    if (reason === "pending") return t("aboutCheckUpdatePending") || "An update is being published. Please wait a few minutes and try again.";
+    if (reason === "offline") return t("aboutCheckUpdateOffline") || "Could not reach the update server. Check your connection.";
+    return t("aboutCheckUpdateErr") || "Could not check for updates. The details are in the log.";
+  }
   $("btnCheckUpdate")?.addEventListener("click", async () => {
     const btn = $("btnCheckUpdate");
     if (!btn || btn.disabled) return;
@@ -26980,12 +26990,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     try {
       const r = await window.electronAPI?.checkForUpdates?.();
       if (!r?.ok) {
-        showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (r?.error || "?"), "err");
+        showUpdateStatus(updateErrorText(r?.reason), r?.reason === "pending" ? "warn" : "err");
       }
       // Success cases (up-to-date / available / ready) are surfaced by the
       // 'update-status' event listener below — no extra UI here.
     } catch (e) {
-      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (e?.message || e), "err");
+      console.warn("[updater] check failed:", e);
+      showUpdateStatus(updateErrorText("other"), "err");
     } finally {
       setTimeout(() => { btn.disabled = false; }, 2000);
     }
@@ -27000,7 +27011,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       else if (status === "up-to-date") showUpdateStatus(t("aboutCheckUpdateUpToDate") || "You're on the latest version.", "ok");
       else if (status === "available")  showUpdateStatus((t("aboutCheckUpdateAvailable") || "New version available") + (info.version ? ` (v${info.version})` : "") + " — downloading…", "info");
       else if (status === "ready")      showUpdateStatus((t("aboutCheckUpdateReady") || "Update ready — restart to install") + (info.version ? ` (v${info.version})` : ""), "ok");
-      else if (status === "error")      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (info.error || "?"), "err");
+      else if (status === "error")      showUpdateStatus(updateErrorText(info.reason), info.reason === "pending" ? "warn" : "err");
     });
   }
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDebug(); });

@@ -2759,8 +2759,27 @@ function wireUpdaterEvents() {
     });
   }
   autoUpdater.on('error', (err) => {
-    mainWindow?.webContents.send('update-status', { status: 'error', error: err?.message || String(err) });
+    mainWindow?.webContents.send('update-status', { status: 'error', reason: updaterErrorReason(err) });
   });
+}
+
+// electron-updater errors carry a URL, the HTTP headers and a stack: useful in
+// main.log, unreadable in the Settings line. The renderer only gets a reason
+// and picks a short sentence for it.
+//   'pending' — the release is tagged but its build has not uploaded the
+//               update files yet (latest.yml 404): the update is on its way.
+//   'offline' — GitHub could not be reached.
+//   'other'   — anything else; the full error is in main.log.
+function updaterErrorReason(err) {
+  log.warn('[updater] error:', err?.stack || err?.message || err);
+  const code = String(err?.code || '');
+  const msg  = String(err?.message || err || '');
+  if (['ERR_UPDATER_CHANNEL_FILE_NOT_FOUND', 'ERR_UPDATER_ASSET_NOT_FOUND',
+       'ERR_UPDATER_LATEST_VERSION_NOT_FOUND', 'ERR_UPDATER_NO_PUBLISHED_VERSIONS'].includes(code)
+      || /Cannot find .*\.yml|HttpError: 404|\b404\b/.test(msg)) return 'pending';
+  if (['ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH'].includes(code)
+      || /net::ERR_|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN/.test(msg)) return 'offline';
+  return 'other';
 }
 
 function initUpdater() {
@@ -3138,7 +3157,7 @@ ipcMain.handle('update:check-now', async () => {
     await autoUpdater.checkForUpdates();
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e?.message || String(e) };
+    return { ok: false, reason: updaterErrorReason(e) };
   }
 });
 
@@ -4860,9 +4879,8 @@ let _ffmpegBin = null;
   // (u16 w, h, bandCols), 2 FRAME_BEGIN, 5 BAND (u8 index, u16 len, rle565),
   // 4 FRAME_END, 3 PING. A new viewer gets every band in its first frame, so
   // one FRAME_END after a FRAME_BEGIN is the whole screen: read it, hang up —
-  // the scale serves two viewers at most. A screen asleep is black: one tap in
-  // the middle wakes it (a press on a dark screen is swallowed, it opens
-  // nothing), then ~1.5 s before reading.
+  // the scale serves two viewers at most. A screen asleep is black: POST
+  // `/wake?c=CODE` lights it without a press, then ~1.5 s before reading.
   // Within a band, memory runs down a column and columns run right to left.
   // The account's scales with a LAN address and code, for the TigerPOD tool
   // (services/scale-pod.js keeps only local addresses and never logs the code).
@@ -4873,11 +4891,25 @@ let _ffmpegBin = null;
     if (!/^[A-Za-z0-9]{6}$/.test(String(code || ''))) return { ok: false, error: 'code' };
     const q = `c=${encodeURIComponent(code)}`;
     if (wake) {
-      const r = await screenFetch(u.host, `/tap?${q}&x=240&y=160`, { method: 'POST', timeout: 4000 });
-      if (!r.ok) return r;
-      await new Promise(res => setTimeout(res, 1500));
+      // /wake lights the screen and presses nothing. A tap in the middle used to
+      // do it, and pressed whatever was there when the screen was already on
+      // (power_state can be a beat old). A firmware without /wake answers 404:
+      // the frame is then read as it is, black, rather than risk a press.
+      const r = await screenFetch(u.host, `/wake?${q}`, { method: 'POST', timeout: 4000 });
+      if (!r.ok && r.error !== 'http 404') return r;
+      if (r.ok) await new Promise(res => setTimeout(res, 1500));
     }
     return readScaleFrame(u.hostname, Number(u.port) || 80, q);
+  });
+  // Light the scale's screen from Studio (the scale card's Wake button, the live
+  // view). { ok } · { error: 'old' } for a firmware without /wake · 'unreachable'.
+  ipcMain.handle('tigerscale:wake', async (_e, { url, code } = {}) => {
+    let u; try { u = new URL(String(url)); } catch { return { ok: false, error: 'address' }; }
+    if (u.protocol !== 'http:' || !localAddr(u.host)) return { ok: false, error: 'address' };
+    if (!/^[A-Za-z0-9]{6}$/.test(String(code || ''))) return { ok: false, error: 'code' };
+    const r = await screenFetch(u.host, `/wake?c=${encodeURIComponent(code)}`, { method: 'POST', timeout: 4000 });
+    if (r.ok) return { ok: true };
+    return { ok: false, error: r.error === 'http 404' ? 'old' : r.error };
   });
   const readScaleFrame = (host, port, q) => new Promise(resolve => {
     const http = require('http');
