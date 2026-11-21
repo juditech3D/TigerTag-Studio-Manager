@@ -246,8 +246,8 @@ function berOid(oid) {
 // One SNMP v1 request: a GET (`set` undefined) answers the value as text (an
 // OCTET STRING) or a number; a SET of an INTEGER answers its error-status
 // (0 = done, 2 noSuchName, 4 readOnly…). null when nothing answers.
-// (A QL-580N stuck in a media error ignores prtGeneralReset and ESC @ alike:
-// only its Power button clears it, so Studio says so instead of trying.)
+// (A QL-580N stuck in a media error is not cleared by ESC @, and was not seen
+// to restart on prtGeneralReset: its Power button clears it, so Studio says so.)
 function snmpV1(host, oid, { set, community = 'public', timeoutMs = 1500 } = {}) {
   const dgram = require('dgram');
   const id = (Math.random() * 0x7fffffff) | 0;

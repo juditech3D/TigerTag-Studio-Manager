@@ -25,8 +25,8 @@ take are greyed out.
   wrong roll puts the printer in error.
 - **The printer is in error** (error light on, nothing prints): press its **Power** button once to
   clear the error, then print again. The card says so: it reads the printer's state over SNMP and
-  shows "In error" or "Ready". Nothing clears the error from the network — a QL-580N ignores both the
-  Printer MIB reset (`prtGeneralReset`) and `ESC @`.
+  shows "In error" or "Ready". On a QL-580N, `ESC @` on the raw port does not clear it, and a Printer MIB
+  reset (`prtGeneralReset`) was not seen to restart it either.
 
 ## Marklife P15 (Bluetooth)
 
