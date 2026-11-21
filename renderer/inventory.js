@@ -10362,7 +10362,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "inv-brand-filter csel-btn";      // reuse the filter look + its caret
-    btn.innerHTML = `<span class="csel-label"></span>`;
+    btn.innerHTML = `<img class="csel-thumb" alt="" hidden><span class="csel-label"></span>`;
+    btn.querySelector(".csel-thumb").addEventListener("error", e => { e.target.hidden = true; });   // a missing picture leaves the text alone
     const pop = document.createElement("div");
     pop.className = "csel-pop"; pop.hidden = true;
     wrap.append(btn, pop);
@@ -10373,6 +10374,11 @@ import { initScreenTools } from './ai/screen-tools.js';
       // (an i18n key). The open list still shows the full "All brands" row.
       const short = sel.dataset.cselShort;
       btn.querySelector(".csel-label").textContent = (!sel.value && short) ? t(short) : (o ? o.text : "");
+      // An option may carry a picture (data-thumb: the printer in the label card);
+      // the button shows the chosen one's, the list each one's.
+      const thumb = btn.querySelector(".csel-thumb"), src = o?.dataset.thumb || "";
+      thumb.hidden = !src;
+      if (src && thumb.getAttribute("src") !== src) thumb.src = src;
       btn.classList.toggle("is-active", !!sel.value);
       btn.disabled = sel.disabled;   // a disabled <select> keeps its dropdown shut
       if (sel.title) btn.title = sel.title;
@@ -10391,7 +10397,8 @@ import { initScreenTools } from './ai/screen-tools.js';
         ? `<div class="csel-pop-head"><input type="search" class="csel-search" placeholder="${esc(t("searchShort"))}" aria-label="${esc(t("searchShort"))}"></div>`
         : "";
       pop.innerHTML = filterHTML + `<div class="csel-pop-list">` + Array.from(sel.options).map((o, i) =>
-        `<button type="button" class="csel-opt${i === sel.selectedIndex ? " is-sel" : ""}" data-i="${i}">${esc(o.text)}</button>`).join("") + `</div>`;
+        `<button type="button" class="csel-opt${i === sel.selectedIndex ? " is-sel" : ""}" data-i="${i}">${o.dataset.thumb ? `<img class="csel-thumb" src="${esc(o.dataset.thumb)}" alt="">` : ""}${esc(o.text)}</button>`).join("") + `</div>`;
+      pop.querySelectorAll(".csel-thumb").forEach(img => img.addEventListener("error", () => img.remove(), { once: true }));
       pop.hidden = false; wrap.classList.add("csel--open");
       _cselOpen.add(close);
       // Wired HERE, right after the list is built — not by the caller after

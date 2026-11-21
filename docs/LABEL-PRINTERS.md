@@ -28,6 +28,14 @@ take are greyed out.
   shows "In error" or "Ready". On a QL-580N, `ESC @` on the raw port does not clear it, and a Printer MIB
   reset (`prtGeneralReset`) was not seen to restart it either.
 
+## Brother QL over USB (QL-800 …)
+
+A USB-only model (the QL-800 has no network; the QL-810W has Wi-Fi) prints once its Windows driver
+is installed: it is listed as `<name> · installed` and printed silently through the driver. The
+roll and the printer's state are not read on that route. Not yet done: sending it the same raw
+raster as a network QL through the Windows queue in RAW mode (`WritePrinter`), which would give
+die-cut labels their exact length; it needs a USB QL on the bench to be tested.
+
 ## Marklife P15 (Bluetooth)
 
 - The computer needs a Bluetooth adapter with **Bluetooth Low Energy** enabled. On Windows, a CSR8510

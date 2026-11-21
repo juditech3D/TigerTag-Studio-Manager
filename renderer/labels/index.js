@@ -347,12 +347,16 @@ function printerFor(id) {
   }
   return { id: "dialog", kind: "dialog", name: "" };
 }
+// The printers' pictures, shown in the Printer list (assets/img/label_printers).
+const PRINTER_THUMB = { p15: "marklife_p15.png", ql: "brother_ql.png" };
+const thumbOf = key => PRINTER_THUMB[key] ? `../assets/img/label_printers/${PRINTER_THUMB[key]}` : "";
 function printerOptions(sel) {
   const { t } = ctx;
-  const opts = [["dialog", t("labelPrinterDialog")], ["p15", t("labelPrinterP15") + (p15Connected() ? " · " + t("labelPrinterConnected") : "")]];
-  found.network.forEach(p => opts.push([p.id, `${p.model || p.name} · ${t("labelPrinterNetwork")}`]));
-  found.installed.forEach(p => opts.push([p.id, `${p.name} · ${t("labelPrinterInstalled")}`]));
-  if (!opts.some(o => o[0] === sel)) opts.push([sel, printerFor(sel).name]);
+  const isQl = name => /\bQL-?\d/i.test(name || "");
+  const opts = [["dialog", t("labelPrinterDialog"), ""], ["p15", t("labelPrinterP15") + (p15Connected() ? " · " + t("labelPrinterConnected") : ""), thumbOf("p15")]];
+  found.network.forEach(p => opts.push([p.id, `${p.model || p.name} · ${t("labelPrinterNetwork")}`, isQl(p.model || p.name) ? thumbOf("ql") : ""]));
+  found.installed.forEach(p => opts.push([p.id, `${p.name} · ${t("labelPrinterInstalled")}`, isQl(p.name) ? thumbOf("ql") : ""]));
+  if (!opts.some(o => o[0] === sel)) { const pr = printerFor(sel); opts.push([sel, pr.name, pr.kind === "p15" ? thumbOf("p15") : pr.ql || isQl(pr.name) ? thumbOf("ql") : ""]); }
   return opts;
 }
 // A label fits the P15 when one of its sides is no wider than the roll.
@@ -492,7 +496,7 @@ function render(body, cur) {
     <div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-slots">${[0, 1, 2, 3].map(slotSel).join("")}</div>
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
-      <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt]) => `<option value="${esc(v)}"${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>
+      <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt, img]) => `<option value="${esc(v)}"${img ? ` data-thumb="${esc(img)}"` : ""}${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>
       <button type="button" class="ghost sm lbl-printer-search${searching ? " is-busy" : ""}" data-lbl-search aria-label="${esc(t("labelPrinterSearch"))}"><span class="icon icon-refresh icon-14"></span></button>
     </div>
     ${printer.kind === "p15" ? `<div class="lbl-p15">
