@@ -5,6 +5,25 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.59.2-fork.4 — 2026-11-22
+
+### Added
+- Label card on an A4 sheet: a real preview of the whole sheet, "Sheet" choice per printer (label size,
+  A4 top-left, A4 centred grid; prefs `pageBy`), "Copies" with "Stock (n)", spacing and margin (prefs
+  `sheetGap`, `sheetMargin`), extra sheets when one is full, − / + zoom (#263).
+- Stock selection bar: a "Labels" button opens one label card for every selected spool (`openLabelBatch`);
+  the open card follows the selection (`syncLabelBatch`).
+- Label values chosen on a giant drawing of the label, drawn for every format from its own layout
+  (`giant`, `slotSel`).
+- Printers board: "Show all cameras" / "Stop all cameras" keys (#272).
+- Tile views in select mode: a "Select All" key (`#btnSelectAll`).
+
+### Changed
+- Storage, Printers and the camera wall: the mouse wheel scrolls the plan (sideways when wide but not
+  tall), Ctrl / ⌘ + wheel and Ctrl / ⌘ + / − zoom it; thin scrollbars (#301, #315).
+
+---
+
 ## v2.59.2-fork.3 — 2026-11-21
 
 ### Added
