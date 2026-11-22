@@ -4487,7 +4487,7 @@ ipcMain.handle('label:print-ql', async (_evt, opts = {}) => {
 });
 
 ipcMain.handle('label:render', async (_evt, opts = {}) => {
-  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName, page: sheet, sheets } = opts || {};
+  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName, page: sheet, sheets, labels } = opts || {};
   if (format === 'svg' && typeof svg !== 'string') return { ok: false, reason: 'bad label' };
   if (format !== 'svg' && (typeof html !== 'string' || !(wDots > 0 && hDots > 0 && mmW > 0 && mmH > 0))) return { ok: false, reason: 'bad label' };
   let filePath = null;
@@ -4515,17 +4515,21 @@ ipcMain.handle('label:render', async (_evt, opts = {}) => {
       ? `position:absolute;left:${(210 - mmW) / 2}mm;top:${(297 - mmH) / 2}mm;`
       : 'position:absolute;left:0;top:0;';
     let page = html.replace('<body>', `<body><style>@page{size:${pw}mm ${ph}mm;margin:0}html,body{width:${pw}mm;height:${ph}mm;overflow:hidden;position:relative}.lbl{${at}transform:scale(${96 / (dpi || 203)});transform-origin:0 0}</style>`);
-    /* Several copies on A4: `sheets` holds, sheet by sheet, where each copy goes
-       (mm from the top-left corner, laid out by the label card). One A4 page each. */
-    const okSheets = a4 && Array.isArray(sheets) && sheets.length > 0 && sheets.length <= 100
+    /* Several labels in one run (copies, or one per selected spool): `sheets` holds,
+       page by page, where each label goes [x mm, y mm, index in `labels`], laid out
+       by the label card. A page is an A4 sheet, or one label's size when not on A4.
+       `labels` are the different labels' pages (same template); without it, `html`. */
+    const pages = Array.isArray(labels) && labels.length > 0 && labels.length <= 1000 && labels.every(h => typeof h === 'string') ? labels : [html];
+    const okSheets = (format === 'print' || format === 'pdf') && Array.isArray(sheets) && sheets.length > 0 && sheets.length <= 1000
       && sheets.every(s => Array.isArray(s) && s.length > 0 && s.length <= 1000
-        && s.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)));
+        && s.every(p => Array.isArray(p) && (p.length === 2 || p.length === 3) && p.every(Number.isFinite) && (p[2] || 0) >= 0 && (p[2] || 0) < pages.length));
     if (okSheets) {
       const b = page.indexOf('<body>') + 6, e = page.lastIndexOf('</body>');
-      const head = page.slice(0, b), one = page.slice(b, e), lblAt = one.indexOf('<div class="lbl">');
-      const style = one.slice(0, lblAt), label = one.slice(lblAt);
-      page = head + style.replace('</style>', 'html,body{height:auto;overflow:visible}.sh{position:relative;width:210mm;height:297mm;overflow:hidden;break-after:page}.sh:last-child{break-after:auto}</style>')
-        + sheets.map(s => `<div class="sh">${s.map(([x, y]) => label.replace('<div class="lbl">', `<div class="lbl" style="left:${x}mm;top:${y}mm">`)).join('')}</div>`).join('')
+      const head = page.slice(0, b), one = page.slice(b, e);
+      const style = one.slice(0, one.indexOf('<div class="lbl">'));
+      const bodies = pages.map(h => h.slice(h.indexOf('<div class="lbl">'), h.lastIndexOf('</body>')));
+      page = head + style.replace('</style>', `html,body{height:auto;overflow:visible}.sh{position:relative;width:${pw}mm;height:${ph}mm;overflow:hidden;break-after:page}.sh:last-child{break-after:auto}</style>`)
+        + sheets.map(s => `<div class="sh">${s.map(([x, y, k]) => bodies[k || 0].replace('<div class="lbl">', `<div class="lbl" style="left:${x}mm;top:${y}mm">`)).join('')}</div>`).join('')
         + page.slice(e);
     }
     await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page));

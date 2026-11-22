@@ -35,6 +35,12 @@
 .lbl-sheet .lbl-open-hint { white-space: nowrap; }
 .lbl-copy { position: absolute; display: block; box-shadow: 0 0 0 1px var(--border); pointer-events: none; }
 .lbl-copies.lbl-copies { flex: 0 0 72px; }
+.lbl-batch { margin: 0 0 8px; font-weight: 600; }
+/* The A4 preview's zoom (the storage plan's − 100 % + control): closer, the sheet
+   scrolls inside the preview, from its top-left corner. */
+.lbl-zoom-row { display: flex; justify-content: flex-end; }
+.lbl-preview.is-zoomed { display: block; height: 380px; overflow: auto; padding: 8px; }
+.lbl-preview.is-zoomed .lbl-sheet { margin: 0 auto; }
 .lbl-paper { position: relative; overflow: hidden; border-radius: 4px; background: var(--on-dark); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
 .lbl-frame { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; transition: opacity .15s; }
 /* While the preview loads: the paper is blank and a spinner turns on it (spin: 70-detail-misc.css). */

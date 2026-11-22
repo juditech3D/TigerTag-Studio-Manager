@@ -37,19 +37,29 @@
   `renderer/css/40-printers.css` (`.pv-plan-bar > [hidden]`, `.cam-play--shown`),
   `renderer/CODEMAP.md`. i18n: `boardCamStopAll`, `boardCamPlayAll`.
 - Label card: a "Sheet" choice for the system print dialog and installed printers — the
-  label's own size (default), A4 with the label in the top-left corner, or A4 with the label
-  centred — remembered per printer, for drivers that know no page but A4 and printed the
+  label's own size (default), A4 with the label in the top-left corner, or A4 on a full
+  sheet's grid centred on the page (the label in its top-left place) — remembered per printer, for drivers that know no page but A4 and printed the
   label blank (#263). PDF / PNG / SVG keep the label's size. `renderer/labels/index.js`
   (`LABEL_PAGES`, `pageFor`, prefs `pageBy`), `main.js` (`label:render` `page`), `CLAUDE.md`
   (`tigertag.label`). i18n: `labelPage`, `labelPageLabel`, `labelPageA4TopLeft`,
   `labelPageA4Centre`, `labelPageHint`.
 - Label card on an A4 sheet: the preview draws the whole sheet with each label where it
   prints, and a "Copies" field (plus "Stock (n)" on a Filament Label: one per spool of that
-  product in stock) lays several copies out with a chosen spacing (prefs `sheetGap`, 5 mm by default, shown once there is more than one copy), from the corner or as one centred
-  block, going on to further sheets when one is full. `renderer/labels/index.js`
+  product in stock) lays several copies out with a chosen spacing (prefs `sheetGap`, 5 mm by default, shown once there is more than one copy), filled from the
+  top-left place, going on to further sheets when one is full; a − / + zoom (100–400 %)
+  looks closer at the sheet. `renderer/labels/index.js`
   (`sheetLayout`, `sheetsFor`, `sheetCopies`), `renderer/labels/labels.css` (`.lbl-sheet`,
   `.lbl-copy`), `main.js` (`label:render` `sheets`), `renderer/inventory.js` (ctx
-  `stockCount`). i18n: `labelCopies`, `labelCopiesStock`, `labelCopiesFit`, `labelCopiesSheets`.
+  `stockCount`). i18n: `labelCopies`, `labelCopiesStock`, `labelCopiesFit`, `labelCopiesSheets`,
+  `labelSheetGap`.
+- Stock selection bar: a "Labels" button opens the label card for every selected spool
+  (a twin pair once): one label each with its own QR, "Copies each", printed in one run
+  — tiled on A4, one page each otherwise, one after the other on the P15 / Brother QL —
+  and one PDF holding them all (PNG / SVG stay single-label). `renderer/labels/index.js`
+  (`openLabelBatch`, `runOf`, `labelsOut`), `main.js` (`label:render` `labels`, indexed
+  `sheets`), `renderer/inventory.html` / `70-detail-misc.css` (`#bulkLabels`),
+  `renderer/inventory.js`, `CODEMAP-main.md`. i18n: `bulkLabels`, `labelBatchCount`,
+  `labelCopiesEach`; `labelPageA4Centre` reworded.
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
