@@ -1,8 +1,18 @@
-> ⚠️ **Unofficial fork.** This repository is a personal fork of Tiger Studio Manager. It is neither published, maintained nor supported by the TigerTag Project, so please do not contact them about it.
+> [!CAUTION]
+> **Unofficial personal fork. This is not the official Tiger Studio Manager.**
+>
+> - Tiger Studio Fork and the Tiger Multi-tools firmware for the TigerScale are personal, unofficial versions. They are neither published nor supported by the TigerTag / Tiger Studio team.
+> - I use them to try ideas for my own needs, then suggest some features to the official team. Those features will not necessarily make it into the official version. This fork does not try to replace it.
+> - The official team is not responsible for any problem this fork may cause: please do not contact them about it. If something goes wrong, come to me: [open an issue here](https://github.com/juditech3D/TigerTag-Studio-Manager/issues).
+> - You use it at your own risk. I accept no liability for any problem with these versions.
+>
+> Looking for the official app? It is here: [Tiger Studio Manager](https://github.com/TigerTag-Project/TigerTag-Studio-Manager).
 
 <div align="center">
 
-# Tiger Studio Manager 2
+# Tiger Studio Fork
+
+**Unofficial personal fork of Tiger Studio Manager 2**
 
 <img src="assets/img/icon.png" width="140" alt="Tiger Studio Manager" />
 
@@ -11,40 +21,8 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 <br>
 
-<p align="center">
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/">
-    <img src="assets/svg/site-button.svg" alt="Visit the Tiger Studio Manager site" width="420">
-  </a>
-</p>
+<p align="center"><sub>The official Tiger Studio Manager site (not this fork): <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/">tigertag-project.github.io/TigerTag-Studio-Manager</a></sub></p>
 
-<p align="center">
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/" hreflang="en">English</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/fr/" hreflang="fr">Français</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/de/" hreflang="de">Deutsch</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/es/" hreflang="es">Español</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/it/" hreflang="it">Italiano</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/zh/" hreflang="zh-Hans">中文</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pt/" hreflang="pt-BR">Português (BR)</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pt-pt/" hreflang="pt-PT">Português (PT)</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pl/" hreflang="pl">Polski</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/ru/" hreflang="ru">Русский</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/nl/" hreflang="nl">Nederlands</a>
-</p>
-
-<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
-  <img src="assets/svg/download_macos.svg" width="420" height="68" alt="Download for macOS">
-</a>
-<br>
 <a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_windows.svg" width="420" height="68" alt="Download for Windows">
 </a>
@@ -57,7 +35,7 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 [![Latest release](https://img.shields.io/github/v/release/juditech3D/TigerTag-Studio-Manager?label=Latest&color=FF6B00)](https://github.com/juditech3D/TigerTag-Studio-Manager/releases/latest)
 
-*Intel + Apple Silicon · macOS: Signed & Notarized · No installation knowledge required.*
+*This fork's builds: Windows and Linux (no macOS build yet) · The Windows installer is not signed.*
 
 <br>
 

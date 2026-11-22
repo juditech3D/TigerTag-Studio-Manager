@@ -616,7 +616,7 @@ function createWindow() {
     ...(winState.x != null ? { x: winState.x, y: winState.y } : {}),
     minWidth: 900,
     minHeight: 600,
-    title: 'Tiger Studio Manager 2',
+    title: 'Tiger Studio Fork (unofficial)',
     hasShadow: false,
     // Splash gate: start hidden + dark so there's no white flash, then
     // reveal only once the renderer signals its first usable paint
