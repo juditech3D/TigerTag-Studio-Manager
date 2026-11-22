@@ -1577,6 +1577,8 @@
   "boardTempTitle": "Temperatura",
   "boardJobTitle": "Impressão",
   "boardCamPlay": "Mostrar o vídeo",
+  "boardCamPlayAll": "Mostrar todas as câmaras",
+  "boardCamStopAll": "Desligar todas as câmaras",
   "boardUnitsTitle": "Armazenamento de filamento",
   "boardWidgets": "Widgets",
   "unitsSplit": "Separar unidades",

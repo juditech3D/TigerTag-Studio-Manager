@@ -16,6 +16,19 @@
 
 ### Added
 
+- Printers board: a "Show all cameras" key plays every camera that can be shown (as if each
+  play key were pressed, external camera cards included), shown while one is not playing; a
+  "Stop all cameras" key, shown while a feed is
+  playing, puts every camera back on its play key at once — the machines' played cameras
+  (Bambu Lab, Creality, FlashForge and Anycubic streams are closed, the others go with their
+  card) and the external camera cards — except the machine open in the side panel. The
+  automatic start waits until the board is opened again from another view; a play key still
+  starts its own camera (#272). `renderer/inventory.js` (`_camStopAllBoard`, `_camAutoHeld`,
+  `_camPlayAllBoard`, `_syncCamStopBtn`, `_autoStartCams`, `setViewMode`), `renderer/ext-cam/ext-cam.js`
+  (`extCamBoardLive`, `extCamBoardPauseAll`, `extCamBoardIdle`, `extCamBoardResumeAll`, `boardCardHtml`, `wireCards`),
+  `renderer/css/40-printers.css` (`.pv-plan-bar > [hidden]`, `.cam-play--shown`),
+  `renderer/CODEMAP.md`. i18n: `boardCamStopAll`, `boardCamPlayAll`.
+
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
   the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware

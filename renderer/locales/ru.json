@@ -1587,6 +1587,8 @@
   "boardTempTitle": "Температура",
   "boardJobTitle": "Печать",
   "boardCamPlay": "Показать трансляцию",
+  "boardCamPlayAll": "Показать все камеры",
+  "boardCamStopAll": "Выключить все камеры",
   "boardUnitsTitle": "Хранение филамента",
   "boardWidgets": "Виджеты",
   "unitsSplit": "Разделить блоки",
