@@ -4487,7 +4487,7 @@ ipcMain.handle('label:print-ql', async (_evt, opts = {}) => {
 });
 
 ipcMain.handle('label:render', async (_evt, opts = {}) => {
-  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName } = opts || {};
+  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName, page: sheet } = opts || {};
   if (format === 'svg' && typeof svg !== 'string') return { ok: false, reason: 'bad label' };
   if (format !== 'svg' && (typeof html !== 'string' || !(wDots > 0 && hDots > 0 && mmW > 0 && mmH > 0))) return { ok: false, reason: 'bad label' };
   let filePath = null;
@@ -4506,7 +4506,15 @@ ipcMain.handle('label:render', async (_evt, opts = {}) => {
   });
   try {
     // PDF and print lay the page out at 96 CSS px per inch: scale the dots down to it.
-    const page = html.replace('<body>', `<body><style>@page{size:${mmW}mm ${mmH}mm;margin:0}html,body{width:${mmW}mm;height:${mmH}mm;overflow:hidden}.lbl{transform:scale(${96 / (dpi || 203)});transform-origin:0 0}</style>`);
+    /* Printed on an A4 sheet (#263): some label printers' drivers know no page but
+       A4 and print a page of the label's own size blank. The label keeps its size
+       and sits in the sheet's top-left corner or in its centre. */
+    const a4 = format === 'print' && (sheet === 'a4-tl' || sheet === 'a4-c');
+    const pw = a4 ? 210 : mmW, ph = a4 ? 297 : mmH;
+    const at = !a4 ? '' : sheet === 'a4-c'
+      ? `position:absolute;left:${(210 - mmW) / 2}mm;top:${(297 - mmH) / 2}mm;`
+      : 'position:absolute;left:0;top:0;';
+    const page = html.replace('<body>', `<body><style>@page{size:${pw}mm ${ph}mm;margin:0}html,body{width:${pw}mm;height:${ph}mm;overflow:hidden;position:relative}.lbl{${at}transform:scale(${96 / (dpi || 203)});transform-origin:0 0}</style>`);
     await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page));
     if (format === 'pdf') {
       const pdf = await win.webContents.printToPDF({
@@ -4523,7 +4531,7 @@ ipcMain.handle('label:render', async (_evt, opts = {}) => {
         win.webContents.print({
           silent: typeof deviceName === 'string' && !!deviceName, ...(deviceName ? { deviceName } : {}),
           printBackground: true, margins: { marginType: 'none' },
-          pageSize: { width: Math.round(mmW * 1000), height: Math.round(mmH * 1000) },
+          pageSize: a4 ? 'A4' : { width: Math.round(mmW * 1000), height: Math.round(mmH * 1000) },
         }, (ok, reason) => resolve({ ok, reason: ok ? undefined : reason }));
       });
     }

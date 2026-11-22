@@ -36,6 +36,13 @@
   (`extCamBoardLive`, `extCamBoardPauseAll`, `extCamBoardIdle`, `extCamBoardResumeAll`, `boardCardHtml`, `wireCards`),
   `renderer/css/40-printers.css` (`.pv-plan-bar > [hidden]`, `.cam-play--shown`),
   `renderer/CODEMAP.md`. i18n: `boardCamStopAll`, `boardCamPlayAll`.
+- Label card: a "Sheet" choice for the system print dialog and installed printers — the
+  label's own size (default), A4 with the label in the top-left corner, or A4 with the label
+  centred — remembered per printer, for drivers that know no page but A4 and printed the
+  label blank (#263). PDF / PNG / SVG keep the label's size. `renderer/labels/index.js`
+  (`LABEL_PAGES`, `pageFor`, prefs `pageBy`), `main.js` (`label:render` `page`), `CLAUDE.md`
+  (`tigertag.label`). i18n: `labelPage`, `labelPageLabel`, `labelPageA4TopLeft`,
+  `labelPageA4Centre`, `labelPageHint`.
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;

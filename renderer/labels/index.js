@@ -71,7 +71,14 @@ export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
 // services/label-printers.js QL_MEDIA), "" = ask the printer.
 // `qlHost`: { "sys:<name>": address } — the network address typed for an installed
 // Brother QL, printed directly on its raw port (none found on its Windows port).
-const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {} };
+// `pageBy`: { printer id: page } — the sheet the label is printed on with that
+// printer, for the system dialog and installed printers only: "label" (a page of
+// the label's own size, the default), "a4-tl" or "a4-c" (an A4 page with the label
+// in its top-left corner or centred) for drivers that know no page but A4 (#263).
+const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {}, pageBy: {} };
+const LABEL_PAGES = ["label", "a4-tl", "a4-c"];
+// The sheet a label goes out on: only the dialog and installed printers can take an A4.
+const pageFor = (printer, p) => (printer.kind === "dialog" || printer.kind === "sys") && LABEL_PAGES.includes(p.pageBy[printer.id]) ? p.pageBy[printer.id] : "label";
 // The Brother DK rolls offered in the card (QL_MEDIA keys), continuous first.
 const QL_ROLLS = ["62x0", "29x0", "38x0", "50x0", "54x0", "12x0", "102x0", "29x90", "62x29", "62x100", "17x54", "17x87", "23x23", "29x42", "38x90", "39x48", "52x29", "102x51", "102x152"];
 
@@ -107,6 +114,7 @@ function prefs() {
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
   if (!QL_ROLLS.includes(out.qlRoll)) out.qlRoll = "";
   out.qlHost = out.qlHost && typeof out.qlHost === "object" ? out.qlHost : {};
+  out.pageBy = out.pageBy && typeof out.pageBy === "object" ? out.pageBy : {};
   // `templateBy`: { printer id: template id } — the format last picked for each printer.
   const by = out.templateBy && typeof out.templateBy === "object" ? out.templateBy : {};
   out.templateBy = Object.fromEntries(Object.entries(by).filter(([, v]) => LABEL_TEMPLATES.some(x => x.id === v)));
@@ -516,6 +524,9 @@ function render(body, cur) {
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
       }).join("")}</select></div>
       <div class="lbl-printer lbl-ql"><span class="lbl-ql-state" data-lbl-ql-state></span></div>` : ""}
+    ${printer.kind === "dialog" || printer.kind === "sys" ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelPage"))}</span>
+      <select class="lbl-roll-sel" data-lbl-page>${LABEL_PAGES.map(v => `<option value="${v}"${v === pageFor(printer, p) ? " selected" : ""}>${esc(t({ label: "labelPageLabel", "a4-tl": "labelPageA4TopLeft", "a4-c": "labelPageA4Centre" }[v]))}</option>`).join("")}</select></div>
+      <p class="lbl-hint">${esc(t("labelPageHint"))}</p>` : ""}
     <p class="lbl-msg"></p>
     ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
@@ -572,6 +583,8 @@ function render(body, cur) {
     }
   };
   body.onchange = e => {
+    const pg = e.target.closest("[data-lbl-page]");
+    if (pg) { const q = prefs(); q.pageBy = { ...q.pageBy, [q.printer]: pg.value }; savePrefs(q); render(body, cur); return; }
     const roll = e.target.closest("[data-lbl-roll]");
     if (roll) {
       // A roll with its own template brings it (62 × 29 mm: the Brother template).
@@ -677,7 +690,7 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
       // The printer does not say which roll it holds: asked for, nothing sent.
       if (res?.needRoll) throw Object.assign(new Error("needRoll"), { p15: true });
     } else {
-      res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName });
+      res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName, page: pageFor(printer, prefs()) });
     }
     if (!res?.ok) throw new Error(res?.reason || "print failed");
     say(ctx.t("labelPrinted", { printer: printer.name }), "ok");
@@ -700,7 +713,9 @@ async function exportLabel(format, lbl, row, kind, msg) {
   const fileName = `tigertag-${kind}-${id}-${lbl.mmW}x${lbl.mmH}`;
   const svg = format === "svg" ? lbl.svg : undefined;   // the label itself, sized in millimetres
   try {
-    const res = await window.electronAPI?.renderLabel?.({ ...lbl, svg, format, fileName });
+    // The system dialog prints on the sheet chosen for it; PDF / PNG / SVG keep the label's size.
+    const page = format === "print" ? pageFor(printerFor("dialog"), prefs()) : "label";
+    const res = await window.electronAPI?.renderLabel?.({ ...lbl, svg, format, fileName, page });
     if (!res?.ok && res?.reason !== "cancelled" && format !== "print") throw new Error(res?.reason || "render failed");
     // A label actually printed or saved (not a cancelled dialog): counted (print_label).
     if (res?.ok) ctx.onLabelOut?.({ row, kind, template: lbl.template, output: format, dpi: lbl.dpi });
