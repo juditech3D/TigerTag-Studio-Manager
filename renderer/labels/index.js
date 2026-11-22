@@ -607,25 +607,48 @@ function render(body, cur) {
     const X = u => `${(u / LW * 100).toFixed(3)}%`, Y = u => `${(u / LH * 100).toFixed(3)}%`, F = u => `${(u / LW * 100).toFixed(3)}cqw`;
     const box = (cls, x, y, w, h, inner = "", extra = "") => `<div class="${cls}" style="left:${X(x)};top:${Y(y)};width:${X(w)};height:${Y(h)};${extra}">${inner}</div>`;
     const bar = info.series || info.material || "";
-    let parts = "";
-    if (L.stack) L.stack.forEach(([y, size, weight, key]) => {
-      const txt = { brand: info.brand, bar, name: info.name }[key] || "";
-      parts += box("lbl-giant-txt", 14, y - size * 0.85, (L.qr ? L.qr[0] : LW) - 22, size * 1.1, esc(txt), `font-size:${F(size)};font-weight:${weight}`);
-    });
-    if (L.brand) { const [bx, by, bw, bh] = L.brand; parts += box("lbl-giant-txt", bx, by, bw, bh, esc(info.brand || ""), `font-size:${F(bh * 0.8)};font-weight:800`); }
-    if (L.bar && bar) {
-      const [rx, ry, rw, rh, rfs] = L.bar;
-      parts += box(L.barPlain ? "lbl-giant-txt" : "lbl-giant-bar", rx, ry, rw, rh, esc(bar), `font-size:${F(rfs * 0.85)};font-weight:700`);
-    }
-    if (L.name) { const [nx, ny, nfs, nw, nmax] = L.name; parts += box("lbl-giant-txt", nx, ny - nfs * 0.85, nmax, nfs * 1.1, esc(info.name || ""), `font-size:${F(nfs)};font-weight:${nw}`); }
-    if (L.hex && info.hexes?.length) { const [hx, hy, hfs] = L.hex; parts += box("lbl-giant-txt", hx, hy - hfs * 0.85, LW - 10 - hx, hfs * 1.1, esc(info.hexes.join(" ")), `font-size:${F(hfs * 0.8)}`); }
-    if (L.rule) { const [x1, y1, x2] = L.rule; parts += box("lbl-giant-rule", x1, y1, x2 - x1, 1); }
+    // As on the printed label: a text never runs past the room it has (the pill, the
+    // QR, the edge); it shrinks to fit, and a brand too long to sit beside the pill on
+    // a vertical label drops below it, full width.
+    const fit = (txt, size, weight, maxW) => Math.max(1, Math.min(size, size * maxW / Math.max(1, textW(txt, size, weight))));
+    let parts = "", pill = null;
     if (info.protocol) {
-      const pfs = L.pill ? L.pill[1] : tpl.id === "slim" || tpl.id === "p15" ? 15 : 18, ph = L.pill ? L.pill[2] : pfs + 8;
+      const pfs = L.pill ? L.pill[1] : tpl.id === "slim" || tpl.id === "p15" ? 15 : 18, ph = L.pill ? L.pill[2] : tpl.id === "slim" || tpl.id === "p15" ? 22 : 26;
       const pw = Math.ceil(info.protocol.length * pfs * 0.62 + 16);
-      const x = L.pill ? (LW - pw) / 2 : L.pillAt ? L.pillAt[0] : LW - 10 - pw, y = L.pill ? L.pill[0] : L.pillAt ? L.pillAt[1] : 8;
-      parts += box("lbl-giant-pill", x, y, pw, ph, esc(info.protocol), `font-size:${F(pfs)}`);
+      pill = { x: L.pill ? (LW - pw) / 2 : L.pillAt ? L.pillAt[0] : LW - 10 - pw, y: L.pill ? L.pill[0] : L.pillAt ? L.pillAt[1] : 8, w: pw, h: ph };
+      parts += box("lbl-giant-pill", pill.x, pill.y, pw, ph, esc(info.protocol), `font-size:${F(pfs)}`);
     }
+    // How far right a text starting at x, between top and bottom, may run.
+    const room = (x, top, bottom) => {
+      let right = LW - 10;
+      if (L.qr && L.qr[0] > x && bottom > L.qr[1] - 2 && top < L.qr[1] + L.qr[2]) right = Math.min(right, L.qr[0] - 8);
+      if (pill && pill.x > x && bottom > pill.y - 2 && top < pill.y + pill.h + 2) right = Math.min(right, pill.x - 8);
+      return right - x;
+    };
+    const text = (txt, x, top, h, size, weight, maxW, cls = "lbl-giant-txt") => {
+      const w = Math.min(maxW, room(x, top, top + h));
+      parts += box(cls, x, top, w, h, esc(txt), `font-size:${F(fit(txt, size, weight, w))};font-weight:${weight}`);
+    };
+    if (L.stack) L.stack.forEach(([y, size, weight, key]) => text({ brand: info.brand, bar, name: info.name }[key] || "", 14, y - size * 0.85, size * 1.1, size, weight, LW));
+    if (L.brand && info.brand) {
+      const [bx, by, bw, bh] = L.brand, bfs = Math.round(bh * 0.8);
+      const beside = Math.min(bw, room(bx, by, by + bh));
+      if (pill && tpl.h > tpl.w && textW(info.brand, bfs, 700) > beside && L.bar) {
+        const top = pill.y + pill.h + 4, bottom = L.bar[1] - 5;
+        text(info.brand, bx, top, bottom - top, Math.min(bfs, Math.round((bottom - top) * 1.3)), 700, Math.min(bw, LW - bx - 10));
+      } else text(info.brand, bx, by, bh, bfs, 700, beside);
+    }
+    if (L.bar && bar) {
+      const [rx, ry, rw, rh, rfs, tdx] = L.bar;
+      if (L.barPlain) text(bar, rx + tdx, ry, rh, rfs, 700, rw - 2 * tdx);
+      else {
+        const size = fit(bar, rfs, 700, rw - 2 * tdx);
+        parts += box("lbl-giant-bar", rx, ry, rw, rh, esc(bar), `font-size:${F(size)};font-weight:700;padding-left:${X(tdx)}`);
+      }
+    }
+    if (L.name && info.name) { const [nx, ny, nfs, nw, nmax] = L.name; text(info.name, nx, ny - nfs * 0.85, nfs * 1.1, nfs, nw, nmax); }
+    if (L.hex && info.hexes?.length) { const [hx, hy, hfs] = L.hex; text(info.hexes.join(" "), hx, hy - hfs * 0.85, hfs * 1.1, hfs * 0.8, 400, LW - 10 - hx); }
+    if (L.rule) { const [x1, y1, x2] = L.rule; parts += box("lbl-giant-rule", x1, y1, x2 - x1, 1); }
     if (L.qr) { const [qx, qy, qs] = L.qr; parts += box("lbl-giant-qrbox", qx, qy, qs, qs, fakeQr); }
     if (L.slots) {
       const S = L.slots, step = S.y[1] - S.y[0];

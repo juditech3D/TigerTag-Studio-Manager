@@ -68,10 +68,10 @@
    brand, series bar and colour as printed, a stand-in QR, and each values line a
    highlighted choice where it prints. */
 .lbl-giant-wrap { display: flex; justify-content: center; }
-.lbl-giant { position: relative; width: 100%; container-type: inline-size; border-radius: 10px; background: var(--on-dark); color: var(--media-bg); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
+.lbl-giant { position: relative; width: 100%; container-type: inline-size; font-family: Arial, Helvetica, sans-serif; border-radius: 10px; background: var(--on-dark); color: var(--media-bg); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
 .lbl-giant > div { position: absolute; box-sizing: border-box; }
 .lbl-giant-txt { display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1; }
-.lbl-giant-bar { display: flex; align-items: center; padding: 0 1.2cqw; overflow: hidden; white-space: nowrap; background: var(--media-bg); color: var(--on-dark); line-height: 1; }
+.lbl-giant-bar { display: flex; align-items: center; overflow: hidden; white-space: nowrap; background: var(--media-bg); color: var(--on-dark); line-height: 1; }
 .lbl-giant-pill { display: flex; align-items: center; justify-content: center; border: 2px solid var(--media-bg); border-radius: 999px; font-weight: 800; line-height: 1; }
 .lbl-giant-rule { border-top: 1px solid color-mix(in srgb, var(--media-bg) 25%, transparent); }
 .lbl-giant-qrbox { display: grid; place-items: center; }
