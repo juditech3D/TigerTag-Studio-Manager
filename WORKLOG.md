@@ -47,6 +47,14 @@
   container units), where each values line sits where it prints as a highlighted choice
   showing the value it prints for this spool. `renderer/labels/index.js` (`giant`, `slotSel`, `fakeQr`),
   `renderer/labels/labels.css` (`.lbl-giant*`).
+- Storage, Printers and the camera wall: the bare mouse wheel scrolls the plan (sideways when
+  the plan is wide but not tall, so it always moves), Ctrl / ⌘ +
+  wheel zooms it (a trackpad pinch still zooms), and Ctrl / ⌘ + / − press that plan's own
+  zoom buttons instead of zooming the whole window (#301, #315). The Storage and Printers
+  scrollers show thin scrollbars again. `renderer/inventory.js` (`_planWheelZooms`, `_planWheelSideways`, the plan
+  keyboard zoom listener, `wirePrinterZoom`, the camera wall and storage plan wheel handlers),
+  `renderer/css/30-racks.css` (`.rp-racks-scroll`), `renderer/css/40-printers.css`
+  (`.printers-scroll`).
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
