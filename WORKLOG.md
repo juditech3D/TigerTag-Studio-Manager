@@ -55,7 +55,8 @@
 - Stock selection bar: a "Labels" button opens the label card for every selected spool
   (a twin pair once): one label each with its own QR, "Copies each", printed in one run
   — tiled on A4, one page each otherwise, one after the other on the P15 / Brother QL —
-  and one PDF holding them all (PNG / SVG stay single-label). `renderer/labels/index.js`
+  and one PDF holding them all (PNG / SVG stay single-label). The open card follows the
+  selection: ticking or unticking a spool updates it, copies kept (`syncLabelBatch`). `renderer/labels/index.js`
   (`openLabelBatch`, `runOf`, `labelsOut`), `main.js` (`label:render` `labels`, indexed
   `sheets`), `renderer/inventory.html` / `70-detail-misc.css` (`#bulkLabels`),
   `renderer/inventory.js`, `CODEMAP-main.md`. i18n: `bulkLabels`, `labelBatchCount`,
