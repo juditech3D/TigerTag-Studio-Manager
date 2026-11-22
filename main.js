@@ -4487,7 +4487,7 @@ ipcMain.handle('label:print-ql', async (_evt, opts = {}) => {
 });
 
 ipcMain.handle('label:render', async (_evt, opts = {}) => {
-  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName, page: sheet } = opts || {};
+  const { html, svg, wDots, hDots, mmW, mmH, dpi, format, fileName, deviceName, page: sheet, sheets } = opts || {};
   if (format === 'svg' && typeof svg !== 'string') return { ok: false, reason: 'bad label' };
   if (format !== 'svg' && (typeof html !== 'string' || !(wDots > 0 && hDots > 0 && mmW > 0 && mmH > 0))) return { ok: false, reason: 'bad label' };
   let filePath = null;
@@ -4514,7 +4514,20 @@ ipcMain.handle('label:render', async (_evt, opts = {}) => {
     const at = !a4 ? '' : sheet === 'a4-c'
       ? `position:absolute;left:${(210 - mmW) / 2}mm;top:${(297 - mmH) / 2}mm;`
       : 'position:absolute;left:0;top:0;';
-    const page = html.replace('<body>', `<body><style>@page{size:${pw}mm ${ph}mm;margin:0}html,body{width:${pw}mm;height:${ph}mm;overflow:hidden;position:relative}.lbl{${at}transform:scale(${96 / (dpi || 203)});transform-origin:0 0}</style>`);
+    let page = html.replace('<body>', `<body><style>@page{size:${pw}mm ${ph}mm;margin:0}html,body{width:${pw}mm;height:${ph}mm;overflow:hidden;position:relative}.lbl{${at}transform:scale(${96 / (dpi || 203)});transform-origin:0 0}</style>`);
+    /* Several copies on A4: `sheets` holds, sheet by sheet, where each copy goes
+       (mm from the top-left corner, laid out by the label card). One A4 page each. */
+    const okSheets = a4 && Array.isArray(sheets) && sheets.length > 0 && sheets.length <= 100
+      && sheets.every(s => Array.isArray(s) && s.length > 0 && s.length <= 1000
+        && s.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)));
+    if (okSheets) {
+      const b = page.indexOf('<body>') + 6, e = page.lastIndexOf('</body>');
+      const head = page.slice(0, b), one = page.slice(b, e), lblAt = one.indexOf('<div class="lbl">');
+      const style = one.slice(0, lblAt), label = one.slice(lblAt);
+      page = head + style.replace('</style>', 'html,body{height:auto;overflow:visible}.sh{position:relative;width:210mm;height:297mm;overflow:hidden;break-after:page}.sh:last-child{break-after:auto}</style>')
+        + sheets.map(s => `<div class="sh">${s.map(([x, y]) => label.replace('<div class="lbl">', `<div class="lbl" style="left:${x}mm;top:${y}mm">`)).join('')}</div>`).join('')
+        + page.slice(e);
+    }
     await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page));
     if (format === 'pdf') {
       const pdf = await win.webContents.printToPDF({

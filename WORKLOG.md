@@ -43,6 +43,13 @@
   (`LABEL_PAGES`, `pageFor`, prefs `pageBy`), `main.js` (`label:render` `page`), `CLAUDE.md`
   (`tigertag.label`). i18n: `labelPage`, `labelPageLabel`, `labelPageA4TopLeft`,
   `labelPageA4Centre`, `labelPageHint`.
+- Label card on an A4 sheet: the preview draws the whole sheet with each label where it
+  prints, and a "Copies" field (plus "Stock (n)" on a Filament Label: one per spool of that
+  product in stock) lays several copies out with a chosen spacing (prefs `sheetGap`, 5 mm by default, shown once there is more than one copy), from the corner or as one centred
+  block, going on to further sheets when one is full. `renderer/labels/index.js`
+  (`sheetLayout`, `sheetsFor`, `sheetCopies`), `renderer/labels/labels.css` (`.lbl-sheet`,
+  `.lbl-copy`), `main.js` (`label:render` `sheets`), `renderer/inventory.js` (ctx
+  `stockCount`). i18n: `labelCopies`, `labelCopiesStock`, `labelCopiesFit`, `labelCopiesSheets`.
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
