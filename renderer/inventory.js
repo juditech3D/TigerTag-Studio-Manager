@@ -32368,8 +32368,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     const box  = container.parentElement;
     const availW = box ? box.clientWidth  : 0;
     const availH = box ? box.clientHeight : 0;
-    container.style.width  = Math.max(availW, Math.ceil((right  + 240) * _printerZoom)) + "px";
-    container.style.height = Math.max(availH, Math.ceil((bottom + 200) * _printerZoom)) + "px";
+    /* The wide empty margin is room to drop a machine, so it is only kept while
+       arranging; otherwise it made the view scroll over nothing as soon as the
+       cards came near the bottom of the window. */
+    const padR = _printerArrange ? 240 : 24, padB = _printerArrange ? 200 : 24;
+    container.style.width  = Math.max(availW, Math.ceil((right  + padR) * _printerZoom)) + "px";
+    container.style.height = Math.max(availH, Math.ceil((bottom + padB) * _printerZoom)) + "px";
     container.style.minWidth = "";
     // Last, because it rings where the cards ENDED UP.
     _drawClusterHulls(container);
