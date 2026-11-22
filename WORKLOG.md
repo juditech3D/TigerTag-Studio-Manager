@@ -3,6 +3,7 @@
 ## Added
 
 ## Changed
+- Unofficial-fork warning made unmissable: `README.md` opens with a full caution (not published or supported by the TigerTag team, features offered upstream may never be merged, problems go to this fork's issues, no liability), its title becomes "Tiger Studio Fork", the official site button and language row become one line labelled "not this fork", the macOS download button and the "Signed & Notarized" line are replaced by what this fork really ships. `data/release-notes/v2.59.2-fork.4.md` carries the same caution. The window title reads "Tiger Studio Fork (unofficial)" and the sidebar and sign-in screen say "Studio Fork" (`main.js`, `renderer/inventory.html`); the product name, install folder and user data are unchanged.
 
 ## Fixed
 - Bambu Lab A2L added by IP is recognised from its serial prefix `26A` instead of falling back to "Select printer" (#244, PR #306); the DevModel code `N9` still wins. Prefix read off a reporter's serial, no real A2L tested. `renderer/printers/bambulab/probe.js` (`BBL_SERIAL_PREFIX_TO_ID`), `renderer/printers/bambulab/PROTOCOL.md`.
