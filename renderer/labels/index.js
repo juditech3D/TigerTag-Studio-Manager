@@ -580,8 +580,8 @@ function render(body, cur) {
   const tpl = LABEL_TEMPLATES.find(x => x.id === p.template);
   // The values, chosen on a giant drawing of the label: the spool's brand, series and
   // colour as they print, a stand-in QR, and each values line where it prints, top
-  // to bottom, as a choice showing the value it prints for this spool. Hidden for a
-  // format that prints none. The real preview above stays as it is.
+  // to bottom, as a choice showing the value it prints for this spool. Drawn for every
+  // format, with lines only where the format prints values. The real preview above stays as it is.
   const slotSel = i => {
     const k = p.slots[i], has = k !== "none" && !!info.values[k];
     return `<label class="lbl-giant-line${has ? "" : " is-empty"}"><select class="lbl-giant-sel" data-lbl-slot="${i}" aria-label="${esc(t("labelSlots"))} ${i + 1}">
@@ -599,12 +599,44 @@ function render(body, cur) {
     }
     return `<svg class="lbl-giant-qr" viewBox="0 0 21 21" aria-hidden="true" shape-rendering="crispEdges"><path d="${d}"/></svg>`;
   })();
-  const giant = () => `<div class="lbl-giant">
-      <div class="lbl-giant-head"><b class="lbl-giant-brand">${esc(info.brand || "")}</b>${info.protocol ? `<span class="lbl-giant-pill">${esc(info.protocol)}</span>` : ""}</div>
-      ${info.series || info.material ? `<div class="lbl-giant-bar">${esc(info.series || info.material)}</div>` : ""}
-      <div class="lbl-giant-name">${esc(info.name || "")}</div>
-      <div class="lbl-giant-body"><div class="lbl-giant-lines">${Array.from({ length: tpl.slots }, (_, i) => slotSel(i)).join("")}</div>${fakeQr}</div>
-    </div>`;
+  // Drawn from the format's own layout (LAYOUTS, in layout units): every part where
+  // it prints, sized in container units so the drawing keeps the label's shape at
+  // any card width. Each values line is a choice at its line, as tall as the line.
+  const giant = () => {
+    const L = LAYOUTS[tpl.id] || {}, LW = tpl.w * U, LH = tpl.h * U;
+    const X = u => `${(u / LW * 100).toFixed(3)}%`, Y = u => `${(u / LH * 100).toFixed(3)}%`, F = u => `${(u / LW * 100).toFixed(3)}cqw`;
+    const box = (cls, x, y, w, h, inner = "", extra = "") => `<div class="${cls}" style="left:${X(x)};top:${Y(y)};width:${X(w)};height:${Y(h)};${extra}">${inner}</div>`;
+    const bar = info.series || info.material || "";
+    let parts = "";
+    if (L.stack) L.stack.forEach(([y, size, weight, key]) => {
+      const txt = { brand: info.brand, bar, name: info.name }[key] || "";
+      parts += box("lbl-giant-txt", 14, y - size * 0.85, (L.qr ? L.qr[0] : LW) - 22, size * 1.1, esc(txt), `font-size:${F(size)};font-weight:${weight}`);
+    });
+    if (L.brand) { const [bx, by, bw, bh] = L.brand; parts += box("lbl-giant-txt", bx, by, bw, bh, esc(info.brand || ""), `font-size:${F(bh * 0.8)};font-weight:800`); }
+    if (L.bar && bar) {
+      const [rx, ry, rw, rh, rfs] = L.bar;
+      parts += box(L.barPlain ? "lbl-giant-txt" : "lbl-giant-bar", rx, ry, rw, rh, esc(bar), `font-size:${F(rfs * 0.85)};font-weight:700`);
+    }
+    if (L.name) { const [nx, ny, nfs, nw, nmax] = L.name; parts += box("lbl-giant-txt", nx, ny - nfs * 0.85, nmax, nfs * 1.1, esc(info.name || ""), `font-size:${F(nfs)};font-weight:${nw}`); }
+    if (L.hex && info.hexes?.length) { const [hx, hy, hfs] = L.hex; parts += box("lbl-giant-txt", hx, hy - hfs * 0.85, LW - 10 - hx, hfs * 1.1, esc(info.hexes.join(" ")), `font-size:${F(hfs * 0.8)}`); }
+    if (L.rule) { const [x1, y1, x2] = L.rule; parts += box("lbl-giant-rule", x1, y1, x2 - x1, 1); }
+    if (info.protocol) {
+      const pfs = L.pill ? L.pill[1] : tpl.id === "slim" || tpl.id === "p15" ? 15 : 18, ph = L.pill ? L.pill[2] : pfs + 8;
+      const pw = Math.ceil(info.protocol.length * pfs * 0.62 + 16);
+      const x = L.pill ? (LW - pw) / 2 : L.pillAt ? L.pillAt[0] : LW - 10 - pw, y = L.pill ? L.pill[0] : L.pillAt ? L.pillAt[1] : 8;
+      parts += box("lbl-giant-pill", x, y, pw, ph, esc(info.protocol), `font-size:${F(pfs)}`);
+    }
+    if (L.qr) { const [qx, qy, qs] = L.qr; parts += box("lbl-giant-qrbox", qx, qy, qs, qs, fakeQr); }
+    if (L.slots) {
+      const S = L.slots, step = S.y[1] - S.y[0];
+      for (let i = 0; i < tpl.slots; i++) {
+        const top = S.y[i] - (S.stacked ? S.fs : S.fs * 0.95), h = step - 3;
+        const qr = L.qr && L.qr[0] > S.lx && top + h > L.qr[1] ? L.qr[0] - 8 : LW - 10;
+        parts += `<div class="lbl-giant-at" style="left:${X(S.lx - 4)};top:${Y(top)};width:${X(qr - S.lx + 4)};height:${Y(h)};font-size:${F(Math.min(S.fs, step * 0.55))}">${slotSel(i)}</div>`;
+      }
+    }
+    return `<div class="lbl-giant" style="aspect-ratio:${LW} / ${LH};max-width:${Math.round(420 * LW / LH)}px">${parts}</div>`;
+  };
   body.innerHTML = `
     ${batch ? `<p class="lbl-batch">${esc(t("labelBatchCount", { n: batch.length }))}</p>` : ""}
     <div class="panel-label">${esc(t("labelTemplate"))}</div>
@@ -620,7 +652,7 @@ function render(body, cur) {
       ${link ? `<span class="lbl-open-hint"><span class="icon icon-arrow-up-right icon-12" aria-hidden="true"></span>${esc(t("labelOpenLink"))}</span></button>` : "</div>"}
     ${onA4 ? "</div>" : ""}</div>
     ${link && !batch ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
-    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div>${giant()}` : ""}
+    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div>` : ""}<div class="lbl-giant-wrap">${giant()}</div>
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
       <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt, img]) => `<option value="${esc(v)}"${img ? ` data-thumb="${esc(img)}"` : ""}${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>

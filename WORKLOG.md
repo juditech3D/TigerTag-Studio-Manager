@@ -60,10 +60,10 @@
   `sheets`), `renderer/inventory.html` / `70-detail-misc.css` (`#bulkLabels`),
   `renderer/inventory.js`, `CODEMAP-main.md`. i18n: `bulkLabels`, `labelBatchCount`,
   `labelCopiesEach`; `labelPageA4Centre` reworded.
-- Label card values: chosen on a giant drawing of the label (the spool's brand, series bar
-  and colour, a stand-in QR) where each values line sits where it prints, top to bottom, as
-  a highlighted choice showing the value it prints for this spool; hidden for a format that
-  prints none. `renderer/labels/index.js` (`giant`, `slotSel`, `fakeQr`),
+- Label card values: chosen on a giant drawing of the label, drawn for every format from its
+  own layout (brand, pill, series bar, colour and its codes, rule, a stand-in QR, sized in
+  container units), where each values line sits where it prints as a highlighted choice
+  showing the value it prints for this spool. `renderer/labels/index.js` (`giant`, `slotSel`, `fakeQr`),
   `renderer/labels/labels.css` (`.lbl-giant*`).
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
