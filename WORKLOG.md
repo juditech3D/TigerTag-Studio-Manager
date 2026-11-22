@@ -27,9 +27,12 @@
   Bambu Lab spools of that colour with no AMS identity (CIEDE2000 < 12, five at most), a window
   asks "Is it one of these spools?" first, and picking one links it to the bay and keeps its
   weight. Each AMS report afterwards finds the spool again in any
-  printer's AMS, shows "printer · AMS · slot" in its Storage location section, marks it out
-  when no bay of that printer holds it, and lowers its weight only by what `remain` says was
-  used since the previous report, so a scale weighing stays the reference. Only what the printer
+  printer's AMS, shows "printer · AMS · slot · %" in its Storage location section, marks it out
+  when no bay of that printer holds it. Weight: until the spool is first weighed it follows the
+  AMS estimate (`remain` % of the spool); once a weight not written by this feature appears
+  (`ams_seen.weight` holds the last estimate written, `ams_seen.weighed` then stays true), only
+  weighings count and the AMS % is just shown. A spool linked through "Is it one of these" keeps
+  its weight and counts as weighed. Only what the printer
   publishes is used: nothing is read from the chip and no key is derived. Works in cloud mode
   too (it sends nothing to the printer). A first-use help window (what it is for / what you can
   do / how), reopened by the "?" next to the Filament title. Untested on a real AMS.

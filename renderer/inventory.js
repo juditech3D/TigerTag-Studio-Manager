@@ -33992,9 +33992,12 @@ import { initScreenTools } from './ai/screen-tools.js';
      tray_id_name, colour, tray_weight, remain…): nothing is read from the chip
      and no key is derived. The spool keeps the AMS identity in `bambu_tray_uuid`
      and where it was last seen in `ams_seen` { in, printer, name, slot, remain, at }.
-     Weight: a scale weighing stays the reference. The AMS never sets the weight;
-     it only takes off what it reports consumed since its previous report
-     (remain going down), so a weighing in between is kept as the new base. */
+     Weight (founder, 2026-11-22): until the spool is first weighed, its weight IS
+     the AMS estimate (remain % of the spool); from the first weighing on, only
+     weighings count and the AMS keeps showing its % beside the slot. A weighing =
+     any weight not written here: `ams_seen.weight` holds the last estimate written,
+     so a weight_available that differs from it was set by a scale (or by hand),
+     and `ams_seen.weighed` then stays true for good. */
   const AMS_STOCK_HELP_SEEN = "tigertag.amsStockHelp";
   function _amsStockRow(uuid) {
     if (!uuid) return null;
@@ -34043,13 +34046,14 @@ import { initScreenTools } from './ai/screen-tools.js';
       const name = _printerDisplayName(printer);
       if (!seen.in || seen.printer !== key || seen.slot !== t.slot || seen.name !== name)
         add(r, { "ams_seen.in": true, "ams_seen.printer": key, "ams_seen.name": name, "ams_seen.slot": t.slot });
+      // Weighed once (a weight we did not write, or no estimate ever written)?
+      const weighed = !!seen.weighed || seen.weight == null || Math.round(+r.weightAvailable || 0) !== Math.round(+seen.weight);
+      if (weighed && !seen.weighed) add(r, { "ams_seen.weighed": true });
       if (t.remain != null && t.remain !== seen.remain) {
         const patch = { "ams_seen.remain": t.remain };
-        if (Number.isFinite(+seen.remain) && t.remain < +seen.remain) {
-          const full = t.weightG || +r.capacity || 1000;
-          const used = full * (+seen.remain - t.remain) / 100;
-          const w = Math.max(0, Math.round((+r.weightAvailable || 0) - used));
-          if (w !== +r.weightAvailable) patch.weight_available = w;
+        if (!weighed) {
+          const w = Math.round((+r.capacity || t.weightG || 1000) * t.remain / 100);
+          if (w !== Math.round(+r.weightAvailable || 0)) { patch.weight_available = w; patch["ams_seen.weight"] = w; }
         }
         add(r, patch);
       }
@@ -34069,12 +34073,14 @@ import { initScreenTools } from './ai/screen-tools.js';
     const t0 = Date.now();
     while (!state.inventory[spoolId] && Date.now() - t0 < 4000) await new Promise(res => setTimeout(res, 100));
     const cap = Number(state.inventory[spoolId]?.measure_gr) || Number(ams.weightG) || 0;
+    // Never weighed yet: its weight is the AMS estimate (or the full spool when the AMS gives none).
+    const w = ams.remain != null && cap > 0 ? Math.round(cap * ams.remain / 100) : Math.round(+state.inventory[spoolId]?.weight_available || 0);
     const patch = {
       bambu_tray_uuid: ams.uuid,
-      ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, at: Date.now() },
+      ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, weight: w, weighed: false, at: Date.now() },
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     };
-    if (ams.remain != null && cap > 0) patch.weight_available = Math.round(cap * ams.remain / 100);
+    if (ams.remain != null && cap > 0) patch.weight_available = w;
     await fbDb(uid).collection("users").doc(uid).collection("inventory").doc(spoolId).update(patch);
     // The bay's "+ Stock" turns into its ✓ once the snapshot carries the spool.
     setTimeout(() => { if (_activePrinter) renderPrinterDetail(); }, 400);
@@ -34134,10 +34140,11 @@ import { initScreenTools } from './ai/screen-tools.js';
         const r = state.rows.find(x => x.spoolId === b.dataset.amsPick);
         close();
         if (!r) return;
-        // Same spool: it takes the AMS identity and place; its weight is kept.
+        // Same spool: it takes the AMS identity and place. Its weight is kept and
+        // counts as a weighing (it may come from a scale; the AMS cannot know).
         await _updateSpoolTwinned(r, {
           bambu_tray_uuid: ams.uuid,
-          ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, at: Date.now() },
+          ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, weighed: true, at: Date.now() },
           updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
         }).catch(err => console.warn("[amsStock] link:", err?.message));
         openDetail(r.spoolId);
@@ -34149,7 +34156,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // The spool card's "In the AMS" row.
   function _amsSeenSig(r) {
     const a = r.raw?.ams_seen;
-    return a?.in && r.raw?.bambu_tray_uuid ? `${a.name}|${a.slot}` : "";
+    return a?.in && r.raw?.bambu_tray_uuid ? `${a.name}|${a.slot}|${a.remain ?? ""}` : "";
   }
   function _amsSeenHTML(r) {
     const a = r.raw?.ams_seen;
@@ -34158,7 +34165,7 @@ import { initScreenTools } from './ai/screen-tools.js';
           <div class="storage-loc-row storage-loc-row--mount">
             <span class="icon icon-printer icon-14"></span>
             <span class="storage-loc-rack" title="${esc(t("amsSeenLabel"))}">${esc(a.name || "Bambu Lab")}</span>
-            <span class="storage-loc-coord">AMS · ${esc(a.slot || "")}</span>
+            <span class="storage-loc-coord">AMS · ${esc(a.slot || "")}${Number.isFinite(a.remain) ? ` · ${Math.round(a.remain)} %` : ""}</span>
           </div>`;
   }
   initExtCam({
