@@ -3,7 +3,7 @@ import { decimalSpoolIdToHex, repairTruncatedNtagUid, isDecimalSpoolId, planTrun
 import { initRfidTester } from './rfid_protocol/tigertag/index.js';
 import { RAL_CLASSIC } from './ral-classic.js';
 import { openColorPop } from './color-pop.js';
-import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
+import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView, spoolForChipUid } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
 import { initLabels, openLabelCard, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
@@ -71,6 +71,7 @@ import {
   openBambuFilamentEdit, closeBambuFilamentEdit,
   bambuPrintControl, bambuLight, bambuMove, bambuHome,
   bambuMotorsOff, bambuFan, bambuFanPct, bambuSetTemp, bambuSetToolTemp, bambuSetSpeedMode,
+  bambuAmsTrays, bambuAmsTray,
 } from './printers/bambulab/index.js';
 import { renderBambuCamBanner } from './printers/bambulab/widget_camera.js';
 import {
@@ -17803,7 +17804,10 @@ import { initScreenTools } from './ai/screen-tools.js';
         toast(res$, "warn", t("catalogTypeUnsupported", { type: String(api.product_type || "—") }));
         return;
       }
+      // Opened from an AMS bay: the new spool takes that spool's identity.
+      const ams = $("catalogPickPanel")?.classList.contains("open") ? _amsPendingAdd : null;
       const cloudId = await _createChipless(uid, id => _catalogDocFromApi(api, productId, id));
+      if (ams) { _amsPendingAdd = null; await _amsStockAttach(uid, cloudId, ams).catch(e => console.warn("[amsStock] attach failed:", e)); }
       // Still a chipless creation, but counted apart from a basic TigerData so
       // the two tiers can be told apart. The `TigerCloud` analytics bucket key
       // (derived server-side from the id prefix) is deliberately untouched.
@@ -17841,6 +17845,7 @@ import { initScreenTools } from './ai/screen-tools.js';
      (`_openCreatedSpool`). */
   const CAT_PICK_MAX = 80;
   let _cpkSelectedId = null;   // the product whose card the pick list opened
+  let _amsPendingAdd = null;   // the AMS bay the picker was opened from (_amsStockClick), until a spool is created
   let _qrAddProductId = null;  // the product a camera read opened there (_qrAddFound), until added or another is picked
   let _cpkUpgradeFor = null;   // spool id the picker was opened to upgrade (TigerTag → TigerTag+)
   let _cpkStackT = 0;          // drops the upgrade stacking once the cards have slid out
@@ -17893,6 +17898,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     }
     const chipHex = _csNormHex(String(prefill?.hex || "").slice(0, 7));
     _cpkChipColor = chipHex ? { lab: hexToLab(chipHex), variant: String(prefill?.variant || "").toUpperCase() } : null;
+    _amsPendingAdd = prefill?.ams || null;
     if ($("cpkSearch")) { $("cpkSearch").value = prefill?.query || ""; $("cpkSearch").dispatchEvent(new Event("input")); }
     _catalogPickFill();
     $("catalogPickPanel")?.classList.add("open");
@@ -20450,7 +20456,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // section) instead of forcing a full panel rebuild — the rebuild reset the scroll
   // (the "jump to top") and reloaded the image/video.
   function _detailLocationSig(r) {
-    return [r.rackId || "", r.rackLevel ?? "", r.rackPos ?? ""].join("|");
+    return [r.rackId || "", r.rackLevel ?? "", r.rackPos ?? "", _amsSeenSig(r)].join("|");
   }
   function _detailStructuralSig(r) {
     return _detailStructuralSigCore(r) + "|#loc#|" + _detailLocationSig(r);
@@ -25935,7 +25941,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // ── Printer slot — the spool's SECOND location. The rack stays its home;
     // the slot says which machine it is mounted on right now. Lives in the same
     // section so the surgical location patch repaints both together.
-    const _mountRow = _detailMountHTML(r);
+    const _mountRow = _detailMountHTML(r) + _amsSeenHTML(r);
     if (_mountRow) {
       storageHtml = storageHtml
         ? storageHtml.replace(/<\/div>\s*$/, `${_mountRow}</div>`)
@@ -33978,6 +33984,183 @@ import { initScreenTools } from './ai/screen-tools.js';
   _printerCtx.isDebugEnabled      = () => !!state.debugEnabled;
   _printerCtx.updatePrinterModel  = (printer, modelId) => persistPrinterModel(printer, modelId);
   _printerCtx.applyTranslations   = () => applyTranslations();
+
+  /* ══ AMS → stock (Bambu Lab) ═════════════════════════════════════════════
+     A Bambu Lab spool the AMS recognised can be added to the stock from its bay,
+     and is recognised again every time it comes back into an AMS. ONLY what the
+     printer publishes is used (push_status: tray_uuid, tray_sub_brands,
+     tray_id_name, colour, tray_weight, remain…): nothing is read from the chip
+     and no key is derived. The spool keeps the AMS identity in `bambu_tray_uuid`
+     and where it was last seen in `ams_seen` { in, printer, name, slot, remain, at }.
+     Weight: a scale weighing stays the reference. The AMS never sets the weight;
+     it only takes off what it reports consumed since its previous report
+     (remain going down), so a weighing in between is kept as the new base. */
+  const AMS_STOCK_HELP_SEEN = "tigertag.amsStockHelp";
+  function _amsStockRow(uuid) {
+    if (!uuid) return null;
+    return state.rows.find(r => !r.deleted && String(r.raw?.bambu_tray_uuid || "") === uuid) || null;
+  }
+  // The spool of the stock an AMS bay holds: one already carrying its identity,
+  // else one whose linked chip is the chip the AMS says it read (a spool added by
+  // reading its chips), so a spool already in stock is never offered again.
+  function _amsKnownRow(t) {
+    if (!t) return null;
+    return _amsStockRow(t.uuid) || (t.tagUid ? spoolForChipUid(t.tagUid) : null);
+  }
+  // undefined = nothing to offer (signed out, a friend's inventory); null = not in stock.
+  _printerCtx.amsStockSpool = t => {
+    if (!state.activeAccountId || state.friendView) return undefined;
+    const r = _amsKnownRow(t);
+    return r ? { spoolId: r.spoolId, weight: r.weightAvailable } : null;
+  };
+  // Every AMS report schedules one pass per printer (they arrive in bursts).
+  const _amsSyncTimers = new Map();
+  _printerCtx.onAmsTrays = key => {
+    if (_amsSyncTimers.has(key)) return;
+    _amsSyncTimers.set(key, setTimeout(() => { _amsSyncTimers.delete(key); _amsStockSync(key).catch(e => console.warn("[amsStock] sync:", e?.message)); }, 1500));
+  };
+  const _amsWriting = new Set();    // spool ids with a write in flight (no double subtraction)
+  async function _amsStockSync(key) {
+    if (!state.activeAccountId || state.friendView) return;
+    const printer = (state.printers || []).find(p => p.brand === "bambulab" && bambuKey(p) === key);
+    if (!printer) return;
+    const trays = bambuAmsTrays(key);
+    const jobs = new Map();         // spoolId → { r, patch }
+    const add = (r, patch) => { const j = jobs.get(r.spoolId) || { r, patch: {} }; Object.assign(j.patch, patch); jobs.set(r.spoolId, j); };
+    // A spool last seen in this printer that none of its bays holds any more
+    // (taken out while Studio was closed, too).
+    const uuidsHere = new Set(trays.map(t => t.uuid));
+    for (const r of state.rows) {
+      const a = r.raw?.ams_seen, u = r.raw?.bambu_tray_uuid;
+      if (!r.deleted && u && a?.in && a.printer === key && !uuidsHere.has(u)) add(r, { "ams_seen.in": false });
+    }
+    for (const t of trays) {
+      const r = _amsKnownRow(t);
+      if (!r) continue;
+      // Found through its linked chip: it takes the AMS identity from now on.
+      if (r.raw?.bambu_tray_uuid !== t.uuid) add(r, { bambu_tray_uuid: t.uuid });
+      const seen = r.raw?.ams_seen || {};
+      const name = _printerDisplayName(printer);
+      if (!seen.in || seen.printer !== key || seen.slot !== t.slot || seen.name !== name)
+        add(r, { "ams_seen.in": true, "ams_seen.printer": key, "ams_seen.name": name, "ams_seen.slot": t.slot });
+      if (t.remain != null && t.remain !== seen.remain) {
+        const patch = { "ams_seen.remain": t.remain };
+        if (Number.isFinite(+seen.remain) && t.remain < +seen.remain) {
+          const full = t.weightG || +r.capacity || 1000;
+          const used = full * (+seen.remain - t.remain) / 100;
+          const w = Math.max(0, Math.round((+r.weightAvailable || 0) - used));
+          if (w !== +r.weightAvailable) patch.weight_available = w;
+        }
+        add(r, patch);
+      }
+    }
+    const ts = firebase.firestore.FieldValue.serverTimestamp();
+    for (const { r, patch } of jobs.values()) {
+      if (_amsWriting.has(r.spoolId)) continue;
+      _amsWriting.add(r.spoolId);
+      try { await _updateSpoolTwinned(r, { ...patch, "ams_seen.at": Date.now(), updatedAt: ts }); }
+      catch (e) { console.warn("[amsStock] write:", e?.message); }
+      finally { _amsWriting.delete(r.spoolId); }
+    }
+  }
+  // The new spool created from the picker opened on an AMS bay: it takes that
+  // spool's identity, its place, and what the AMS says is left.
+  async function _amsStockAttach(uid, spoolId, ams) {
+    const t0 = Date.now();
+    while (!state.inventory[spoolId] && Date.now() - t0 < 4000) await new Promise(res => setTimeout(res, 100));
+    const cap = Number(state.inventory[spoolId]?.measure_gr) || Number(ams.weightG) || 0;
+    const patch = {
+      bambu_tray_uuid: ams.uuid,
+      ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, at: Date.now() },
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    if (ams.remain != null && cap > 0) patch.weight_available = Math.round(cap * ams.remain / 100);
+    await fbDb(uid).collection("users").doc(uid).collection("inventory").doc(spoolId).update(patch);
+    // The bay's "+ Stock" turns into its ✓ once the snapshot carries the spool.
+    setTimeout(() => { if (_activePrinter) renderPrinterDetail(); }, 400);
+  }
+  function _amsStockHelp(then) {
+    try { localStorage.setItem(AMS_STOCK_HELP_SEEN, "1"); } catch {}
+    const step = (h, b) => `<section class="sqn-when ams-help-step"><small>${esc(t(h))}</small><span>${esc(t(b))}</span></section>`;
+    openDialog({
+      icon: "printer", kicker: "Bambu Lab · AMS", title: t("amsStockHelpTitle"),
+      body: step("amsStockHelpWhatH", "amsStockHelpWhat") + step("amsStockHelpCanH", "amsStockHelpCan") + step("amsStockHelpHowH", "amsStockHelpHow"),
+      actions: [{ id: "ok", label: t(then ? "amsStockHelpGo" : "amsStockHelpOk"), kind: "primary" }],
+      onAction: (_id, close) => { close(); then?.(); },
+    });
+  }
+  function _amsStockClick(printer, amsId, trayId) {
+    const key = bambuKey(printer);
+    const t0 = bambuAmsTray(key, amsId, trayId);
+    if (!t0) return;
+    const own = _amsKnownRow(t0);
+    if (own) { openDetail(own.spoolId); return; }
+    if (!state.activeAccountId || state.friendView) return;
+    const ams = { uuid: t0.uuid, printer: key, name: _printerDisplayName(printer), slot: t0.slot, amsId, trayId,
+                  remain: t0.remain ?? null, weightG: t0.weightG ?? null };
+    const create = () => openCatalogPick({ prefill: {
+      brand: "Bambu Lab", query: t0.subBrand || t0.type || "", hex: t0.color || "", variant: t0.idName || "", ams,
+    } });
+    // Already in stock, added some other way (catalogue, manual)? It cannot be
+    // told for sure, so the Bambu Lab spools of that colour are offered first.
+    const go = () => { const c = _amsStockLookalikes(t0); if (c.length) _amsStockPickExisting(c, ams, create); else create(); };
+    let seen = false;
+    try { seen = localStorage.getItem(AMS_STOCK_HELP_SEEN) === "1"; } catch {}
+    if (seen) go(); else _amsStockHelp(go);
+  }
+  const BAMBU_BRAND_ID = 35123;
+  // Bambu Lab spools of the stock with no AMS identity yet, in the bay's colour
+  // (CIEDE2000 under 12), closest first, at most five.
+  function _amsStockLookalikes(t) {
+    const hex = _csNormHex(String(t.color || "").slice(0, 7));
+    if (!hex) return [];
+    const lab = hexToLab(hex);
+    return state.rows
+      .filter(r => !r.deleted && Number(r.raw?.id_brand) === BAMBU_BRAND_ID && !r.raw?.bambu_tray_uuid && r.colorHex)
+      .map(r => [r, deltaE2000(lab, hexToLab(_csNormHex(String(r.colorHex).slice(0, 7)) || "#000000"))])
+      .filter(([, d]) => d < 12).sort((a, b) => a[1] - b[1]).slice(0, 5).map(x => x[0]);
+  }
+  function _amsStockPickExisting(rows, ams, create) {
+    const sw = r => `<span class="ams-pick-sw" style="background:${esc(String(r.colorHex).slice(0, 7))}"></span>`;
+    const name = r => r.productName || [r.material, r.colorName].filter(x => x && x !== "-").join(" ");
+    openDialog({
+      icon: "package", kicker: `${ams.name} · AMS · ${ams.slot}`, title: t("amsStockSameTitle"), text: t("amsStockSameText"),
+      body: `<div class="ams-pick">${rows.map(r => `<button type="button" class="ams-pick-row" data-ams-pick="${esc(r.spoolId)}">${sw(r)}<span class="ams-pick-txt"><b>${esc(name(r))}</b><small>${esc(Math.round(+r.weightAvailable || 0))} g</small></span></button>`).join("")}</div>`,
+      actions: [{ id: "new", label: t("amsStockSameNew"), kind: "primary" }],
+      onAction: (_id, close) => { close(); create(); },
+      wire: (card, close) => card.addEventListener("click", async e => {
+        const b = e.target.closest("[data-ams-pick]");
+        if (!b) return;
+        const r = state.rows.find(x => x.spoolId === b.dataset.amsPick);
+        close();
+        if (!r) return;
+        // Same spool: it takes the AMS identity and place; its weight is kept.
+        await _updateSpoolTwinned(r, {
+          bambu_tray_uuid: ams.uuid,
+          ams_seen: { in: true, printer: ams.printer, name: ams.name, slot: ams.slot, remain: ams.remain ?? null, at: Date.now() },
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        }).catch(err => console.warn("[amsStock] link:", err?.message));
+        openDetail(r.spoolId);
+        setTimeout(() => { if (_activePrinter) renderPrinterDetail(); }, 400);
+      }),
+    });
+  }
+  _printerCtx.openAmsStockHelp = () => _amsStockHelp(null);
+  // The spool card's "In the AMS" row.
+  function _amsSeenSig(r) {
+    const a = r.raw?.ams_seen;
+    return a?.in && r.raw?.bambu_tray_uuid ? `${a.name}|${a.slot}` : "";
+  }
+  function _amsSeenHTML(r) {
+    const a = r.raw?.ams_seen;
+    if (!a?.in || !r.raw?.bambu_tray_uuid) return "";
+    return `
+          <div class="storage-loc-row storage-loc-row--mount">
+            <span class="icon icon-printer icon-14"></span>
+            <span class="storage-loc-rack" title="${esc(t("amsSeenLabel"))}">${esc(a.name || "Bambu Lab")}</span>
+            <span class="storage-loc-coord">AMS · ${esc(a.slot || "")}</span>
+          </div>`;
+  }
   initExtCam({
     db: uid => fbDb(uid),
     uid: () => state.activeAccountId,
@@ -35049,6 +35232,14 @@ import { initScreenTools } from './ai/screen-tools.js';
           }
           return;
         }
+        // Bambu Lab — a bay's spool → the stock (before the bay's own edit)
+        const bblStock = e.target.closest("[data-bbl-ams-stock]");
+        if (bblStock) {
+          if (_activePrinter?.brand === "bambulab")
+            _amsStockClick(_activePrinter, parseInt(bblStock.dataset.amsId, 10), parseInt(bblStock.dataset.trayId, 10));
+          return;
+        }
+        if (e.target.closest("[data-bbl-ams-help]")) { _amsStockHelp(null); return; }
         // Bambu Lab — filament edit (AMS slot squares + Ext.)
         const bblFilTrigger = e.target.closest("[data-bbl-fil-edit]");
         if (bblFilTrigger) {

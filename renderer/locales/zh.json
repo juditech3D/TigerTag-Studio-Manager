@@ -3419,5 +3419,22 @@
   "aiEvShotHidden": {
     "other": "已模糊 {{n}} 处"
   },
-  "friendNoName": "新成员"
+  "friendNoName": "新成员",
+  "amsStockAdd": "库存",
+  "amsStockAddTip": "将此线盘加入我的库存",
+  "amsStockIn": "已在库存",
+  "amsStockOpen": "打开库存中的此线盘",
+  "amsStockHelpTitle": "从 AMS 添加线盘",
+  "amsStockHelpWhatH": "用途",
+  "amsStockHelpWhat": "当 AMS 识别出一个 Bambu Lab 线盘时，Studio 可以直接从其槽位将它加入您的库存，无需扫描。",
+  "amsStockHelpCanH": "您可以做什么",
+  "amsStockHelpCan": "会打开对应的目录产品（材料和颜色）。之后每当线盘回到 AMS，Studio 都会重新识别它，显示打印机和槽位，并扣除已用量。",
+  "amsStockHelpHowH": "如何操作",
+  "amsStockHelpHow": "点击槽位下方的“+ 库存”，确认产品，然后将其加入库存清单。TigerTag 秤的称重始终为准：AMS 只扣除此后的用量。",
+  "amsStockHelpGo": "继续",
+  "amsStockHelpOk": "知道了",
+  "amsSeenLabel": "在此打印机的 AMS 中",
+  "amsStockSameTitle": "是这些线盘中的一个吗？",
+  "amsStockSameText": "您的库存中已有此颜色的 Bambu Lab 线盘。如果是其中之一，请选择它：它会关联到此槽位并保留其重量。",
+  "amsStockSameNew": "不，这是一个新线盘"
 }

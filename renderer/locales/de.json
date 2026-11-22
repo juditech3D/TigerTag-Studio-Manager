@@ -3431,5 +3431,22 @@
     "one": "{{n}} Bereich verwischt",
     "other": "{{n}} Bereiche verwischt"
   },
-  "friendNoName": "Neues Mitglied"
+  "friendNoName": "Neues Mitglied",
+  "amsStockAdd": "Lager",
+  "amsStockAddTip": "Diese Spule zu meinem Lager hinzufügen",
+  "amsStockIn": "Im Lager",
+  "amsStockOpen": "Diese Spule aus meinem Lager öffnen",
+  "amsStockHelpTitle": "Eine Spule aus dem AMS hinzufügen",
+  "amsStockHelpWhatH": "Wofür es ist",
+  "amsStockHelpWhat": "Wenn das AMS eine Bambu-Lab-Spule erkennt, kann Studio sie direkt von ihrem Steckplatz aus in Ihr Lager aufnehmen, ganz ohne Scannen.",
+  "amsStockHelpCanH": "Was Sie tun können",
+  "amsStockHelpCan": "Das passende Katalogprodukt öffnet sich mit Material und Farbe. Danach findet Studio die Spule jedes Mal wieder, wenn sie in ein AMS zurückkommt, zeigt Drucker und Steckplatz an und zieht den Verbrauch ab.",
+  "amsStockHelpHowH": "So geht's",
+  "amsStockHelpHow": "Tippen Sie unter dem Steckplatz auf „+ Lager“, prüfen Sie das Produkt und fügen Sie es dem Inventar hinzu. Das Wiegen auf einer TigerTag-Waage bleibt maßgeblich: Das AMS zieht nur ab, was es seitdem verbraucht hat.",
+  "amsStockHelpGo": "Weiter",
+  "amsStockHelpOk": "Verstanden",
+  "amsSeenLabel": "Im AMS dieses Druckers",
+  "amsStockSameTitle": "Ist es eine dieser Spulen?",
+  "amsStockSameText": "Ihr Lager enthält bereits Bambu-Lab-Spulen dieser Farbe. Wenn es eine davon ist, wählen Sie sie: Sie wird mit diesem Steckplatz verknüpft und behält ihr Gewicht.",
+  "amsStockSameNew": "Nein, es ist eine neue Spule"
 }

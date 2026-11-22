@@ -3467,5 +3467,22 @@
     "many": "{{n}} obszarów rozmytych",
     "other": "{{n}} obszaru rozmytego"
   },
-  "friendNoName": "Nowy członek"
+  "friendNoName": "Nowy członek",
+  "amsStockAdd": "Magazyn",
+  "amsStockAddTip": "Dodaj tę szpulę do mojego magazynu",
+  "amsStockIn": "W magazynie",
+  "amsStockOpen": "Otwórz tę szpulę z mojego magazynu",
+  "amsStockHelpTitle": "Dodaj szpulę z AMS",
+  "amsStockHelpWhatH": "Do czego to służy",
+  "amsStockHelpWhat": "Gdy AMS rozpozna szpulę Bambu Lab, Studio może dodać ją do magazynu prosto z jej gniazda, bez skanowania.",
+  "amsStockHelpCanH": "Co możesz zrobić",
+  "amsStockHelpCan": "Otwiera się pasujący produkt z katalogu, z materiałem i kolorem. Potem za każdym razem, gdy szpula wraca do AMS, Studio ją rozpoznaje, pokazuje drukarkę i gniazdo oraz odejmuje zużycie.",
+  "amsStockHelpHowH": "Jak to zrobić",
+  "amsStockHelpHow": "Naciśnij „+ Magazyn” pod gniazdem, sprawdź produkt i dodaj go do inwentarza. Ważenie na wadze TigerTag pozostaje punktem odniesienia: AMS odejmuje tylko to, co zużył od tego czasu.",
+  "amsStockHelpGo": "Dalej",
+  "amsStockHelpOk": "Rozumiem",
+  "amsSeenLabel": "W AMS tej drukarki",
+  "amsStockSameTitle": "Czy to jedna z tych szpul?",
+  "amsStockSameText": "W magazynie są już szpule Bambu Lab w tym kolorze. Jeśli to jedna z nich, wybierz ją: zostanie powiązana z tym gniazdem i zachowa swoją wagę.",
+  "amsStockSameNew": "Nie, to nowa szpula"
 }

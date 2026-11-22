@@ -3431,5 +3431,22 @@
     "one": "{{n}} zone floutée",
     "other": "{{n}} zones floutées"
   },
-  "friendNoName": "Nouveau membre"
+  "friendNoName": "Nouveau membre",
+  "amsStockAdd": "Stock",
+  "amsStockAddTip": "Ajouter cette bobine à mon stock",
+  "amsStockIn": "En stock",
+  "amsStockOpen": "Ouvrir cette bobine de mon stock",
+  "amsStockHelpTitle": "Ajouter une bobine depuis l'AMS",
+  "amsStockHelpWhatH": "À quoi ça sert",
+  "amsStockHelpWhat": "Quand l'AMS reconnaît une bobine Bambu Lab, Studio peut l'ajouter à votre stock directement depuis son emplacement, sans rien scanner.",
+  "amsStockHelpCanH": "Ce que vous pouvez faire",
+  "amsStockHelpCan": "Le bon produit du catalogue s'ouvre, avec sa matière et sa couleur. Ensuite, chaque fois que la bobine revient dans un AMS, Studio la retrouve, indique l'imprimante et l'emplacement, et retire ce qui a été consommé.",
+  "amsStockHelpHowH": "Comment faire",
+  "amsStockHelpHow": "Touchez « + Stock » sous l'emplacement, vérifiez le produit, puis ajoutez-le à l'inventaire. La pesée sur une balance TigerTag reste la référence : l'AMS retire seulement ce qu'il a consommé depuis.",
+  "amsStockHelpGo": "Continuer",
+  "amsStockHelpOk": "Compris",
+  "amsSeenLabel": "Dans l'AMS de cette imprimante",
+  "amsStockSameTitle": "Est-ce l'une de ces bobines ?",
+  "amsStockSameText": "Votre stock contient déjà des bobines Bambu Lab de cette couleur. Si c'est l'une d'elles, choisissez-la : elle est reliée à cet emplacement et garde son poids.",
+  "amsStockSameNew": "Non, c'est une nouvelle bobine"
 }

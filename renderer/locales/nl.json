@@ -3431,5 +3431,22 @@
     "one": "{{n}} zone vervaagd",
     "other": "{{n}} zones vervaagd"
   },
-  "friendNoName": "Nieuw lid"
+  "friendNoName": "Nieuw lid",
+  "amsStockAdd": "Voorraad",
+  "amsStockAddTip": "Deze spoel aan mijn voorraad toevoegen",
+  "amsStockIn": "In voorraad",
+  "amsStockOpen": "Deze spoel uit mijn voorraad openen",
+  "amsStockHelpTitle": "Een spoel toevoegen vanuit de AMS",
+  "amsStockHelpWhatH": "Waarvoor het dient",
+  "amsStockHelpWhat": "Wanneer de AMS een Bambu Lab-spoel herkent, kan Studio die rechtstreeks vanuit haar sleuf aan je voorraad toevoegen, zonder iets te scannen.",
+  "amsStockHelpCanH": "Wat je kunt doen",
+  "amsStockHelpCan": "Het passende catalogusproduct opent met materiaal en kleur. Daarna herkent Studio de spoel telkens als ze terug in een AMS gaat, toont de printer en de sleuf en trekt af wat verbruikt is.",
+  "amsStockHelpHowH": "Hoe",
+  "amsStockHelpHow": "Tik op „+ Voorraad” onder de sleuf, controleer het product en voeg het toe aan de inventaris. Wegen op een TigerTag-weegschaal blijft de maatstaf: de AMS trekt alleen af wat hij sindsdien verbruikte.",
+  "amsStockHelpGo": "Doorgaan",
+  "amsStockHelpOk": "Begrepen",
+  "amsSeenLabel": "In de AMS van deze printer",
+  "amsStockSameTitle": "Is het een van deze spoelen?",
+  "amsStockSameText": "Je voorraad heeft al Bambu Lab-spoelen in deze kleur. Is het er een van, kies die dan: ze wordt aan deze sleuf gekoppeld en houdt haar gewicht.",
+  "amsStockSameNew": "Nee, het is een nieuwe spoel"
 }

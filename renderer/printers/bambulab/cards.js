@@ -209,6 +209,28 @@ export function renderBambuTempCard(conn, heatedChamber = false) {
 //   Row 2+: [    ] [S1] [S2] [S3] [S4]  ← invisible spacer + next AMS
 // No AMS  : [Ext.] alone on row 1.
 
+/* "Add to my stock" under a bay whose spool the AMS recognised (a `tray_uuid`):
+   a + when no spool of the inventory carries that identity yet, a ✓ with the
+   spool's weight when one does (a tap opens it). Offered in cloud mode too —
+   it only reads what the printer publishes and writes nothing to the machine. */
+function _bblStockChip(t, amsId, trayId) {
+  if (!t?.uuid || amsId == null || amsId === 255) return "";
+  const own = ctx.amsStockSpool?.(t);
+  if (own === undefined) return "";          // no account / friend view: nothing to offer
+  const attrs = `data-bbl-ams-stock="1" data-ams-id="${amsId}" data-tray-id="${trayId}"`;
+  if (own) {
+    const w = Number.isFinite(+own.weight) ? `${Math.round(+own.weight)} g` : "";
+    return `<button type="button" class="bbl-ams-stock bbl-ams-stock--in" ${attrs}
+              aria-label="${ctx.esc(ctx.t("amsStockOpen"))}">
+              <span class="icon icon-check icon-11" aria-hidden="true"></span><span>${ctx.esc(w || ctx.t("amsStockIn"))}</span>
+            </button>`;
+  }
+  return `<button type="button" class="bbl-ams-stock" ${attrs}
+            aria-label="${ctx.esc(ctx.t("amsStockAddTip"))}">
+            <span class="icon icon-plus icon-11" aria-hidden="true"></span><span>${ctx.esc(ctx.t("amsStockAdd"))}</span>
+          </button>`;
+}
+
 export function renderBambuFilamentCard(_p, conn) {
   // Only when live — offline, the filament/AMS state is unknown (stale/empty),
   // so hide the card entirely (matches the job / control cards).
@@ -239,6 +261,7 @@ export function renderBambuFilamentCard(_p, conn) {
           ${ro ? "" : `<span class="snap-fil-status icon icon-edit icon-13" aria-hidden="true"></span>`}
           ${active ? `<span class="snap-fil-status icon icon-play icon-13"></span>` : ""}
           ${t?.type ? `<div class="snap-fil-sub">${ctx.esc(t.type)}</div>` : ""}
+          ${_bblStockChip(t, amsId, trayId)}
         </div>
       </div>`;
   };
@@ -298,6 +321,11 @@ export function renderBambuFilamentCard(_p, conn) {
 
   if (!rows.length) return "";
 
+  // "?" beside the title, as soon as one bay can go to the stock.
+  const stockHelp = ctx.amsStockSpool?.(null) !== undefined && amsMods.some(m => (m.tray || []).some(t => t?.uuid))
+    ? `<button type="button" class="bbl-ams-help" data-bbl-ams-help="1" aria-label="${ctx.esc(ctx.t("amsStockHelpTitle"))}"><span class="icon icon-question icon-12" aria-hidden="true"></span></button>`
+    : "";
+
   // AMS humidity / temp meta — shown in the title, PER unit (a machine can carry
   // several AMS: the H2C reports 2). AMS Lite has NO sensor → skipped. Real
   // humidity % comes ONLY from `humidity_raw` (AMS 2 Pro / HT); the `humidity`
@@ -335,7 +363,7 @@ export function renderBambuFilamentCard(_p, conn) {
 
   return `
     <section class="snap-block">
-      <h4 class="snap-block-title">${ctx.esc(ctx.t("snapFilamentTitle"))}${meta}</h4>
+      <h4 class="snap-block-title">${ctx.esc(ctx.t("snapFilamentTitle"))}${stockHelp}${meta}</h4>
       <div class="cre-fil-rows">${rows.join("")}</div>
     </section>`;
 }

@@ -598,6 +598,38 @@ function _normState(p) {
   }
 }
 
+/* What the AMS itself publishes about a Bambu Lab spool it has read — nothing
+   here comes from the chip: the printer reads its own spools and reports these
+   fields in push_status, and they are only copied as sent. `uuid` is
+   `tray_uuid`, the spool's identity (the same on both of its chips, all zeros
+   for a spool the AMS did not recognise); `remain` is the AMS's own estimate of
+   what is left, in % of `tray_weight` (-1 = unknown → null). A delta carries
+   only the fields that changed, so each one is merged on its own. Used by
+   "Add this spool to my stock" (inventory.js, _amsStock*). */
+function _mergeTrayStock(dt, t) {
+  if (t.tray_uuid !== undefined) {
+    const u = String(t.tray_uuid || "").trim().toUpperCase();
+    dt.uuid = /^[0-9A-F]{16,64}$/.test(u) && /[1-9A-F]/.test(u) ? u : null;
+  }
+  // `tag_uid`: the UID of the chip the AMS itself read, as the printer reports it —
+  // matched against the chips already linked to a spool, never read here.
+  if (t.tag_uid !== undefined) {
+    const g = String(t.tag_uid || "").trim().toUpperCase();
+    dt.tagUid = /^[0-9A-F]{8,32}$/.test(g) && /[1-9A-F]/.test(g) ? g : null;
+  }
+  if (t.tray_sub_brands !== undefined) dt.subBrand = String(t.tray_sub_brands || "");
+  if (t.tray_id_name    !== undefined) dt.idName   = String(t.tray_id_name || "");
+  if (t.tray_info_idx   !== undefined) dt.infoIdx  = String(t.tray_info_idx || "");
+  if (t.tray_weight     !== undefined) { const w = Number(t.tray_weight);   dt.weightG  = Number.isFinite(w) && w > 0 ? w : null; }
+  if (t.tray_diameter   !== undefined) { const v = Number(t.tray_diameter); dt.diameter = Number.isFinite(v) && v > 0 ? v : null; }
+  if (t.nozzle_temp_min !== undefined) { const v = Number(t.nozzle_temp_min); dt.tempMin = Number.isFinite(v) && v > 0 ? v : null; }
+  if (t.nozzle_temp_max !== undefined) { const v = Number(t.nozzle_temp_max); dt.tempMax = Number.isFinite(v) && v > 0 ? v : null; }
+  if (t.remain          !== undefined) { const r = Number(t.remain); dt.remain = Number.isFinite(r) && r >= 0 && r <= 100 ? r : null; }
+  if (Array.isArray(t.cols)) dt.cols = t.cols.map(_parseColor).filter(Boolean);
+  // A bay the AMS reports empty holds no spool any more.
+  if (t.tray_type === "") { dt.uuid = null; dt.tagUid = null; }
+}
+
 function _parseColor(hex) {
   if (!hex) return null;
   const h = String(hex).replace(/^#/, "").toUpperCase();
@@ -951,10 +983,14 @@ function _bblMerge(conn, msg) {
           if (t.tray_type  !== undefined) dt.type   = String(t.tray_type || "");
           if (t.is_active  !== undefined || t.state !== undefined)
             dt.active = t.is_active === true || t.state === 11;
+          _mergeTrayStock(dt, t);
         }
       }
     }
   }
+
+  // The stock follows the spools the AMS recognises (inventory.js _amsStockSync).
+  if (p.ams?.ams) ctx.onAmsTrays?.(conn.key);
 
   // ── External spool (vt_tray = old fw, vir_slot[0] = new fw) ────────────
   // Merge individual fields — never overwrite an existing value with null.
@@ -1463,6 +1499,33 @@ export function bambuGetSlots(printer) {
     }
   });
   return out;
+}
+
+
+/* ── Spools the AMS recognised ────────────────────────────────────────────
+   Every AMS bay of one connected printer holding a Bambu Lab spool the AMS read
+   itself (a `tray_uuid`), with what the printer published about it and the bay
+   label the filament card shows (A1, B3…). The external holder has no reader,
+   so it never appears here. */
+export function bambuAmsTrays(key) {
+  const conn = _bambuConns.get(key);
+  if (!conn || conn.status !== 'connected') return [];
+  const d = conn.data || {};
+  const mods = [...(d.ams || [])].sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0));
+  const out = [];
+  mods.forEach((m, mi) => {
+    for (const t of (m?.tray || [])) {
+      if (!t?.uuid) continue;
+      const bay = parseInt(t.id, 10);
+      if (!Number.isInteger(bay)) continue;
+      out.push({ ...t, amsId: Number(m.id), trayId: bay, slot: `${'ABCDEFGH'[mi] || mi + 1}${bay + 1}` });
+    }
+  });
+  return out;
+}
+/** One bay's AMS data (amsId = the module's own id), or null. */
+export function bambuAmsTray(key, amsId, trayId) {
+  return bambuAmsTrays(key).find(x => x.amsId === amsId && x.trayId === trayId) || null;
 }
 
 

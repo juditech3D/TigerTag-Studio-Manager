@@ -120,6 +120,23 @@ async function resolve(uid) {
   return null;
 }
 
+/** The live spool a chip UID reported by a printer belongs to, if that chip is
+ *  linked (an AMS reports the UID it read, sometimes padded past the chip's own
+ *  4 or 7 bytes, so a linked UID that starts the reported one matches too). */
+export function spoolForChipUid(reported) {
+  const g = String(reported || "").toUpperCase();
+  if (!g) return null;
+  for (const [u, a] of aliases) {
+    const k = String(u).toUpperCase();
+    if (k.length < 8 || !(g === k || g.startsWith(k))) continue;
+    const row = rowById(a.spoolId);
+    if (row && !row.deleted) return row;
+    const twin = row ? twinOf(row) : null;
+    if (twin && !twin.deleted) return twin;
+  }
+  return null;
+}
+
 /** Every chip linked to this spool (its own doc and its twin's). */
 export function linkedChipsOf(row) {
   if (!row) return [];

@@ -40,13 +40,28 @@ const packed = h => ((Math.max(0, Math.round(h.target)) & 0xFFFF) << 16) | (Math
 const trayFields = p => Object.fromEntries(['tray_info_idx', 'nozzle_temp_min', 'nozzle_temp_max']
   .filter(k => p[k] != null).map(k => [k, String(p[k])]));
 
+/* Trays 0 and 1 hold Bambu Lab spools the AMS "recognised": a tray_uuid and a
+   chip tag_uid (stable for a given spool — a slot redrawn with another material or
+   colour is another spool), what the AMS reads off them, and `remain`, which goes
+   down while that tray prints (1 % every 20 s). Trays 2-3 are other makers' spools
+   (all-zero ids, remain -1), as on a real AMS. Drives Studio's "+ Stock". */
+const SUB_BRAND = { PLA: 'PLA Basic', PETG: 'PETG HF', ABS: 'ABS', ASA: 'ASA', TPU: 'TPU for AMS', PC: 'PC' };
+function bblSpool(serial, i, s, remains) {
+  if (i > 1) return { tray_uuid: '0'.repeat(32), tag_uid: '0'.repeat(16), remain: -1 };
+  const id = crypto.createHash('sha256').update(`${serial}|${i}|${s.material}|${s.color}`).digest('hex').toUpperCase();
+  const r = remains.get(id) ?? (i === 0 ? 83 : 55);
+  remains.set(id, r);
+  return { tray_uuid: id.slice(0, 32), tag_uid: id.slice(32, 40) + '00000100', tray_sub_brands: SUB_BRAND[s.material] || s.material,
+           tray_id_name: '', tray_weight: '1000', tray_diameter: '1.75', remain: Math.floor(r) };
+}
+
 /** The AMS block — an empty one on a model printing from the external spool only. `info[i]`: trayFields of tray i. */
-function amsBlock(m, info = []) {
+function amsBlock(m, info = [], spools = null) {
   if (!m.slots.length) return { ams_exist_bits: '0', tray_exist_bits: '0', tray_now: '255', ams: [] };
   return { ams_exist_bits: '1', tray_exist_bits: ((1 << m.slots.length) - 1).toString(16), tray_now: String(m.activeSlot), ams: [{
     id: '0', humidity: '4', humidity_raw: '28', temp: '25.1',
     tray: m.slots.map((s, i) => (s.empty ? { id: String(i) } : {
-      id: String(i), ...info[i],
+      id: String(i), ...info[i], ...(spools ? bblSpool(spools.serial, i, s, spools.remains) : {}),
       tray_color: rgbaHex(s.color), tray_type: s.material, state: i === m.activeSlot && m.isBusy ? 11 : 0,
     })),
   }] };
@@ -86,7 +101,7 @@ function report(m, extra, full) {
     spd_lvl: speedLvl(m.speedPct), spd_mag: m.speedPct,
     lights_report: [{ node: 'chamber_light', mode: m.light ? 'on' : 'off' }],
     ipcam: { ipcam_dev: '1', rtsp_url: 'disable_rtsp_jpeg_tcp' },
-    ams: amsBlock(m, extra.trays),
+    ams: amsBlock(m, extra.trays, extra.spools),
     ...deviceBlock(m),
     vt_tray: { id: '254', ...extra.ext.info,
       tray_color: rgbaHex(extra.ext.color), tray_type: extra.ext.material, state: 0 },
@@ -100,7 +115,7 @@ async function start({ machine: m, address, library, record, model, ffmpegPath }
   const [host, mqttPort = '8883'] = String(address).split(':');
   const customPort = String(address).includes(':');
   const serial = String(record.serialNumber || ''), code = String(record.password || '');
-  const extra = { aux: 0, chamberFan: 0, ext: { material: 'PLA', color: '#00AE42', info: {} }, trays: [] };
+  const extra = { aux: 0, chamberFan: 0, ext: { material: 'PLA', color: '#00AE42', info: {} }, trays: [], spools: { serial, remains: new Map() } };
   const mode = { relative: false };
   const closers = [];
 
@@ -152,7 +167,15 @@ async function start({ machine: m, address, library, record, model, ffmpegPath }
   const mqttServer = tls.createServer(tlsKeys(), broker.handle);
   await listen(mqttServer, host, Number(mqttPort));
   closers.push(() => { mqttServer.close(); broker.close(); });
-  const pushT = setInterval(() => pub(report(m, extra)), 1000);
+  const pushT = setInterval(() => {
+    // The printing tray's recognised spool gets lighter (see bblSpool).
+    const a = m.slots[m.activeSlot];
+    if (m.phase === 'printing' && a && !a.empty && m.activeSlot <= 1) {
+      const id = crypto.createHash('sha256').update(`${serial}|${m.activeSlot}|${a.material}|${a.color}`).digest('hex').toUpperCase();
+      if (extra.spools.remains.has(id)) extra.spools.remains.set(id, Math.max(0, extra.spools.remains.get(id) - 0.05));
+    }
+    pub(report(m, extra));
+  }, 1000);
   closers.push(() => clearInterval(pushT));
 
   // ── Camera, port 6000: auth packet in, [16-byte header + JPEG] out ─────────

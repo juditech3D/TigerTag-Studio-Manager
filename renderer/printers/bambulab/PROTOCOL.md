@@ -514,6 +514,12 @@ Logique de priorité : `gcode_state` > `print_type` > `state` > `status` > `upgr
 | `ctype` | int | Type de couleur : `0` = uni, non-zero = dégradé/spécial |
 | `tray_temp` | string/int | Température de séchage recommandée (°C) |
 | `tray_time` | string/int | Durée de séchage recommandée (h) |
+| `tray_uuid` | string | Bambu Lab spool identity read by the AMS (32 hex, the same on both of its chips). `"000…0"` = spool not recognised. Used by "+ Stock" (inventory.js `_amsStock*`) |
+| `tray_id_name` | string | Bambu variant code (e.g. `"A00-K0"`), matched against the start of the catalogue SKU |
+| `tray_weight` | string/int | Filament weight of a full spool (g) |
+| `tray_diameter` | string | Diameter (mm) |
+| `remain` | int | The AMS's estimate of what is left, in % of `tray_weight`. `-1` = unknown (remaining-capacity tracking off, non-Bambu spool) |
+| `tag_uid` | string | UID of the chip the AMS read, as the printer reports it — matched against the chips already linked to a spool (`spoolForChipUid`), so a spool added by reading its chips is not offered again |
 
 **Détection tray vide** : un tray vide n'envoie que `{"id":"X"}` ou `{"id":"X","state":Y}`. Tout champ supplémentaire au-delà de `id`/`state` indique des données filament. Ne pas utiliser `tray_type == ""` comme critère vide.
 

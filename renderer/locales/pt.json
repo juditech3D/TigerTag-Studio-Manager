@@ -3431,5 +3431,22 @@
     "one": "{{n}} área borrada",
     "other": "{{n}} áreas borradas"
   },
-  "friendNoName": "Novo membro"
+  "friendNoName": "Novo membro",
+  "amsStockAdd": "Estoque",
+  "amsStockAddTip": "Adicionar este carretel ao meu estoque",
+  "amsStockIn": "No estoque",
+  "amsStockOpen": "Abrir este carretel do meu estoque",
+  "amsStockHelpTitle": "Adicionar um carretel pelo AMS",
+  "amsStockHelpWhatH": "Para que serve",
+  "amsStockHelpWhat": "Quando o AMS reconhece um carretel Bambu Lab, o Studio pode adicioná-lo ao seu estoque direto do slot, sem escanear nada.",
+  "amsStockHelpCanH": "O que você pode fazer",
+  "amsStockHelpCan": "Abre-se o produto certo do catálogo, com material e cor. Depois, toda vez que o carretel volta a um AMS, o Studio o reconhece, mostra a impressora e o slot e desconta o que foi usado.",
+  "amsStockHelpHowH": "Como fazer",
+  "amsStockHelpHow": "Toque em “+ Estoque” abaixo do slot, confira o produto e adicione-o ao inventário. A pesagem numa balança TigerTag continua sendo a referência: o AMS só desconta o que usou desde então.",
+  "amsStockHelpGo": "Continuar",
+  "amsStockHelpOk": "Entendi",
+  "amsSeenLabel": "No AMS desta impressora",
+  "amsStockSameTitle": "É um destes carretéis?",
+  "amsStockSameText": "Seu estoque já tem carretéis Bambu Lab desta cor. Se for um deles, escolha-o: ele é ligado a este slot e mantém o peso.",
+  "amsStockSameNew": "Não, é um carretel novo"
 }

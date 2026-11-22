@@ -3431,5 +3431,22 @@
     "one": "{{n}} zona difuminada",
     "other": "{{n}} zonas difuminadas"
   },
-  "friendNoName": "Nuevo miembro"
+  "friendNoName": "Nuevo miembro",
+  "amsStockAdd": "Stock",
+  "amsStockAddTip": "Añadir esta bobina a mi stock",
+  "amsStockIn": "En stock",
+  "amsStockOpen": "Abrir esta bobina de mi stock",
+  "amsStockHelpTitle": "Añadir una bobina desde el AMS",
+  "amsStockHelpWhatH": "Para qué sirve",
+  "amsStockHelpWhat": "Cuando el AMS reconoce una bobina Bambu Lab, Studio puede añadirla a tu stock directamente desde su ranura, sin escanear nada.",
+  "amsStockHelpCanH": "Lo que puedes hacer",
+  "amsStockHelpCan": "Se abre el producto del catálogo que corresponde, con su material y su color. Después, cada vez que la bobina vuelve a un AMS, Studio la reconoce, indica la impresora y la ranura, y descuenta lo consumido.",
+  "amsStockHelpHowH": "Cómo hacerlo",
+  "amsStockHelpHow": "Pulsa «+ Stock» bajo la ranura, comprueba el producto y añádelo al inventario. El pesaje en una báscula TigerTag sigue siendo la referencia: el AMS solo descuenta lo que ha consumido desde entonces.",
+  "amsStockHelpGo": "Continuar",
+  "amsStockHelpOk": "Entendido",
+  "amsSeenLabel": "En el AMS de esta impresora",
+  "amsStockSameTitle": "¿Es una de estas bobinas?",
+  "amsStockSameText": "Tu stock ya tiene bobinas Bambu Lab de este color. Si es una de ellas, elígela: se vincula a esta ranura y conserva su peso.",
+  "amsStockSameNew": "No, es una bobina nueva"
 }

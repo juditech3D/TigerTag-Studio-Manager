@@ -3431,5 +3431,22 @@
     "one": "{{n}} zona sfocata",
     "other": "{{n}} zone sfocate"
   },
-  "friendNoName": "Nuovo membro"
+  "friendNoName": "Nuovo membro",
+  "amsStockAdd": "Scorta",
+  "amsStockAddTip": "Aggiungi questa bobina alla mia scorta",
+  "amsStockIn": "In scorta",
+  "amsStockOpen": "Apri questa bobina della mia scorta",
+  "amsStockHelpTitle": "Aggiungere una bobina dall'AMS",
+  "amsStockHelpWhatH": "A cosa serve",
+  "amsStockHelpWhat": "Quando l'AMS riconosce una bobina Bambu Lab, Studio può aggiungerla alla tua scorta direttamente dal suo slot, senza scansionare nulla.",
+  "amsStockHelpCanH": "Cosa puoi fare",
+  "amsStockHelpCan": "Si apre il prodotto del catalogo corrispondente, con materiale e colore. Poi, ogni volta che la bobina torna in un AMS, Studio la ritrova, indica la stampante e lo slot e sottrae quanto consumato.",
+  "amsStockHelpHowH": "Come fare",
+  "amsStockHelpHow": "Premi «+ Scorta» sotto lo slot, controlla il prodotto e aggiungilo all'inventario. La pesata su una bilancia TigerTag resta il riferimento: l'AMS sottrae solo quanto ha consumato da allora.",
+  "amsStockHelpGo": "Continua",
+  "amsStockHelpOk": "Capito",
+  "amsSeenLabel": "Nell'AMS di questa stampante",
+  "amsStockSameTitle": "È una di queste bobine?",
+  "amsStockSameText": "La tua scorta contiene già bobine Bambu Lab di questo colore. Se è una di queste, sceglila: viene collegata a questo slot e mantiene il suo peso.",
+  "amsStockSameNew": "No, è una bobina nuova"
 }

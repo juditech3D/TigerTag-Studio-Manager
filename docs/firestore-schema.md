@@ -207,6 +207,8 @@ users/
         tag_count           number   — how many chips the object carries (byte +39 low nibble): 1 = single, 2 = twin. 0 = unknown. A `tag_count` of 2 with no `twin_tag_uid` = the other chip has not been scanned yet.
         message             string?  — user note (also the colour name for DIY/Cloud)
         tags                string[]? — user-defined free-form labels (Shopify-style). Studio metadata only, never written to the physical chip. Normalised (trimmed, ≤32 chars, case-insensitive dedup, ≤20/spool). Mirrored onto the twin spool so both chips of one physical spool share the same tags. Owner-write, no rule change needed (inventory has no field whitelist). Cross-app field — mobile ignores it until it implements tags
+        bambu_tray_uuid     string?  — FORK: the Bambu Lab spool identity the AMS publishes (`tray_uuid`, 32 hex), set when the spool was added from an AMS bay. Read from the printer's report only, never from the chip. Studio metadata, owner-write (no field whitelist)
+        ams_seen            map?     — FORK: where the AMS last reported that spool { in: boolean, printer: printer key, name, slot: "A1"…, remain: AMS % left | null, at: ms }. `remain` is the base the next report's consumption is taken from (weight_available goes down by what remain says was used, never set from it)
         rfidListed          boolean? — true once this UID has been recorded in rfidList/ (dedup marker; absent = not yet). Set by Studio's chip census / scan path. See rfidList/ below
         rfidBackup          boolean? — true once a TigerTag+ Certified backup has been stored in rfidList/{UID}.backup. Stays false for every other chip (TigerTag, plain TigerTag+, maker tags) and for a Certified not yet physically read
 

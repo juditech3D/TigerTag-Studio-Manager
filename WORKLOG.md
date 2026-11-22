@@ -16,6 +16,39 @@
 
 ### Added
 
+- Bambu Lab AMS → stock: under each AMS bay whose spool the AMS recognised (a non-zero
+  `tray_uuid` in push_status), a "+ Stock" pill opens the catalogue picker on Bambu Lab, the
+  bay's `tray_sub_brands`, its colour and its `tray_id_name`, exactly as a read chip does; the
+  spool created from it keeps `bambu_tray_uuid`, where it sits (`ams_seen` { in, printer, name,
+  slot, remain, at }) and a weight of `remain` % of the product. A spool already in stock is never
+  offered again: one carrying that `tray_uuid`, or one whose linked chip (`rfidAliases`) is the chip
+  the AMS reports it read (`tag_uid`, printer-published) shows ✓ with its weight and opens the
+  spool (a chip-linked one takes the `tray_uuid` from then on); otherwise, when the stock holds
+  Bambu Lab spools of that colour with no AMS identity (CIEDE2000 < 12, five at most), a window
+  asks "Is it one of these spools?" first, and picking one links it to the bay and keeps its
+  weight. Each AMS report afterwards finds the spool again in any
+  printer's AMS, shows "printer · AMS · slot" in its Storage location section, marks it out
+  when no bay of that printer holds it, and lowers its weight only by what `remain` says was
+  used since the previous report, so a scale weighing stays the reference. Only what the printer
+  publishes is used: nothing is read from the chip and no key is derived. Works in cloud mode
+  too (it sends nothing to the printer). A first-use help window (what it is for / what you can
+  do / how), reopened by the "?" next to the Filament title. Untested on a real AMS.
+  `renderer/printers/bambulab/index.js` (`_mergeTrayStock`, `bambuAmsTrays`, `bambuAmsTray`,
+  `ctx.onAmsTrays`), `renderer/printers/bambulab/cards.js` (`_bblStockChip`),
+  `renderer/printers/bambulab/bambulab.css` (`.bbl-ams-stock`, `.bbl-ams-help`,
+  `.ams-help-step`, `.ams-pick`), `renderer/inventory.js` (`_amsStockClick`, `_amsStockSync`,
+  `_amsStockAttach`, `_amsStockHelp`, `_amsSeenHTML`, `openCatalogPick` prefill `ams`,
+  `_catalogCreate`), `renderer/CODEMAP.md`, `docs/firestore-schema.md`,
+  `renderer/printers/bambulab/PROTOCOL.md`. i18n: `amsStockAdd`, `amsStockAddTip`,
+  `amsStockIn`, `amsStockOpen`, `amsStockHelpTitle`, `amsStockHelpWhatH`, `amsStockHelpWhat`,
+  `amsStockHelpCanH`, `amsStockHelpCan`, `amsStockHelpHowH`, `amsStockHelpHow`,
+  `amsStockHelpGo`, `amsStockHelpOk`, `amsSeenLabel`, `amsStockSameTitle`, `amsStockSameText`,
+  `amsStockSameNew` (11 locales). `renderer/rfid_protocol/linked/index.js` (`spoolForChipUid`).
+  Demo mode: the simulated Bambu Lab's trays 0-1 hold recognised spools (tray_uuid, tag_uid,
+  sub-brand, weight, `remain` dropping while printing), trays 2-3 other makers' spools, so the
+  feature can be tried without a printer. `services/demo/faces/bambulab.js` (`bblSpool`),
+  `docs/DEMO-MODE.md`.
+
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
   the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware
