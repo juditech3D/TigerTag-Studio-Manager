@@ -168,6 +168,8 @@
 ### Fixed
 - Printers board: the view no longer scrolls over empty space when the cards reach the bottom
   of the window; the wide drop margin is kept only in Arrange mode (`renderer/inventory.js`).
+- Printers board: hovering a bay square shows its tip again (bay, filament, and for a recognised
+  Bambu spool its weight and AMS %); the square's `overflow: hidden` clipped it (`40-printers.css`).
 
 - A Feitian ROCKEY-ARM licence dongle ("FT ROCKEY ARM 0") is no longer taken for an RFID reader: PC/SC lists it as a reader holding a card, so it showed as one more chip next to the real ones. `services/nfc-process.js` skips names matching `rockey`, like the YubiKey and Windows Hello readers.
 - `.ttag` import in **Import** mode works again: it wrote `id_tigertag: FieldValue.delete()` in a
