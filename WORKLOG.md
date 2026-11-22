@@ -16,6 +16,11 @@
 
 ### Added
 
+- Tile views in select mode: a "Select All" key beside "Select" ticks every spool the
+  current filter shows (pressed again, unticks them) — the list header's master box, which
+  the tiles had no equivalent of. `renderer/inventory.html` (`#btnSelectAll`),
+  `renderer/inventory.js` (`_syncSelAllHeader`), `renderer/css/70-detail-misc.css`
+  (`.inv-select-all`). i18n: reuses `ctxSelectAll`.
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
   the answer shows on the button ("Screen on" / "No answer" / "Update the scale" for a firmware
