@@ -52,6 +52,11 @@
   `.lbl-copy`), `main.js` (`label:render` `sheets`), `renderer/inventory.js` (ctx
   `stockCount`). i18n: `labelCopies`, `labelCopiesStock`, `labelCopiesFit`, `labelCopiesSheets`,
   `labelSheetGap`, `labelSheetMargin`.
+- Tile views in select mode: a "Select All" key beside "Select" ticks every spool the
+  current filter shows (pressed again, unticks them) — the list header's master box, which
+  the tiles had no equivalent of. `renderer/inventory.html` (`#btnSelectAll`),
+  `renderer/inventory.js` (`_syncSelAllHeader`), `renderer/css/70-detail-misc.css`
+  (`.inv-select-all`). i18n: reuses `ctxSelectAll`.
 - Stock selection bar: a "Labels" button opens the label card for every selected spool
   (a twin pair once): one label each with its own QR, "Copies each", printed in one run
   — tiled on A4, one page each otherwise, one after the other on the P15 / Brother QL —

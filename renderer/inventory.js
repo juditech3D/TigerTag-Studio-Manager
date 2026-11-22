@@ -4337,6 +4337,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   $("btnSelectMode")?.addEventListener("click", _toggleSelectMode);
   $("bulkExit")?.addEventListener("click", _exitSelectMode);
   $("bulkTags")?.addEventListener("click", _openBulkTags);
+  $("btnSelectAll")?.addEventListener("click", () => _toggleSelectAllVisible());
   // Bulk "Labels" (own spools): the label card for every selected spool, one label
   // each, a twin pair (two chips on one spool) printed once.
   $("bulkLabels")?.addEventListener("click", () => {
@@ -14113,6 +14114,8 @@ import { initScreenTools } from './ai/screen-tools.js';
       el.classList.toggle("is-some", some);
       el.setAttribute("aria-checked", all ? "true" : some ? "mixed" : "false");
     });
+    const allBtn = $("btnSelectAll");
+    if (allBtn) { allBtn.classList.toggle("active", all); allBtn.setAttribute("aria-pressed", String(all)); }
   }
 
   // Printer selection (button-triggered checkboxes in printer grid + table).
