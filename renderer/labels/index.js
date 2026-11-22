@@ -18,10 +18,14 @@
  * resolution), a PDF or a print job; the SVG export is the label's own SVG.
  *
  *   initLabels(ctx)          — t, esc, showTip, hideTip, syncPanels, reportError, toast,
- *                              onLabelOut({ row, kind, template, output, dpi }) after a print or a save
+ *                              onLabelOut({ row, kind, template, output, dpi, copies }) after a print or a save,
+ *                              stockCount(row) — the spools of that product in stock
  *   openLabelCard(row, { productOnly }) — the label card for a spool row
  *                              (normalizeRow); productOnly: a catalogue product,
  *                              no spool (only its product label)
+ *   syncLabelBatch(rows)     — the selection changed: redraw the card opened from it
+ *   openLabelBatch(rows)     — the same card for several spools (the selection's
+ *                              "Labels"): one label each, printed in one run
  *   closeLabelCard() / labelCardOpen()
  *   refreshLabelCard(row)    — the open spool label follows its spool's live row
  *   mountLabel(el, row, { productOnly }) — the same label tools drawn inside
@@ -39,7 +43,7 @@ import { p15Connect, p15Connected, p15Print, P15_MAX_MM } from "./p15.js";
 export { spoolLink, productLink };
 
 let ctx = null;
-let current = null;   // { row } — the spool the card is for
+let current = null;   // { row, productOnly, batch? } — the spool(s) the card is for
 
 const $ = id => document.getElementById(id);
 const PREFS_KEY = "tigertag.label";
@@ -71,7 +75,59 @@ export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
 // services/label-printers.js QL_MEDIA), "" = ask the printer.
 // `qlHost`: { "sys:<name>": address } — the network address typed for an installed
 // Brother QL, printed directly on its raw port (none found on its Windows port).
-const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {} };
+// `sheetGap`: the space in mm between copies on an A4 sheet (0–20, default 5).
+// `sheetMargin`: the space in mm kept free along the A4 sheet's edges (0–20, default 0).
+// (How many copies go on the A4 sheets is chosen per print, not kept: sheetCopies.)
+// `pageBy`: { printer id: page } — the sheet the label is printed on with that
+// printer, for the system dialog and installed printers only: "label" (a page of
+// the label's own size, the default), "a4-tl" or "a4-c" (an A4 page with the label
+// in its top-left corner or centred) for drivers that know no page but A4 (#263).
+const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {}, pageBy: {}, sheetGap: 5, sheetMargin: 0 };
+const LABEL_PAGES = ["label", "a4-tl", "a4-c"];
+// The sheet a label goes out on: only the dialog and installed printers can take an A4.
+const pageFor = (printer, p) => (printer.kind === "dialog" || printer.kind === "sys") && LABEL_PAGES.includes(p.pageBy[printer.id]) ? p.pageBy[printer.id] : "label";
+// Several copies on one A4 sheet: laid out in rows from the top-left place (of the
+// sheet, or of a full sheet's grid centred on it), `sheetGap` mm apart to cut between (5 by default, a preference);
+// more copies than a sheet holds go on to the next one. The number of copies is not
+// a preference: a print run is chosen each time, and starts again at one copy.
+const MAX_COPIES = 500, MAX_GAP = 20;
+let sheetCopies = 1;
+// The A4 preview's magnification (1 = the whole sheet in the card); kept while the app runs.
+const SHEET_ZOOMS = [1, 1.5, 2, 3, 4];
+let sheetZoom = 1;
+function sheetLayout(w, h, n, sheet) {
+  const { sheetGap: SHEET_GAP, sheetMargin: m } = prefs();
+  // `sheetMargin` keeps the labels off the sheet's edges (an office printer cannot
+  // print the last few mm); 0 for a label printer whose roll starts at the corner.
+  const cols = Math.max(1, Math.floor((210 - 2 * m + SHEET_GAP) / (w + SHEET_GAP)));
+  const rows = Math.max(1, Math.floor((297 - 2 * m + SHEET_GAP) / (h + SHEET_GAP)));
+  const per = cols * rows, sheets = [];
+  for (let left = n; left > 0; left -= per) {
+    // The first label always goes in the top-left place, even alone: centred, it is the
+    // grid of a full sheet that is centred on the page.
+    const k = Math.min(left, per);
+    const x0 = sheet === "a4-c" ? (210 - (cols * w + (cols - 1) * SHEET_GAP)) / 2 : m;
+    const y0 = sheet === "a4-c" ? (297 - (rows * h + (rows - 1) * SHEET_GAP)) / 2 : m;
+    sheets.push(Array.from({ length: k }, (_, i) => [x0 + (i % cols) * (w + SHEET_GAP), y0 + Math.floor(i / cols) * (h + SHEET_GAP)]));
+  }
+  return { per, sheets };
+}
+// A print run: the labels to print (one per spool of a batch, else the open one)
+// as `items` [{ row, kind, lbl }], and `run`, the index of each label printed, in
+// order — each one `copies` times. Copies apply on A4 and in a batch only: alone on
+// its own page, the system dialog already asks how many.
+function runOf(items, printer) {
+  const n = items.length > 1 || pageFor(printer, prefs()) !== "label" ? Math.max(1, Math.min(sheetCopies, Math.floor(MAX_COPIES / items.length))) : 1;
+  return items.flatMap((_, k) => Array(n).fill(k));
+}
+// The pages a print run sends to main.js: per page, where each label goes
+// [x mm, y mm, index in items]. Nothing for a single label on its own page.
+function sheetsFor(printer, items) {
+  const sheet = pageFor(printer, prefs()), run = runOf(items, printer), l = items[0].lbl;
+  if (sheet === "label") return run.length > 1 ? run.map(k => [[0, 0, k]]) : undefined;
+  let i = 0;
+  return sheetLayout(l.mmW, l.mmH, run.length, sheet).sheets.map(sh => sh.map(([x, y]) => [x, y, run[i++]]));
+}
 // The Brother DK rolls offered in the card (QL_MEDIA keys), continuous first.
 const QL_ROLLS = ["62x0", "29x0", "38x0", "50x0", "54x0", "12x0", "102x0", "29x90", "62x29", "62x100", "17x54", "17x87", "23x23", "29x42", "38x90", "39x48", "52x29", "102x51", "102x152"];
 
@@ -106,7 +162,10 @@ function prefs() {
   if (![203, 300].includes(Number(out.dpi))) out.dpi = 203;
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
   if (!QL_ROLLS.includes(out.qlRoll)) out.qlRoll = "";
+  out.sheetMargin = Number.isFinite(Number(out.sheetMargin)) ? Math.min(MAX_GAP, Math.max(0, Number(out.sheetMargin))) : DEFAULT_PREFS.sheetMargin;
+  out.sheetGap = Number.isFinite(Number(out.sheetGap)) ? Math.min(MAX_GAP, Math.max(0, Number(out.sheetGap))) : DEFAULT_PREFS.sheetGap;
   out.qlHost = out.qlHost && typeof out.qlHost === "object" ? out.qlHost : {};
+  out.pageBy = out.pageBy && typeof out.pageBy === "object" ? out.pageBy : {};
   // `templateBy`: { printer id: template id } — the format last picked for each printer.
   const by = out.templateBy && typeof out.templateBy === "object" ? out.templateBy : {};
   out.templateBy = Object.fromEntries(Object.entries(by).filter(([, v]) => LABEL_TEMPLATES.some(x => x.id === v)));
@@ -407,15 +466,41 @@ function fittingTemplate(printer, current, roll) {
 // `row` is a normalized spool row; ctx.labelInfo(row) gives the printed texts.
 export function openLabelCard(row, { productOnly = false } = {}) {
   if (!row) return;
+  if (row.spoolId !== current?.row?.spoolId || current?.batch) sheetCopies = 1;
   current = { row, productOnly: productOnly && !!productLink(row.idProduct) };
   $("labelPanel")?.classList.add("open");
   render($("labelBody"), current);
   ctx.syncPanels?.();
 }
+// Several spools at once (the selection bar's "Labels"): the same card, one label
+// per spool, each with its own QR. A single spool is the ordinary card. Opened this
+// way the card follows the selection: syncLabelBatch() redraws it as spools are
+// ticked or unticked, keeping the copies typed.
+export function openLabelBatch(rows, { keepCopies = false } = {}) {
+  rows = (rows || []).filter(Boolean);
+  if (!rows.length) return;
+  if (!keepCopies) sheetCopies = 1;
+  current = rows.length < 2
+    ? { row: rows[0], productOnly: false, fromSelection: true }
+    : { row: rows[0], productOnly: false, batch: rows, fromSelection: true };
+  $("labelPanel")?.classList.add("open");
+  render($("labelBody"), current);
+  ctx.syncPanels?.();
+}
+// The selection changed: redraw the card opened from it, when its spools differ.
+// An empty selection leaves the last labels on screen.
+export function syncLabelBatch(rows) {
+  if (!labelCardOpen() || !current?.fromSelection) return;
+  rows = (rows || []).filter(Boolean);
+  if (!rows.length) return;
+  const ids = list => list.map(r => r.spoolId).join(",");
+  if (ids(rows) === ids(current.batch || [current.row])) return;
+  openLabelBatch(rows, { keepCopies: true });
+}
 // The spool changed while its label is open (a TD set, a colour renamed…): redraw
 // with the live row, only when something the label prints has changed.
 export function refreshLabelCard(row) {
-  if (!labelCardOpen() || !current || !row || row.spoolId !== current.row.spoolId) return;
+  if (!labelCardOpen() || !current || current.batch || !row || row.spoolId !== current.row.spoolId) return;
   const next = { ...row, idProduct: current.row.idProduct };
   if (JSON.stringify(ctx.labelInfo(next)) === JSON.stringify(ctx.labelInfo(current.row))) return;
   current = { ...current, row: next };
@@ -444,7 +529,7 @@ export function labelFor(row, { kind = "spool", template, slots, dpi } = {}) {
   const opts = { template: template || p.template, slots: slots || p.slots, dpi: dpi || p.dpi };
   return { lbl: buildLabel(info, linkFor(row, k), opts), link: linkFor(row, k), kind: k };
 }
-export function saveLabel(format, lbl, row, kind) { return exportLabel(format, lbl, row, kind, null); }
+export function saveLabel(format, lbl, row, kind) { return exportLabel(format, [{ lbl, row, kind }], null); }
 export function qrSvg(link) {
   const m = qrMatrix(link);
   if (!m) return null;
@@ -465,7 +550,8 @@ function render(body, cur) {
   const { t, esc } = ctx;
   const p = prefs();
   const row = cur.row;
-  const hasProduct = !!productLink(row.idProduct);
+  const batch = cur.batch?.length > 1 ? cur.batch : null;
+  const hasProduct = batch ? batch.some(r => productLink(r.idProduct)) : !!productLink(row.idProduct);
   const kind = cur.productOnly || (p.kind === "product" && hasProduct) ? "product" : "spool";
   const link = linkFor(row, kind);
   // A Filament Label is a catalogue product: it always carries the TigerQR+ pill.
@@ -473,12 +559,35 @@ function render(body, cur) {
   // A direct printer prints at its own resolution (P15 203 dpi, Brother QL 300 dpi).
   const printer = printerFor(p.printer);
   const lbl = buildLabel(info, link, { ...p, dpi: printer.dpi || p.dpi });
+  // A batch: every spool's own label (a Filament Label where the spool has a product).
+  const items = !batch ? [{ row, kind, lbl }] : batch.map((r, i) => {
+    if (i === 0 && (kind === "spool" || productLink(r.idProduct))) return { row: r, kind, lbl };
+    const k = kind === "product" && productLink(r.idProduct) ? "product" : "spool";
+    const inf = { ...ctx.labelInfo(r), ...(k === "product" ? { protocol: "TigerQR+" } : {}) };
+    return { row: r, kind: k, lbl: buildLabel(inf, linkFor(r, k), { ...p, dpi: printer.dpi || p.dpi }) };
+  });
+  const run = runOf(items, printer);
   const tplNow = LABEL_TEMPLATES.find(x => x.id === p.template);
   const noFit = !fitsPrinter(printer, tplNow, p.qlRoll);
   askRoll(printer, body, cur);
   watchQlState(printer, body);
-  // Preview: the very page that is printed, scaled to the card.
-  const boxW = 340, scale = Math.min(boxW / lbl.wDots, 220 / lbl.hDots);
+  // Preview: the very page that is printed, scaled to the card. On an A4 sheet the
+  // whole sheet is drawn, with the label at the place and size it will print at.
+  const sheet = pageFor(printer, p);
+  const onA4 = sheet !== "label";
+  const dpm = lbl.wDots / lbl.mmW;   // printer dots per millimetre
+  const zoom = onA4 ? sheetZoom : 1;
+  const boxW = 340, scale = onA4 ? 220 * zoom / (297 * dpm) : Math.min(boxW / lbl.wDots, 220 / lbl.hDots);
+  const layout = onA4 ? sheetLayout(lbl.mmW, lbl.mmH, run.length, sheet) : null;
+  const px = mm => Math.round(mm * dpm * scale);
+  const [firstAt, ...others] = layout ? layout.sheets[0] : [[0, 0]];
+  // The other labels of the first sheet: each one's own SVG, drawn where it prints.
+  const svgUrls = new Map();
+  const svgUrl = k => svgUrls.get(k) || svgUrls.set(k, "data:image/svg+xml;charset=utf-8," + encodeURIComponent(items[k].lbl.svg)).get(k);
+  const copiesImg = others.map(([x, y], i) => `<img class="lbl-copy" alt="" src="${svgUrl(run[i + 1])}" style="left:${px(x)}px;top:${px(y)}px;width:${px(lbl.mmW)}px;height:${px(lbl.mmH)}px">`).join("");
+  const sheetOpen = onA4 ? `<div class="lbl-sheet" style="width:${px(210)}px;height:${px(297)}px">${copiesImg}` : "";
+  const paperAt = onA4 ? `position:absolute;left:${px(firstAt[0])}px;top:${px(firstAt[1])}px;border-radius:0;` : "";
+  const stock = onA4 && !batch && kind === "product" ? ctx.stockCount?.(row) || 0 : 0;
   const seg = (id, on, label) => `<button type="button" class="lbl-seg-btn${on ? " is-active" : ""}" data-lbl-kind="${id}" aria-pressed="${on}">${esc(label)}</button>`;
   // A size the chosen printer's roll cannot take is greyed out and cannot be picked.
   const tplBtn = x => `<button type="button" class="lbl-tpl${x.id === p.template ? " is-active" : ""}" data-lbl-tpl="${x.id}" aria-pressed="${x.id === p.template}"${fitsPrinter(printer, x, p.qlRoll) ? "" : " disabled"}>
@@ -488,15 +597,20 @@ function render(body, cur) {
       ${["none", ...LABEL_SLOTS].map(s => `<option value="${s}"${p.slots[i] === s ? " selected" : ""}>${esc(s === "none" ? t("labelSlotNone") : t(SLOT_LABEL[s]))}</option>`).join("")}
     </select>`;
   body.innerHTML = `
+    ${batch ? `<p class="lbl-batch">${esc(t("labelBatchCount", { n: batch.length }))}</p>` : ""}
     <div class="panel-label">${esc(t("labelTemplate"))}</div>
     <div class="lbl-tpls">${LABEL_TEMPLATES.map(tplBtn).join("")}</div>
     ${hasProduct && !cur.productOnly ? `<div class="lbl-seg lbl-seg--kind" role="group">${seg("spool", kind === "spool", t("labelKindSpool"))}${seg("product", kind === "product", t("labelKindProduct"))}</div>` : ""}
     ${link ? "" : `<p class="lbl-hint">${esc(t("labelNoQr"))}</p>`}
-    <div class="lbl-preview">${link ? `<button type="button" class="lbl-paper lbl-paper--link" data-lbl-open aria-label="${esc(t("labelOpenLink"))}"` : `<div class="lbl-paper"`} style="width:${Math.round(lbl.wDots * scale)}px;height:${Math.round(lbl.hDots * scale)}px">
+    ${onA4 ? `<div class="lbl-zoom-row"><div class="rv-plan-zoom" role="group">
+      <button type="button" data-lbl-zoom="-1" aria-label="${esc(t("rackPlanZoomOut"))}"${zoom <= SHEET_ZOOMS[0] ? " disabled" : ""}>−</button>
+      <span class="val">${Math.round(zoom * 100)}</span><span class="pct">%</span>
+      <button type="button" data-lbl-zoom="1" aria-label="${esc(t("rackPlanZoomIn"))}"${zoom >= SHEET_ZOOMS.at(-1) ? " disabled" : ""}>+</button></div></div>` : ""}
+    <div class="lbl-preview${zoom > 1 ? " is-zoomed" : ""}">${sheetOpen}${link ? `<button type="button" class="lbl-paper lbl-paper--link" data-lbl-open aria-label="${esc(t("labelOpenLink"))}"` : `<div class="lbl-paper"`} style="${paperAt}width:${Math.round(lbl.wDots * scale)}px;height:${Math.round(lbl.hDots * scale)}px">
       <iframe class="lbl-frame" title="" tabindex="-1" sandbox="" style="width:${lbl.wDots}px;height:${lbl.hDots}px;transform:scale(${scale})"></iframe>
       ${link ? `<span class="lbl-open-hint"><span class="icon icon-arrow-up-right icon-12" aria-hidden="true"></span>${esc(t("labelOpenLink"))}</span></button>` : "</div>"}
-    </div>
-    ${link ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
+    ${onA4 ? "</div>" : ""}</div>
+    ${link && !batch ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
     <div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-slots">${[0, 1, 2, 3].map(slotSel).join("")}</div>
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
@@ -516,14 +630,25 @@ function render(body, cur) {
         return `<option value="${r}"${r === p.qlRoll ? " selected" : ""}>${esc(txt)}</option>`;
       }).join("")}</select></div>
       <div class="lbl-printer lbl-ql"><span class="lbl-ql-state" data-lbl-ql-state></span></div>` : ""}
+    ${printer.kind === "dialog" || printer.kind === "sys" ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelPage"))}</span>
+      <select class="lbl-roll-sel" data-lbl-page>${LABEL_PAGES.map(v => `<option value="${v}"${v === pageFor(printer, p) ? " selected" : ""}>${esc(t({ label: "labelPageLabel", "a4-tl": "labelPageA4TopLeft", "a4-c": "labelPageA4Centre" }[v]))}</option>`).join("")}</select></div>
+      <p class="lbl-hint">${esc(t("labelPageHint"))}</p>` : ""}
+    ${onA4 || batch ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t(batch ? "labelCopiesEach" : "labelCopies"))}</span>
+      <input type="number" class="lbl-host lbl-copies" data-lbl-copies min="1" max="${MAX_COPIES}" step="1" inputmode="numeric" value="${sheetCopies}">
+      ${stock > 0 ? `<button type="button" class="ghost sm" data-lbl-stock><span>${esc(t("labelCopiesStock", { n: stock }))}</span></button>` : ""}</div>
+      ${onA4 ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelSheetMargin"))}</span>
+      <input type="number" class="lbl-host lbl-copies" data-lbl-margin min="0" max="${MAX_GAP}" step="0.5" inputmode="decimal" value="${p.sheetMargin}"><span class="lbl-roll-label">mm</span></div>` : ""}
+      ${onA4 && run.length > 1 ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelSheetGap"))}</span>
+      <input type="number" class="lbl-host lbl-copies" data-lbl-gap min="0" max="${MAX_GAP}" step="0.5" inputmode="decimal" value="${p.sheetGap}"><span class="lbl-roll-label">mm</span></div>` : ""}
+      ${onA4 ? `<p class="lbl-hint">${esc(t("labelCopiesFit", { per: layout.per }))}${layout.sheets.length > 1 ? " · " + esc(t("labelCopiesSheets", { n: layout.sheets.length })) : ""}</p>` : ""}` : ""}
     <p class="lbl-msg"></p>
     ${noFit ? `<p class="lbl-hint">${esc(t(printer.kind === "p15" ? "labelP15NoFit" : "labelQlNoFit"))}</p>` : ""}
     ${printer.dpi ? "" : `<div class="lbl-dpi"><span>${esc(t("labelDpi"))}</span>${[203, 300].map(d => `<button type="button" class="lbl-seg-btn${p.dpi === d ? " is-active" : ""}" data-lbl-dpi="${d}" aria-pressed="${p.dpi === d}">${d} dpi</button>`).join("")}</div>`}
     <div class="lbl-actions">
       <button type="button" class="primary sm" data-lbl-out="print"${noFit ? " disabled" : ""}><span class="icon icon-printer icon-14"></span><span>${esc(t("labelPrint"))}</span></button>
       <button type="button" class="ghost sm" data-lbl-out="pdf"><span class="icon icon-download icon-14"></span><span>PDF</span></button>
-      <button type="button" class="ghost sm" data-lbl-out="png"><span class="icon icon-download icon-14"></span><span>PNG</span></button>
-      <button type="button" class="ghost sm" data-lbl-out="svg"><span class="icon icon-download icon-14"></span><span>SVG</span></button>
+      ${batch ? "" : `<button type="button" class="ghost sm" data-lbl-out="png"><span class="icon icon-download icon-14"></span><span>PNG</span></button>
+      <button type="button" class="ghost sm" data-lbl-out="svg"><span class="icon icon-download icon-14"></span><span>SVG</span></button>`}
     </div>
 `;
   // The preview draws inside its frame: a spinner on the paper until it has loaded.
@@ -531,6 +656,16 @@ function render(body, cur) {
   paper?.classList.add("is-loading");
   frame.addEventListener("load", () => paper?.classList.remove("is-loading"), { once: true });
   frame.srcdoc = lbl.html;
+  // The zoomed A4 preview is moved by dragging it (the wheel keeps scrolling the card).
+  const pv = body.querySelector(".lbl-preview.is-zoomed");
+  if (pv) pv.onpointerdown = e => {
+    if (e.button !== 0) return;
+    const x = e.clientX, y = e.clientY, l = pv.scrollLeft, t0 = pv.scrollTop;
+    pv.setPointerCapture(e.pointerId);
+    pv.classList.add("is-panning");
+    pv.onpointermove = m => { pv.scrollLeft = l - (m.clientX - x); pv.scrollTop = t0 - (m.clientY - y); };
+    pv.onpointerup = pv.onpointercancel = () => { pv.onpointermove = null; pv.classList.remove("is-panning"); };
+  };
   body.querySelectorAll(".lbl-slot, .lbl-printer-sel, .lbl-roll-sel").forEach(el => ctx.enhanceSelect?.(el));
   // The printers are searched once, the first time a card opens: redrawn when they answer.
   if (!searched && !searching) searchPrinters().then(() => { if (body.isConnected) render(body, cur); });
@@ -552,9 +687,17 @@ function render(body, cur) {
     }
     else if (d) { savePrefs({ ...prefs(), dpi: Number(d.dataset.lblDpi) }); render(body, cur); }
     else if (out) {
-      if (out.dataset.lblOut === "print" && printer.kind !== "dialog") printDirect(printer, lbl, row, kind, body, cur);
-      else exportLabel(out.dataset.lblOut, lbl, row, kind, body.querySelector(".lbl-msg"));
+      if (out.dataset.lblOut === "print" && printer.kind !== "dialog") printDirect(printer, items, body, cur);
+      else exportLabel(out.dataset.lblOut, items, body.querySelector(".lbl-msg"));
     }
+    // The A4 preview, closer or further: the next step of SHEET_ZOOMS.
+    else if (e.target.closest("[data-lbl-zoom]")) {
+      const i = SHEET_ZOOMS.indexOf(sheetZoom) + Number(e.target.closest("[data-lbl-zoom]").dataset.lblZoom);
+      sheetZoom = SHEET_ZOOMS[Math.max(0, Math.min(SHEET_ZOOMS.length - 1, i))];
+      render(body, cur);
+    }
+    // As many copies as spools of this product in stock.
+    else if (e.target.closest("[data-lbl-stock]")) { sheetCopies = Math.min(MAX_COPIES, Math.max(1, stock)); render(body, cur); }
     else if (e.target.closest("[data-lbl-bt]")) window.electronAPI?.pickLabelBtDevice?.(e.target.closest("[data-lbl-bt]").dataset.lblBt);
     else if (e.target.closest("[data-lbl-connect]")) connectP15(body, cur);
     else if (e.target.closest("[data-lbl-search]")) {
@@ -572,6 +715,14 @@ function render(body, cur) {
     }
   };
   body.onchange = e => {
+    const cp = e.target.closest("[data-lbl-copies]");
+    if (cp) { sheetCopies = Math.min(MAX_COPIES, Math.max(1, Math.round(Number(cp.value)) || 1)); render(body, cur); return; }
+    const mg = e.target.closest("[data-lbl-margin]");
+    if (mg) { const v = Number(mg.value); savePrefs({ ...prefs(), sheetMargin: Number.isFinite(v) ? Math.min(MAX_GAP, Math.max(0, v)) : 0 }); render(body, cur); return; }
+    const gp = e.target.closest("[data-lbl-gap]");
+    if (gp) { const v = Number(gp.value); savePrefs({ ...prefs(), sheetGap: Number.isFinite(v) ? Math.min(MAX_GAP, Math.max(0, v)) : 5 }); render(body, cur); return; }
+    const pg = e.target.closest("[data-lbl-page]");
+    if (pg) { const q = prefs(); q.pageBy = { ...q.pageBy, [q.printer]: pg.value }; savePrefs(q); render(body, cur); return; }
     const roll = e.target.closest("[data-lbl-roll]");
     if (roll) {
       // A roll with its own template brings it (62 × 29 mm: the Brother template).
@@ -656,7 +807,8 @@ function watchQlState(printer, body) {
 
 // Print without the dialog. The P15's Bluetooth connection is asked for FIRST,
 // before anything is awaited: Web Bluetooth only opens inside the click.
-async function printDirect(printer, lbl, row, kind, body, cur) {
+async function printDirect(printer, items, body, cur) {
+  const { lbl } = items[0], run = runOf(items, printer);
   const msg = body.querySelector(".lbl-msg"), btn = body.querySelector('[data-lbl-out="print"]');
   const say = (text, state) => setMsg(msg, text, state);
   const conn = printer.kind === "p15" ? p15Connect() : null;
@@ -668,20 +820,29 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
     if (printer.kind === "p15") {
       try { await conn; } catch (e) { throw p15Error(e); }
       // The head runs across the roll: the label goes turned when its height is the short side.
-      const bm = await window.electronAPI.labelBitmap({ html: lbl.html, wDots: lbl.wDots, hDots: lbl.hDots, rotate: lbl.mmH <= lbl.mmW });
-      if (!bm?.ok) throw new Error(bm?.reason || "render failed");
-      await p15Print(bm);
+      // One label after the other, each rendered then sent.
+      for (const k of run) {
+        const l = items[k].lbl;
+        const bm = await window.electronAPI.labelBitmap({ html: l.html, wDots: l.wDots, hDots: l.hDots, rotate: l.mmH <= l.mmW });
+        if (!bm?.ok) throw new Error(bm?.reason || "render failed");
+        await p15Print(bm);
+      }
       res = { ok: true };
     } else if (printer.kind === "net") {
-      res = await window.electronAPI.printLabelQl({ html: lbl.html, wDots: lbl.wDots, hDots: lbl.hDots, host: printer.host, port: printer.port, model: printer.model, roll: prefs().qlRoll });
-      // The printer does not say which roll it holds: asked for, nothing sent.
-      if (res?.needRoll) throw Object.assign(new Error("needRoll"), { p15: true });
+      for (const k of run) {
+        const l = items[k].lbl;
+        res = await window.electronAPI.printLabelQl({ html: l.html, wDots: l.wDots, hDots: l.hDots, host: printer.host, port: printer.port, model: printer.model, roll: prefs().qlRoll });
+        // The printer does not say which roll it holds: asked for, nothing sent.
+        if (res?.needRoll) throw Object.assign(new Error("needRoll"), { p15: true });
+        if (!res?.ok) break;
+      }
     } else {
-      res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName });
+      res = await window.electronAPI.renderLabel({ ...lbl, format: "print", deviceName: printer.deviceName, page: pageFor(printer, prefs()),
+        sheets: sheetsFor(printer, items), labels: items.length > 1 ? items.map(x => x.lbl.html) : undefined });
     }
     if (!res?.ok) throw new Error(res?.reason || "print failed");
     say(ctx.t("labelPrinted", { printer: printer.name }), "ok");
-    ctx.onLabelOut?.({ row, kind, template: lbl.template, output: "print", dpi: lbl.dpi });
+    labelsOut(items, run, "print");
   } catch (e) {
     // Nothing to report for a printer switched off or a computer without Bluetooth: said plainly.
     const known = p15Known(e);
@@ -694,16 +855,31 @@ async function printDirect(printer, lbl, row, kind, body, cur) {
   }
 }
 
-async function exportLabel(format, lbl, row, kind, msg) {
+// Counted once per spool printed or saved (not for a cancelled dialog): print_label.
+function labelsOut(items, run, output) {
+  items.forEach((it, k) => {
+    const copies = run.filter(x => x === k).length;
+    if (copies) ctx.onLabelOut?.({ row: it.row, kind: it.kind, template: it.lbl.template, output, dpi: it.lbl.dpi, copies });
+  });
+}
+
+async function exportLabel(format, items, msg) {
   setMsg(msg, "");
+  const { lbl, row, kind } = items[0];
   const id = kind === "product" ? productLink(row.idProduct).split("/").pop() : String(row.spoolId).replace(/^TigerData_/, "");
-  const fileName = `tigertag-${kind}-${id}-${lbl.mmW}x${lbl.mmH}`;
+  // A batch is one file: the PDF holds every label, one page each.
+  const fileName = items.length > 1 ? `tigertag-labels-${items.length}-${lbl.mmW}x${lbl.mmH}` : `tigertag-${kind}-${id}-${lbl.mmW}x${lbl.mmH}`;
   const svg = format === "svg" ? lbl.svg : undefined;   // the label itself, sized in millimetres
   try {
-    const res = await window.electronAPI?.renderLabel?.({ ...lbl, svg, format, fileName });
+    // The system dialog prints on the sheet chosen for it; PDF / PNG / SVG keep the label's size.
+    const dialog = printerFor("dialog");
+    const page = format === "print" ? pageFor(dialog, prefs()) : "label";
+    const run = format === "print" ? runOf(items, dialog) : items.map((_, k) => k);
+    const sheets = format === "print" ? sheetsFor(dialog, items) : format === "pdf" && items.length > 1 ? run.map(k => [[0, 0, k]]) : undefined;
+    const labels = items.length > 1 ? items.map(x => x.lbl.html) : undefined;
+    const res = await window.electronAPI?.renderLabel?.({ ...lbl, svg, format, fileName, page, sheets, labels });
     if (!res?.ok && res?.reason !== "cancelled" && format !== "print") throw new Error(res?.reason || "render failed");
-    // A label actually printed or saved (not a cancelled dialog): counted (print_label).
-    if (res?.ok) ctx.onLabelOut?.({ row, kind, template: lbl.template, output: format, dpi: lbl.dpi });
+    if (res?.ok) labelsOut(items, run, format);
   } catch (e) {
     setMsg(msg, ctx.t("labelExportFailed"));
     ctx.reportError?.("label." + format, e);
