@@ -3971,7 +3971,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!slot || !btn) return;
     // Only a brand that ships its own chips (Bambu Lab, Creality…) is offered the link.
     const makers = HAS_NATIVE && brandHasMakerChips(parseInt($("adpBrand")?.value, 10)) ? presentMakerChips().length : 0;
-    const burn = !makers && HAS_NATIVE && state.nfcReaderCount > 0;
+    // Never a burn for a Bambu Lab spool: it carries Bambu's own read-only chips.
+    const burn = !makers && HAS_NATIVE && state.nfcReaderCount > 0 && parseInt($("adpBrand")?.value, 10) !== 35123;
     const chip = burn && state.nfcCardPresent.size > 0;
     const mode = makers ? `link:${makers}${bambuPairGap() ? ":gap" : ""}` : chip ? "burn:chip" : burn ? "burn" : "";
     if (slot.dataset.mode === mode) return;
