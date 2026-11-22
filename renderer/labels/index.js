@@ -578,11 +578,33 @@ function render(body, cur) {
   const tplBtn = x => `<button type="button" class="lbl-tpl${x.id === p.template ? " is-active" : ""}" data-lbl-tpl="${x.id}" aria-pressed="${x.id === p.template}"${fitsPrinter(printer, x, p.qlRoll) ? "" : " disabled"}>
       <b>${esc(t("labelTpl_" + x.id))}</b><small>${x.w} × ${x.h} mm</small></button>`;
   const tpl = LABEL_TEMPLATES.find(x => x.id === p.template);
-  // The values' lines in the order they print, top to bottom, each choice with the
-  // value it would print for this spool. Hidden for a format that prints none.
-  const slotSel = i => `<div class="lbl-slot-row"><span class="lbl-slot-n" aria-hidden="true">${i + 1}</span><select class="lbl-slot" data-lbl-slot="${i}">
-      ${["none", ...LABEL_SLOTS].map(s => `<option value="${s}"${p.slots[i] === s ? " selected" : ""}>${esc(s === "none" ? t("labelSlotNone") : t(SLOT_LABEL[s]) + (info.values[s] ? " · " + info.values[s] : ""))}</option>`).join("")}
-    </select></div>`;
+  // The values, chosen on a giant drawing of the label: the spool's brand, series and
+  // colour as they print, a stand-in QR, and each values line where it prints, top
+  // to bottom, as a choice showing the value it prints for this spool. Hidden for a
+  // format that prints none. The real preview above stays as it is.
+  const slotSel = i => {
+    const k = p.slots[i], has = k !== "none" && !!info.values[k];
+    return `<label class="lbl-giant-line${has ? "" : " is-empty"}"><select class="lbl-giant-sel" data-lbl-slot="${i}" aria-label="${esc(t("labelSlots"))} ${i + 1}">
+      ${["none", ...LABEL_SLOTS].map(s => `<option value="${s}"${k === s ? " selected" : ""}>${esc(s === "none" ? t("labelSlotNone") : t(SLOT_LABEL[s]) + (info.values[s] ? " : " + info.values[s] : ""))}</option>`).join("")}
+    </select><span class="lbl-giant-caret" aria-hidden="true">▾</span></label>`;
+  };
+  // A QR-looking pattern (fixed, not a code): only says where the QR goes.
+  const fakeQr = (() => {
+    let d = "";
+    for (let r = 0; r < 21; r++) for (let c = 0; c < 21; c++) {
+      const finder = (r < 7 || r > 13) && c < 7 || r < 7 && c > 13;
+      const on = finder ? (r % 7 === 0 || r % 7 === 6 || c % 7 === 0 || c % 7 === 6 || (r % 7 > 1 && r % 7 < 5 && c % 7 > 1 && c % 7 < 5)) && !(r > 13 && c > 13)
+        : (r * 7 + c * 13 + r * c) % 5 < 2;
+      if (on) d += `M${c} ${r}h1v1h-1z`;
+    }
+    return `<svg class="lbl-giant-qr" viewBox="0 0 21 21" aria-hidden="true" shape-rendering="crispEdges"><path d="${d}"/></svg>`;
+  })();
+  const giant = () => `<div class="lbl-giant">
+      <div class="lbl-giant-head"><b class="lbl-giant-brand">${esc(info.brand || "")}</b>${info.protocol ? `<span class="lbl-giant-pill">${esc(info.protocol)}</span>` : ""}</div>
+      ${info.series || info.material ? `<div class="lbl-giant-bar">${esc(info.series || info.material)}</div>` : ""}
+      <div class="lbl-giant-name">${esc(info.name || "")}</div>
+      <div class="lbl-giant-body"><div class="lbl-giant-lines">${Array.from({ length: tpl.slots }, (_, i) => slotSel(i)).join("")}</div>${fakeQr}</div>
+    </div>`;
   body.innerHTML = `
     ${batch ? `<p class="lbl-batch">${esc(t("labelBatchCount", { n: batch.length }))}</p>` : ""}
     <div class="panel-label">${esc(t("labelTemplate"))}</div>
@@ -598,7 +620,7 @@ function render(body, cur) {
       ${link ? `<span class="lbl-open-hint"><span class="icon icon-arrow-up-right icon-12" aria-hidden="true"></span>${esc(t("labelOpenLink"))}</span></button>` : "</div>"}
     ${onA4 ? "</div>" : ""}</div>
     ${link && !batch ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
-    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-slots">${Array.from({ length: tpl.slots }, (_, i) => slotSel(i)).join("")}</div>` : ""}
+    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div>${giant()}` : ""}
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
       <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt, img]) => `<option value="${esc(v)}"${img ? ` data-thumb="${esc(img)}"` : ""}${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>

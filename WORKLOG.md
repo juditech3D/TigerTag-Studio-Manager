@@ -60,9 +60,11 @@
   `sheets`), `renderer/inventory.html` / `70-detail-misc.css` (`#bulkLabels`),
   `renderer/inventory.js`, `CODEMAP-main.md`. i18n: `bulkLabels`, `labelBatchCount`,
   `labelCopiesEach`; `labelPageA4Centre` reworded.
-- Label card values: one numbered line per value, top to bottom as they print, each choice
-  showing the value it prints for this spool; hidden for a format that prints none.
-  `renderer/labels/index.js` (`slotSel`), `renderer/labels/labels.css` (`.lbl-slot-row`).
+- Label card values: chosen on a giant drawing of the label (the spool's brand, series bar
+  and colour, a stand-in QR) where each values line sits where it prints, top to bottom, as
+  a highlighted choice showing the value it prints for this spool; hidden for a format that
+  prints none. `renderer/labels/index.js` (`giant`, `slotSel`, `fakeQr`),
+  `renderer/labels/labels.css` (`.lbl-giant*`).
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;
