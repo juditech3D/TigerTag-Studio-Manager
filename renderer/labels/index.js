@@ -23,6 +23,7 @@
  *   openLabelCard(row, { productOnly }) — the label card for a spool row
  *                              (normalizeRow); productOnly: a catalogue product,
  *                              no spool (only its product label)
+ *   syncLabelBatch(rows)     — the selection changed: redraw the card opened from it
  *   openLabelBatch(rows)     — the same card for several spools (the selection's
  *                              "Labels"): one label each, printed in one run
  *   closeLabelCard() / labelCardOpen()
@@ -472,15 +473,29 @@ export function openLabelCard(row, { productOnly = false } = {}) {
   ctx.syncPanels?.();
 }
 // Several spools at once (the selection bar's "Labels"): the same card, one label
-// per spool, each with its own QR. A single spool is the ordinary card.
-export function openLabelBatch(rows) {
+// per spool, each with its own QR. A single spool is the ordinary card. Opened this
+// way the card follows the selection: syncLabelBatch() redraws it as spools are
+// ticked or unticked, keeping the copies typed.
+export function openLabelBatch(rows, { keepCopies = false } = {}) {
   rows = (rows || []).filter(Boolean);
-  if (rows.length < 2) { if (rows[0]) openLabelCard(rows[0]); return; }
-  sheetCopies = 1;
-  current = { row: rows[0], productOnly: false, batch: rows };
+  if (!rows.length) return;
+  if (!keepCopies) sheetCopies = 1;
+  current = rows.length < 2
+    ? { row: rows[0], productOnly: false, fromSelection: true }
+    : { row: rows[0], productOnly: false, batch: rows, fromSelection: true };
   $("labelPanel")?.classList.add("open");
   render($("labelBody"), current);
   ctx.syncPanels?.();
+}
+// The selection changed: redraw the card opened from it, when its spools differ.
+// An empty selection leaves the last labels on screen.
+export function syncLabelBatch(rows) {
+  if (!labelCardOpen() || !current?.fromSelection) return;
+  rows = (rows || []).filter(Boolean);
+  if (!rows.length) return;
+  const ids = list => list.map(r => r.spoolId).join(",");
+  if (ids(rows) === ids(current.batch || [current.row])) return;
+  openLabelBatch(rows, { keepCopies: true });
 }
 // The spool changed while its label is open (a TD set, a colour renamed…): redraw
 // with the live row, only when something the label prints has changed.

@@ -6,7 +6,7 @@ import { openColorPop } from './color-pop.js';
 import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
-import { initLabels, openLabelCard, openLabelBatch, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
+import { initLabels, openLabelCard, openLabelBatch, syncLabelBatch, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
 import { parseQrLink, spoolIdFromPath, linkValues, productLink, productShareLink, spoolLink, spoolShareLink } from './qr-link.js';
 
 // ── Offline timezone → country (telemetry, no IP geolocation) ──────────────
@@ -4340,8 +4340,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // each, a twin pair (two chips on one spool) printed once.
   $("bulkLabels")?.addEventListener("click", () => {
     if (state.friendView) return;
-    const rows = deduplicateTwins([...state.selectedSpools].map(id => state.rows.find(r => r.spoolId === id)).filter(r => r && !r.deleted));
-    openLabelBatch(rows.map(r => ({ ...r, idProduct: r.raw?.id_product ?? r.idProduct })));
+    openLabelBatch(_labelSelectionRows());
   });
   setupHoldToConfirm($("bulkDelete"), 1500, () => { _bulkCtx().del().catch(e => reportError("bulk.delete", e)); }, { hint: true });
   // Bulk ★ Favorite / ❤ Love (materials selection; also the only bulk actions in a friend view).
@@ -14032,11 +14031,18 @@ import { initScreenTools } from './ai/screen-tools.js';
     _updateBulkBar();
   }
 
+  // The selected own spools as the label card wants them (twin pairs once).
+  function _labelSelectionRows() {
+    const rows = deduplicateTwins([...state.selectedSpools].map(id => state.rows.find(r => r.spoolId === id)).filter(r => r && !r.deleted));
+    return rows.map(r => ({ ...r, idProduct: r.raw?.id_product ?? r.idProduct }));
+  }
   function _updateBulkBar() {
     const bar = $("bulkBar");
     if (!bar) return;
     const ctx = _bulkCtx();
     const n = ctx.set.size;
+    // A label card opened from the selection follows it as spools are ticked.
+    if (!state.friendView && !ctx.products && !ctx.printers && !ctx.catalog) syncLabelBatch(_labelSelectionRows());
     const dc = $("bulkDeleteCount"); if (dc) dc.textContent = n ? ` (${n})` : "";
     const show = state.bulkSelect && n > 0;
     bar.classList.toggle("hidden", !show);
