@@ -29813,6 +29813,33 @@ import { initScreenTools } from './ai/screen-tools.js';
     renderPrintersView(true);
   }
 
+  /* The camera wall's own "Stop all / Show all cameras" (the board keys' twins).
+     Cut, every card keeps its place and size but shows the eye-off placeholder,
+     and the streams the wall alone was holding are closed. Session-only, like
+     the board's: reopening Studio shows the wall live again. */
+  let _camWallCut = false;
+  function _camWallStopAll() {
+    _camWallCut = true;
+    const keep = _activePrinter ? _printerKey(_activePrinter) : null;
+    for (const p of state.printers || []) {
+      const key = _printerKey(p);
+      if (key === keep || _camPlaying.has(key) || _camSourceId(p)) continue;   // still shown elsewhere
+      try {
+        if (p.brand === "bambulab")   bambuStopCam(bambuKey(p));
+        if (p.brand === "creality"   && p.ip) stopCreCam(p.ip);
+        if (p.brand === "flashforge") ffgMuxStop(ffgKey(p));
+        if (p.brand === "anycubic")   acuReleaseCamera(p);
+      } catch (e) { console.warn("[cam-wall] stop failed for", key, e?.message || e); }
+    }
+    renderPrintersView(true);
+  }
+  function _camWallPlayAll() {
+    _camWallCut = false;
+    for (const p of state.printers || []) _camKick(p);
+    questBump("cameraOpen");
+    renderPrintersView(true);
+  }
+
   function _camShow(key) {
     _camPlaying.add(key);
     const p = state.printers.find(v => _printerKey(v) === key);
@@ -30957,6 +30984,9 @@ import { initScreenTools } from './ai/screen-tools.js';
        is absent; there is nothing of it to preserve. */
     const _offlinePlaced = _camOrdered.filter(p =>
       !_onlinePrinters.includes(p) && _camWallPos(p));
+    /* "Stop all cameras" on the wall: the same cards, each on its placeholder. */
+    const _cutHtml = `<div class="cam-wall-offline cam-wall-cut"><span class="icon icon-eye-off icon-24"></span></div>`;
+    if (_camWallCut) _camHtmlMap.forEach((_, k) => _camHtmlMap.set(k, _cutHtml));
     const _wallPrinters = [..._onlinePrinters, ..._offlinePlaced];
 
     // ── Step 2: Empty state ────────────────────────────────────────────────────
@@ -30990,7 +31020,8 @@ import { initScreenTools } from './ai/screen-tools.js';
                       [...newKeys].every(k => existingKeys.has(k)) &&
                       _wallPrinters.every(p => {
                         const card = existingWall.querySelector(`[data-brand="${p.brand}"][data-id="${p.id}"]`);
-                        return !!card && card.classList.contains("cam-wall-card--offline") === !_camHtmlMap.has(`${p.brand}:${p.id}`);
+                        return !!card && card.classList.contains("cam-wall-card--offline") === !_camHtmlMap.has(`${p.brand}:${p.id}`)
+                                      && card.classList.contains("cam-wall-card--cut") === (_camWallCut && _camHtmlMap.has(`${p.brand}:${p.id}`));
                       });
       if (sameSet) {
         _wallPrinters.forEach((p, idx) => {
@@ -31031,7 +31062,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       const sizeCls = csize === "sm" ? " cam-wall-card--sm" : csize === "2x" ? " cam-wall-card--2x" : csize === "fs" ? " cam-wall-card--fs" : "";
       // style.order is set explicitly so DnD can reorder via CSS without moving DOM nodes.
       return `
-        <div class="cam-wall-card${sizeCls}${_camHtmlMap.has(ckey) ? "" : " cam-wall-card--offline"}" data-brand="${esc(p.brand)}" data-id="${esc(p.id)}" data-cam-key="${esc(ckey)}">
+        <div class="cam-wall-card${sizeCls}${_camHtmlMap.has(ckey) ? (_camWallCut ? " cam-wall-card--cut" : "") : " cam-wall-card--offline"}" data-brand="${esc(p.brand)}" data-id="${esc(p.id)}" data-cam-key="${esc(ckey)}">
           <div class="cam-wall-card-head">
             <span class="printer-brand-pill" style="--brand-accent:${esc(meta.accent)}">${esc(meta.label)}</span>
             <span class="cam-wall-card-name">${esc(p.printerName || "(unnamed)")}</span>
@@ -31061,6 +31092,14 @@ import { initScreenTools } from './ai/screen-tools.js';
                  value="${Math.round(_camZoom * 100)}" aria-label="${esc(t("rackPlanZoom"))}"><span class="pct">%</span>
           <button type="button" id="cwZoomIn" aria-label="${esc(t("rackPlanZoomIn"))}">+</button>
         </div>
+        <button type="button" class="rv-plan-btn" id="cwCamPlayAll"${_camWallCut && _onlinePrinters.length ? "" : " hidden"}>
+          <span class="icon icon-play icon-14"></span>
+          <span>${esc(t("boardCamPlayAll"))}</span>
+        </button>
+        <button type="button" class="rv-plan-btn" id="cwCamStopAll"${!_camWallCut && _onlinePrinters.length ? "" : " hidden"}>
+          <span class="icon icon-eye-off icon-14"></span>
+          <span>${esc(t("boardCamStopAll"))}</span>
+        </button>
       </div>
       <div class="printers-scroll cam-scroll">
         <div class="cam-wall cam-wall--plan">${camCards.join("")}</div>
@@ -31092,6 +31131,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     _layoutCamWall(host.querySelector(".cam-wall"));
     wireExtCamWall(host.querySelector(".cam-wall"));
     wireCamWallPlan(host);
+    host.querySelector("#cwCamStopAll")?.addEventListener("click", _camWallStopAll);
+    host.querySelector("#cwCamPlayAll")?.addEventListener("click", _camWallPlayAll);
   }
 
   /* Everything that makes the wall a board: move a card, sweep a selection, pan
@@ -31331,6 +31372,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       try { localStorage.setItem("tigertag.camwall.arrange", _camArrange ? "1" : "0"); } catch {}
       if (!_camArrange) { _camSel.clear(); wall.querySelectorAll(".cam-wall-card").forEach(el => el.classList.remove("is-plan-selected")); }
       applyArrange();
+      _layoutCamWall(wall);
     });
     host.querySelector("#cwZoomOut")?.addEventListener("click", () => stepZoom(-1));
     host.querySelector("#cwZoomIn") ?.addEventListener("click", () => stepZoom(+1));
@@ -31420,6 +31462,13 @@ import { initScreenTools } from './ai/screen-tools.js';
      that just came online — flows below the arrangement rather than landing on
      top of it, and is GIVEN that spot for good: left computed, it would drift
      every time a neighbour changed size. */
+  /* The window can grow or shrink under a locked wall or board: lay it out
+     again so the scroll lock follows what fits. */
+  window.addEventListener("resize", () => {
+    const w = document.querySelector("#invPrinterView .cam-wall--plan");
+    if (w) _layoutCamWall(w);
+    else if (document.querySelector("#invPrinterView .printers-grid--plan")) layoutPrintersPlan();
+  });
   function _layoutCamWall(container) {
     if (!container) return;
     const orphans = [];
@@ -31471,9 +31520,24 @@ import { initScreenTools } from './ai/screen-tools.js';
       right  = Math.max(right,  x + el.offsetWidth);
       bottom = Math.max(bottom, y + el.offsetHeight);
     });
-    container.style.width  = (right  + 240) + "px";
-    container.style.height = (bottom + 240) + "px";
+    /* Arranging keeps a wide empty margin to drag cards into. Watching does
+       not: the wall is sized to its cards, so a wall that fits on screen has
+       nothing to scroll — the empty tail used to let the wheel carry every
+       camera off screen. The transform scales the box, so the size is written
+       in unscaled units for the scaled result to just cover the cards. */
+    const pad = _camArrange ? 240 : 12;
+    container.style.width  = (right  + pad) + "px";
+    container.style.height = (bottom + pad) + "px";
+    container.style.minHeight = _camArrange ? "" : "0";
     container.style.transform = `scale(${_camZoom})`;
+    /* Nothing past the edges, nothing to scroll: the scroller is locked so the
+       wheel cannot slide the wall under the bar (it holds no hidden card). */
+    const sc = container.parentElement;
+    if (sc && !_camArrange) {
+      const fits = (right + pad) * _camZoom <= sc.clientWidth + 1 && (bottom + pad) * _camZoom <= sc.clientHeight + 1;
+      sc.style.overflow = fits ? "hidden" : "";
+      if (fits) sc.scrollTop = sc.scrollLeft = 0;
+    } else if (sc) sc.style.overflow = "";
   }
   const _camHeld = new Set();
   const _camSel  = new Set();
@@ -32431,6 +32495,14 @@ import { initScreenTools } from './ai/screen-tools.js';
     container.style.width  = Math.max(availW, Math.ceil((right  + 240) * _printerZoom)) + "px";
     container.style.height = Math.max(availH, Math.ceil((bottom + 200) * _printerZoom)) + "px";
     container.style.minWidth = "";
+    /* Every machine on screen and not arranging: nothing to scroll to, so the
+       scroller is locked — the empty board past the cards let the wheel carry
+       them under the bar. Arranging keeps the free board to drop onto. */
+    if (box) {
+      const fits = !_printerArrange && right * _printerZoom <= availW + 1 && bottom * _printerZoom <= availH + 1;
+      box.style.overflow = fits ? "hidden" : "";
+      if (fits) { box.scrollTop = box.scrollLeft = 0; container.style.width = availW + "px"; container.style.height = availH + "px"; }
+    }
     // Last, because it rings where the cards ENDED UP.
     _drawClusterHulls(container);
   }

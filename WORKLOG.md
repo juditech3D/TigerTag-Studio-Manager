@@ -55,6 +55,14 @@
   keyboard zoom listener, `wirePrinterZoom`, the camera wall and storage plan wheel handlers),
   `renderer/css/30-racks.css` (`.rp-racks-scroll`), `renderer/css/40-printers.css`
   (`.printers-scroll`).
+- Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
+  Cut, every card keeps its place and size on the eye-off placeholder and the streams only
+  the wall was holding are closed (session-only). The wall is sized to its cards outside
+  Arrange, and its scroller is locked when they all fit, so the wheel no longer slides the
+  cameras under the bar; the Printers board is locked the same way when every machine fits
+  (outside Arrange). `renderer/inventory.js` (`_camWallCut`, `_camWallStopAll`,
+  `_camWallPlayAll`, `_layoutCamWall`, `layoutPrintersPlan`, `#cwCamPlayAll`, `#cwCamStopAll`). i18n: reuses
+  `boardCamPlayAll`, `boardCamStopAll`.
 - Printers board: a "Show all cameras" key plays every camera that can be shown (as if each
   play key were pressed, external camera cards included), shown while one is not playing; a
   "Stop all cameras" key, shown while a feed is
