@@ -6,7 +6,7 @@ import { openColorPop } from './color-pop.js';
 import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
-import { initLabels, openLabelCard, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
+import { initLabels, openLabelCard, openLabelBatch, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
 import { parseQrLink, spoolIdFromPath, linkValues, productLink, productShareLink, spoolLink, spoolShareLink } from './qr-link.js';
 
 // ── Offline timezone → country (telemetry, no IP geolocation) ──────────────
@@ -4336,6 +4336,13 @@ import { initScreenTools } from './ai/screen-tools.js';
   $("btnSelectMode")?.addEventListener("click", _toggleSelectMode);
   $("bulkExit")?.addEventListener("click", _exitSelectMode);
   $("bulkTags")?.addEventListener("click", _openBulkTags);
+  // Bulk "Labels" (own spools): the label card for every selected spool, one label
+  // each, a twin pair (two chips on one spool) printed once.
+  $("bulkLabels")?.addEventListener("click", () => {
+    if (state.friendView) return;
+    const rows = deduplicateTwins([...state.selectedSpools].map(id => state.rows.find(r => r.spoolId === id)).filter(r => r && !r.deleted));
+    openLabelBatch(rows.map(r => ({ ...r, idProduct: r.raw?.id_product ?? r.idProduct })));
+  });
   setupHoldToConfirm($("bulkDelete"), 1500, () => { _bulkCtx().del().catch(e => reportError("bulk.delete", e)); }, { hint: true });
   // Bulk ★ Favorite / ❤ Love (materials selection; also the only bulk actions in a friend view).
   $("bulkFavorite")?.addEventListener("click", () => _bulkApplyFlag("favorite").catch(e => reportError("bulk.favorite", e)));
@@ -5123,6 +5130,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     shareProduct: (row, kind) => _openProductShare(row.idProduct ?? row.raw?.id_product, _shareName(row), kind === "spool" ? row.spoolId : ""),
     onLabelOut: o => _sendLabelAnalytics(o).catch(e => console.warn("[analytics] print_label skipped:", e?.message)),
     enhanceSelect: el => _enhanceSelect(el),
+    // The spools of a label's product in stock: how many copies "Stock" prints.
+    stockCount: r => _filamentStockCount(r),
     // The texts a label prints: never a value that goes stale.
     labelInfo: r => {
       const tp = r.temps || {}, rng = (a, b) => (a || b ? `${a || "?"}–${b || "?"} °C` : "");
@@ -45395,7 +45404,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // A label printed or saved (labels/index.js onLabelOut): which product, which
   // template, which output. Deduped per (kind, spool or product, template, output)
   // over 10 s against double clicks. Never the note, weight, rack or link.
-  async function _sendLabelAnalytics({ row, kind, template, output, dpi }) {
+  async function _sendLabelAnalytics({ row, kind, template, output, dpi, copies }) {
     if (!ANALYTICS_LABEL_EVENT || state.friendView || !row) return;
     const spool = kind === "spool";
     const key = `print_label:${kind}:${spool ? row.spoolId : row.idProduct}:${template}:${output}`;
@@ -45405,7 +45414,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const doc = spool ? state.inventory?.[row.spoolId] : null;
     const id = _xanoChipFields(doc || row.raw || {});
     const f = { IdBrand: id.IdBrand, IdMaterial: id.IdMaterial, IdType: id.IdType, IdDiameter: id.IdDiameter, Color: id.Color,
-                LabelKind: kind, Template: template, Output: output, Dpi: dpi, Copies: 1 };
+                LabelKind: kind, Template: template, Output: output, Dpi: dpi, Copies: copies || 1 };
     const pid = Number(row.idProduct ?? doc?.id_product);
     if (_hasRealProductId(pid)) f.IdProduct = pid;
     if (spool) {
