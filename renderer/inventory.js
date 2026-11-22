@@ -29432,7 +29432,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (own === undefined) return { html: "", tip: "" };
     const pct = Number.isFinite(tray.remain) ? `${tray.remain} %` : "";
     const w = own && Number.isFinite(+own.weight) ? `${Math.round(+own.weight)} g` : "";
-    const tip = own ? ["✓", w || t("amsStockIn"), pct].filter(Boolean).join(" ")
+    const tip = own ? "✓ " + [w || t("amsStockIn"), pct].filter(Boolean).join(" · ")
                     : [t("amsStockAddTip"), pct].filter(Boolean).join(" · ");
     const html = `<button type="button" class="pcs-stock${own ? " pcs-stock--in" : ""}"
         data-pcs-stock="1" data-printer-key="${esc(bambuKey(p))}" data-ams-id="${s.hw.amsId}" data-tray-id="${s.hw.trayId}"
