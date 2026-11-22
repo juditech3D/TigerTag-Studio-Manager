@@ -24,7 +24,7 @@
   offered again: one carrying that `tray_uuid`, or one whose linked chip (`rfidAliases`) is the chip
   the AMS reports it read (`tag_uid`, printer-published) shows ✓ with its weight and opens the
   spool (a chip-linked one takes the `tray_uuid` from then on); otherwise, when the stock holds
-  Bambu Lab spools of that colour with no AMS identity (CIEDE2000 < 12, five at most), a window
+  Bambu Lab spools of that material and colour with no AMS identity (CIEDE2000 < 12, five at most), a window
   asks "Is it one of these spools?" first, and picking one links it to the bay and keeps its
   weight. Each AMS report afterwards finds the spool again in any
   printer's AMS, shows "printer · AMS · slot · %" in its Storage location section, marks it out

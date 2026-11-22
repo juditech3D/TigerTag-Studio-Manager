@@ -34158,8 +34158,14 @@ import { initScreenTools } from './ai/screen-tools.js';
     const hex = _csNormHex(String(t.color || "").slice(0, 7));
     if (!hex) return [];
     const lab = hexToLab(hex);
+    // Same material only ("PLA-CF" is not "PLA"): a grey PLA Basic is no candidate
+    // for a grey PLA-CF however close the colours.
+    const mat = x => String(x || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const want = mat(t.type);
+    if (!want) return [];
     return state.rows
-      .filter(r => !r.deleted && Number(r.raw?.id_brand) === BAMBU_BRAND_ID && !r.raw?.bambu_tray_uuid && r.colorHex)
+      .filter(r => !r.deleted && Number(r.raw?.id_brand) === BAMBU_BRAND_ID && !r.raw?.bambu_tray_uuid && r.colorHex
+                && mat(r.material) === want)
       .map(r => [r, deltaE2000(lab, hexToLab(_csNormHex(String(r.colorHex).slice(0, 7)) || "#000000"))])
       .filter(([, d]) => d < 12).sort((a, b) => a[1] - b[1]).slice(0, 5).map(x => x[0]);
   }
