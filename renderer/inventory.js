@@ -16410,7 +16410,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     openDetail(cloudId);
     if (openLabel) { if (!labelCardOpen()) openLabelCard({ ...row, idProduct: row.raw?.id_product }); return; }
     // A spool added from its AMS bay is already identified by the printer: no burn offered.
-    if (noBurn && !autoBurn) return;
+    if ((noBurn && !autoBurn) || _isBambuNative(row)) return;
     if (HAS_NATIVE && state.nfcReaderCount > 0 && row.isCloud && !_encodeModalOpen()) openEncodeModal(row, { auto: autoBurn });
   }
 
@@ -16420,7 +16420,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const t0 = Date.now();
     while (!state.rows.some(x => x.spoolId === cloudId) && Date.now() - t0 < 4000) await new Promise(res => setTimeout(res, 100));
     const row = state.rows.find(x => x.spoolId === cloudId);
-    if (row?.isCloud && !_encodeModalOpen()) openEncodeModal(row);
+    if (row?.isCloud && !_isBambuNative(row) && !_encodeModalOpen()) openEncodeModal(row);
   }
 
   // `auto`: opened by the held "Burn the TigerTag" banner — the hold WAS the
@@ -16428,8 +16428,13 @@ import { initScreenTools } from './ai/screen-tools.js';
   // reader holds a chip, all of them checked blank). A chip with data on it still
   // waits for the explicit overwrite toggle + Burn.
   let _cemAuto = false;
+  // A Bambu Lab spool carries Bambu's own chips (read-only, recognised by the AMS):
+  // nothing to burn, so no burn is ever offered for one.
+  function _isBambuNative(r) {
+    return Number(Number(r?.raw?.id_brand) || _catByName("brand", r?.brand, ["name"])) === 35123;
+  }
   function openEncodeModal(r, { auto = false } = {}) {
-    if (!HAS_NATIVE || !r?.isCloud) return;
+    if (!HAS_NATIVE || !r?.isCloud || _isBambuNative(r)) return;
     _cemAuto = !!auto;
     _cemRow = r; _cemMode = "encode"; _cemState = "confirm"; _cemAborted = false;
     _cemChip = new Map(); _cemBlank = new Map(); _cemTargets = [];
@@ -24243,7 +24248,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       // never written — "Link" (creates the TigerData+ and links it) instead of the burn.
       : makerN ? makerLinkBannerHtml("pcLinkBanner", makerN)
       // No reader plugged in, nothing to burn with: the CTAs below stay alone.
-      : HAS_NATIVE && state.nfcReaderCount > 0 ? _burnBannerHTML("pcBurnBanner", "TigerTag+") : "";
+      : HAS_NATIVE && state.nfcReaderCount > 0 && !_isBambuNative(r) ? _burnBannerHTML("pcBurnBanner", "TigerTag+") : "";
     // Under the burn, the other two ways in, drawn like it: the catalogue's add (a
     // TigerData+, TigerSystem logo) and the same spool opened on its QR label to print
     // and stick on (TigerQR+).
@@ -26134,7 +26139,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     } else if (r.isCloud) {
       // Cloud spool — never has a physical chip yet: the persistent burn banner,
       // and a plain TigerData also offers its upgrade to TigerData+ (catalogue).
-      chipBannerHtml = _burnBannerHTML("cloudEncodeBanner", r.isCloudPlus ? "TigerTag+" : "TigerTag")
+      chipBannerHtml = (_isBambuNative(r) ? "" : _burnBannerHTML("cloudEncodeBanner", r.isCloudPlus ? "TigerTag+" : "TigerTag"))
         + (offerUpgrade ? _upgradeBannerHTML(r) : "");
     } else if (r.needUpdateAt) {
       // Being rewritten on the TigerPOD right now (_autoUpdateChip): the same banner
@@ -26374,8 +26379,8 @@ import { initScreenTools } from './ai/screen-tools.js';
           const _unusable = (base) => _noReader ? { ...base, locked: true } : { ...base, greyed: true };
 
           if (r.isCloud) {
-            // 5a. Encode Cloud → chip. Functional when any card is present.
-            tools.push(_cardPresent
+            // 5a. Encode Cloud → chip. Functional when any card is present. Never for a Bambu Lab spool.
+            if (!_isBambuNative(r)) tools.push(_cardPresent
               ? { id: "btnEncodeCloud", icon: "icon-nfc", label: t("encodeCloudBtn"), variant: "primary", info: t("encodeCloudTip") }
               : _unusable({ id: "btnEncodeCloudLocked", icon: "icon-nfc", label: t("encodeCloudBtn"), variant: "primary", info: t("encodeCloudTip") }));
           } else {
