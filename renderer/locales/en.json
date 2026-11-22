@@ -1577,6 +1577,8 @@
   "boardTempTitle": "Temperature",
   "boardJobTitle": "Print",
   "boardCamPlay": "Show the feed",
+  "boardCamPlayAll": "Show all cameras",
+  "boardCamStopAll": "Stop all cameras",
   "boardUnitsTitle": "Filament storage",
   "boardWidgets": "Widgets",
   "unitsSplit": "Split units",
