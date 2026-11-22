@@ -16,10 +16,11 @@
 
 ### Added
 
-- Storage, Printers and the camera wall: the bare mouse wheel scrolls the plan, Ctrl / ⌘ +
+- Storage, Printers and the camera wall: the bare mouse wheel scrolls the plan (sideways when
+  the plan is wide but not tall, so it always moves), Ctrl / ⌘ +
   wheel zooms it (a trackpad pinch still zooms), and Ctrl / ⌘ + / − press that plan's own
   zoom buttons instead of zooming the whole window (#301, #315). The Storage and Printers
-  scrollers show thin scrollbars again. `renderer/inventory.js` (`_planWheelZooms`, the plan
+  scrollers show thin scrollbars again. `renderer/inventory.js` (`_planWheelZooms`, `_planWheelSideways`, the plan
   keyboard zoom listener, `wirePrinterZoom`, the camera wall and storage plan wheel handlers),
   `renderer/css/30-racks.css` (`.rp-racks-scroll`), `renderer/css/40-printers.css`
   (`.printers-scroll`).

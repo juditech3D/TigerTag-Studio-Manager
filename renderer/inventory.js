@@ -31324,7 +31324,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       scroller.addEventListener("wheel", e => {
         /* The bare wheel scrolls (#301, #315); Ctrl / ⌘ + wheel zooms, and so
            does a trackpad pinch, which arrives as a wheel with ctrlKey set. */
-        if (!_planWheelZooms(e)) return;
+        if (!_planWheelZooms(e)) { _planWheelSideways(scroller, e); return; }
         e.preventDefault();
         /* A wheel held down still turns a little under the thumb, and those stray
            notches were landing on the zoom while the user was only panning. */
@@ -33123,7 +33123,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       sc._zoomWired = true;
       sc.addEventListener("wheel", e => {
         // The bare wheel scrolls; Ctrl / ⌘ + wheel (or a pinch) zooms.
-        if (!_planWheelZooms(e)) return;
+        if (!_planWheelZooms(e)) { _planWheelSideways(sc, e); return; }
         e.preventDefault();
         // A wheel held down still turns a little under the thumb; those stray
         // notches were landing on the zoom while the user was only panning.
@@ -39260,6 +39260,18 @@ import { initScreenTools } from './ai/screen-tools.js';
      Ctrl / ⌘ held — or on a trackpad pinch, which Chromium sends as a wheel
      event with ctrlKey. The bare wheel is left to scroll the view. */
   const _planWheelZooms = e => e.ctrlKey || e.metaKey;
+  /* A plan that is wide but not tall (racks laid out in a row) has nothing to
+     scroll vertically, so a bare wheel did nothing at all. There, the wheel
+     moves the plan sideways instead — the way a horizontal timeline scrolls.
+     Returns true when it took the event. */
+  function _planWheelSideways(sc, e) {
+    if (!sc || e.deltaX || e.shiftKey || !e.deltaY) return false;
+    if (sc.scrollHeight > sc.clientHeight + 1) return false;      // can scroll down: leave it native
+    if (sc.scrollWidth <= sc.clientWidth + 1) return false;       // nothing sideways either
+    e.preventDefault();
+    sc.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? sc.clientWidth : 1);
+    return true;
+  }
   /* Ctrl / ⌘ + and Ctrl / ⌘ − zoom the plan on screen (#301) instead of the
      whole window: the keys press that plan's own + / − buttons, so the step,
      the bounds and the saved level are exactly the buttons'. Off every plan,
@@ -41037,7 +41049,7 @@ import { initScreenTools } from './ai/screen-tools.js';
        notch left no way to simply move down the room. Bound to the storage area
        alone so the "not stored" list beside it keeps its own scrolling. */
     list.querySelector(".rp-racks-scroll")?.addEventListener("wheel", e => {
-      if (!_planWheelZooms(e)) return;
+      if (!_planWheelZooms(e)) { _planWheelSideways(e.currentTarget, e); return; }
       e.preventDefault();
       if (_planPanning) return;      // the wheel is being held down, not turned on purpose
       _stepPlanZoom(e.deltaY > 0 ? -1 : 1, { x: e.clientX, y: e.clientY });
