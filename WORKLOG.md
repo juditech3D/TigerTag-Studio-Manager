@@ -45,13 +45,13 @@
   `labelPageA4Centre`, `labelPageHint`.
 - Label card on an A4 sheet: the preview draws the whole sheet with each label where it
   prints, and a "Copies" field (plus "Stock (n)" on a Filament Label: one per spool of that
-  product in stock) lays several copies out with a chosen spacing (prefs `sheetGap`, 5 mm by default, shown once there is more than one copy), filled from the
+  product in stock) lays several copies out with a chosen spacing (prefs `sheetGap`, 5 mm by default, shown once there is more than one copy) and a margin off the sheet's edges (prefs `sheetMargin`, 0 by default), filled from the
   top-left place, going on to further sheets when one is full; a − / + zoom (100–400 %)
   looks closer at the sheet. `renderer/labels/index.js`
   (`sheetLayout`, `sheetsFor`, `sheetCopies`), `renderer/labels/labels.css` (`.lbl-sheet`,
   `.lbl-copy`), `main.js` (`label:render` `sheets`), `renderer/inventory.js` (ctx
   `stockCount`). i18n: `labelCopies`, `labelCopiesStock`, `labelCopiesFit`, `labelCopiesSheets`,
-  `labelSheetGap`.
+  `labelSheetGap`, `labelSheetMargin`.
 - Stock selection bar: a "Labels" button opens the label card for every selected spool
   (a twin pair once): one label each with its own QR, "Copies each", printed in one run
   — tiled on A4, one page each otherwise, one after the other on the P15 / Brother QL —
@@ -60,6 +60,9 @@
   `sheets`), `renderer/inventory.html` / `70-detail-misc.css` (`#bulkLabels`),
   `renderer/inventory.js`, `CODEMAP-main.md`. i18n: `bulkLabels`, `labelBatchCount`,
   `labelCopiesEach`; `labelPageA4Centre` reworded.
+- Label card values: one numbered line per value, top to bottom as they print, each choice
+  showing the value it prints for this spool; hidden for a format that prints none.
+  `renderer/labels/index.js` (`slotSel`), `renderer/labels/labels.css` (`.lbl-slot-row`).
 
 - TigerScale card: a "Wake up" button (when the scale is asleep or shown offline) lights its
   screen through the firmware's `POST {lan_url}/wake?c=<lan_access_code>`, which presses nothing;

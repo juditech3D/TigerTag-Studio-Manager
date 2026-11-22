@@ -2107,6 +2107,7 @@
   "labelCopiesFit": "Até {{per}} por folha",
   "labelCopiesSheets": "{{n}} folhas",
   "labelSheetGap": "Espaçamento",
+  "labelSheetMargin": "Margem",
   "labelBatchCount": "{{n}} carretéis: uma etiqueta cada",
   "labelCopiesEach": "Cópias por carretel",
   "labelQlRollAuto": "Perguntar à impressora",

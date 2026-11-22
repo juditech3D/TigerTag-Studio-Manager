@@ -2117,6 +2117,7 @@
   "labelCopiesFit": "Do {{per}} na arkusz",
   "labelCopiesSheets": "Arkusze: {{n}}",
   "labelSheetGap": "Odstęp",
+  "labelSheetMargin": "Margines",
   "labelBatchCount": "Szpule: {{n}}, po jednej etykiecie",
   "labelCopiesEach": "Kopie na szpulę",
   "labelQlRollAuto": "Zapytaj drukarkę",

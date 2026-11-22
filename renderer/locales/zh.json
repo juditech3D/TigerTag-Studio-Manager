@@ -2102,6 +2102,7 @@
   "labelCopiesFit": "每张最多 {{per}} 个",
   "labelCopiesSheets": "{{n}} 张",
   "labelSheetGap": "间距",
+  "labelSheetMargin": "页边距",
   "labelBatchCount": "{{n}} 个料盘：每个一张标签",
   "labelCopiesEach": "每个料盘份数",
   "labelQlRollAuto": "询问打印机",

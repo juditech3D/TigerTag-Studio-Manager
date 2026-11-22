@@ -2117,6 +2117,7 @@
   "labelCopiesFit": "До {{per}} на лист",
   "labelCopiesSheets": "Листов: {{n}}",
   "labelSheetGap": "Интервал",
+  "labelSheetMargin": "Поле",
   "labelBatchCount": "Катушек: {{n}}, по одной этикетке",
   "labelCopiesEach": "Копий на катушку",
   "labelQlRollAuto": "Спросить принтер",

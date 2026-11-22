@@ -75,12 +75,13 @@ export const LABEL_SLOTS = ["nozzle", "bed", "dry", "td", "diameter"];
 // `qlHost`: { "sys:<name>": address } — the network address typed for an installed
 // Brother QL, printed directly on its raw port (none found on its Windows port).
 // `sheetGap`: the space in mm between copies on an A4 sheet (0–20, default 5).
+// `sheetMargin`: the space in mm kept free along the A4 sheet's edges (0–20, default 0).
 // (How many copies go on the A4 sheets is chosen per print, not kept: sheetCopies.)
 // `pageBy`: { printer id: page } — the sheet the label is printed on with that
 // printer, for the system dialog and installed printers only: "label" (a page of
 // the label's own size, the default), "a4-tl" or "a4-c" (an A4 page with the label
 // in its top-left corner or centred) for drivers that know no page but A4 (#263).
-const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {}, pageBy: {}, sheetGap: 5 };
+const DEFAULT_PREFS = { template: "classic", slots: ["nozzle", "bed", "dry", "td"], dpi: 203, kind: "spool", printer: "dialog", qlRoll: "", qlHost: {}, pageBy: {}, sheetGap: 5, sheetMargin: 0 };
 const LABEL_PAGES = ["label", "a4-tl", "a4-c"];
 // The sheet a label goes out on: only the dialog and installed printers can take an A4.
 const pageFor = (printer, p) => (printer.kind === "dialog" || printer.kind === "sys") && LABEL_PAGES.includes(p.pageBy[printer.id]) ? p.pageBy[printer.id] : "label";
@@ -94,16 +95,18 @@ let sheetCopies = 1;
 const SHEET_ZOOMS = [1, 1.5, 2, 3, 4];
 let sheetZoom = 1;
 function sheetLayout(w, h, n, sheet) {
-  const SHEET_GAP = prefs().sheetGap;
-  const cols = Math.max(1, Math.floor((210 + SHEET_GAP) / (w + SHEET_GAP)));
-  const rows = Math.max(1, Math.floor((297 + SHEET_GAP) / (h + SHEET_GAP)));
+  const { sheetGap: SHEET_GAP, sheetMargin: m } = prefs();
+  // `sheetMargin` keeps the labels off the sheet's edges (an office printer cannot
+  // print the last few mm); 0 for a label printer whose roll starts at the corner.
+  const cols = Math.max(1, Math.floor((210 - 2 * m + SHEET_GAP) / (w + SHEET_GAP)));
+  const rows = Math.max(1, Math.floor((297 - 2 * m + SHEET_GAP) / (h + SHEET_GAP)));
   const per = cols * rows, sheets = [];
   for (let left = n; left > 0; left -= per) {
     // The first label always goes in the top-left place, even alone: centred, it is the
     // grid of a full sheet that is centred on the page.
     const k = Math.min(left, per);
-    const x0 = sheet === "a4-c" ? (210 - (cols * w + (cols - 1) * SHEET_GAP)) / 2 : 0;
-    const y0 = sheet === "a4-c" ? (297 - (rows * h + (rows - 1) * SHEET_GAP)) / 2 : 0;
+    const x0 = sheet === "a4-c" ? (210 - (cols * w + (cols - 1) * SHEET_GAP)) / 2 : m;
+    const y0 = sheet === "a4-c" ? (297 - (rows * h + (rows - 1) * SHEET_GAP)) / 2 : m;
     sheets.push(Array.from({ length: k }, (_, i) => [x0 + (i % cols) * (w + SHEET_GAP), y0 + Math.floor(i / cols) * (h + SHEET_GAP)]));
   }
   return { per, sheets };
@@ -158,6 +161,7 @@ function prefs() {
   if (![203, 300].includes(Number(out.dpi))) out.dpi = 203;
   if (typeof out.printer !== "string" || !out.printer) out.printer = "dialog";
   if (!QL_ROLLS.includes(out.qlRoll)) out.qlRoll = "";
+  out.sheetMargin = Number.isFinite(Number(out.sheetMargin)) ? Math.min(MAX_GAP, Math.max(0, Number(out.sheetMargin))) : DEFAULT_PREFS.sheetMargin;
   out.sheetGap = Number.isFinite(Number(out.sheetGap)) ? Math.min(MAX_GAP, Math.max(0, Number(out.sheetGap))) : DEFAULT_PREFS.sheetGap;
   out.qlHost = out.qlHost && typeof out.qlHost === "object" ? out.qlHost : {};
   out.pageBy = out.pageBy && typeof out.pageBy === "object" ? out.pageBy : {};
@@ -574,9 +578,11 @@ function render(body, cur) {
   const tplBtn = x => `<button type="button" class="lbl-tpl${x.id === p.template ? " is-active" : ""}" data-lbl-tpl="${x.id}" aria-pressed="${x.id === p.template}"${fitsPrinter(printer, x, p.qlRoll) ? "" : " disabled"}>
       <b>${esc(t("labelTpl_" + x.id))}</b><small>${x.w} × ${x.h} mm</small></button>`;
   const tpl = LABEL_TEMPLATES.find(x => x.id === p.template);
-  const slotSel = i => `<select class="lbl-slot" data-lbl-slot="${i}"${i >= tpl.slots ? " disabled" : ""}>
-      ${["none", ...LABEL_SLOTS].map(s => `<option value="${s}"${p.slots[i] === s ? " selected" : ""}>${esc(s === "none" ? t("labelSlotNone") : t(SLOT_LABEL[s]))}</option>`).join("")}
-    </select>`;
+  // The values' lines in the order they print, top to bottom, each choice with the
+  // value it would print for this spool. Hidden for a format that prints none.
+  const slotSel = i => `<div class="lbl-slot-row"><span class="lbl-slot-n" aria-hidden="true">${i + 1}</span><select class="lbl-slot" data-lbl-slot="${i}">
+      ${["none", ...LABEL_SLOTS].map(s => `<option value="${s}"${p.slots[i] === s ? " selected" : ""}>${esc(s === "none" ? t("labelSlotNone") : t(SLOT_LABEL[s]) + (info.values[s] ? " · " + info.values[s] : ""))}</option>`).join("")}
+    </select></div>`;
   body.innerHTML = `
     ${batch ? `<p class="lbl-batch">${esc(t("labelBatchCount", { n: batch.length }))}</p>` : ""}
     <div class="panel-label">${esc(t("labelTemplate"))}</div>
@@ -592,7 +598,7 @@ function render(body, cur) {
       ${link ? `<span class="lbl-open-hint"><span class="icon icon-arrow-up-right icon-12" aria-hidden="true"></span>${esc(t("labelOpenLink"))}</span></button>` : "</div>"}
     ${onA4 ? "</div>" : ""}</div>
     ${link && !batch ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
-    <div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-slots">${[0, 1, 2, 3].map(slotSel).join("")}</div>
+    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-slots">${Array.from({ length: tpl.slots }, (_, i) => slotSel(i)).join("")}</div>` : ""}
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
       <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt, img]) => `<option value="${esc(v)}"${img ? ` data-thumb="${esc(img)}"` : ""}${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>
@@ -617,6 +623,8 @@ function render(body, cur) {
     ${onA4 || batch ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t(batch ? "labelCopiesEach" : "labelCopies"))}</span>
       <input type="number" class="lbl-host lbl-copies" data-lbl-copies min="1" max="${MAX_COPIES}" step="1" inputmode="numeric" value="${sheetCopies}">
       ${stock > 0 ? `<button type="button" class="ghost sm" data-lbl-stock><span>${esc(t("labelCopiesStock", { n: stock }))}</span></button>` : ""}</div>
+      ${onA4 ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelSheetMargin"))}</span>
+      <input type="number" class="lbl-host lbl-copies" data-lbl-margin min="0" max="${MAX_GAP}" step="0.5" inputmode="decimal" value="${p.sheetMargin}"><span class="lbl-roll-label">mm</span></div>` : ""}
       ${onA4 && run.length > 1 ? `<div class="lbl-printer"><span class="lbl-roll-label">${esc(t("labelSheetGap"))}</span>
       <input type="number" class="lbl-host lbl-copies" data-lbl-gap min="0" max="${MAX_GAP}" step="0.5" inputmode="decimal" value="${p.sheetGap}"><span class="lbl-roll-label">mm</span></div>` : ""}
       ${onA4 ? `<p class="lbl-hint">${esc(t("labelCopiesFit", { per: layout.per }))}${layout.sheets.length > 1 ? " · " + esc(t("labelCopiesSheets", { n: layout.sheets.length })) : ""}</p>` : ""}` : ""}
@@ -635,6 +643,16 @@ function render(body, cur) {
   paper?.classList.add("is-loading");
   frame.addEventListener("load", () => paper?.classList.remove("is-loading"), { once: true });
   frame.srcdoc = lbl.html;
+  // The zoomed A4 preview is moved by dragging it (the wheel keeps scrolling the card).
+  const pv = body.querySelector(".lbl-preview.is-zoomed");
+  if (pv) pv.onpointerdown = e => {
+    if (e.button !== 0) return;
+    const x = e.clientX, y = e.clientY, l = pv.scrollLeft, t0 = pv.scrollTop;
+    pv.setPointerCapture(e.pointerId);
+    pv.classList.add("is-panning");
+    pv.onpointermove = m => { pv.scrollLeft = l - (m.clientX - x); pv.scrollTop = t0 - (m.clientY - y); };
+    pv.onpointerup = pv.onpointercancel = () => { pv.onpointermove = null; pv.classList.remove("is-panning"); };
+  };
   body.querySelectorAll(".lbl-slot, .lbl-printer-sel, .lbl-roll-sel").forEach(el => ctx.enhanceSelect?.(el));
   // The printers are searched once, the first time a card opens: redrawn when they answer.
   if (!searched && !searching) searchPrinters().then(() => { if (body.isConnected) render(body, cur); });
@@ -686,6 +704,8 @@ function render(body, cur) {
   body.onchange = e => {
     const cp = e.target.closest("[data-lbl-copies]");
     if (cp) { sheetCopies = Math.min(MAX_COPIES, Math.max(1, Math.round(Number(cp.value)) || 1)); render(body, cur); return; }
+    const mg = e.target.closest("[data-lbl-margin]");
+    if (mg) { const v = Number(mg.value); savePrefs({ ...prefs(), sheetMargin: Number.isFinite(v) ? Math.min(MAX_GAP, Math.max(0, v)) : 0 }); render(body, cur); return; }
     const gp = e.target.closest("[data-lbl-gap]");
     if (gp) { const v = Number(gp.value); savePrefs({ ...prefs(), sheetGap: Number.isFinite(v) ? Math.min(MAX_GAP, Math.max(0, v)) : 5 }); render(body, cur); return; }
     const pg = e.target.closest("[data-lbl-page]");

@@ -2107,6 +2107,7 @@
   "labelCopiesFit": "Tot {{per}} per vel",
   "labelCopiesSheets": "{{n}} vellen",
   "labelSheetGap": "Tussenruimte",
+  "labelSheetMargin": "Marge",
   "labelBatchCount": "{{n}} spoelen: elk één etiket",
   "labelCopiesEach": "Exemplaren per spoel",
   "labelQlRollAuto": "Printer vragen",
