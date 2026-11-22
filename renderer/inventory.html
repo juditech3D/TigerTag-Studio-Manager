@@ -370,6 +370,12 @@
             <span class="icon icon-qr icon-13" aria-hidden="true"></span>
             <span id="btnScanModeLabel" data-i18n="scanModeAll">Scanner: everywhere</span>
           </button>
+          <!-- In select mode: tick everything the current filter shows (again: untick
+               it) — the list header's master box, for the tile views. -->
+          <button id="btnSelectAll" class="inv-select-btn inv-select-all" type="button" aria-pressed="false">
+            <span class="icon icon-list-check icon-13"></span>
+            <span data-i18n="ctxSelectAll">Select All</span>
+          </button>
           <!-- Multi-select toggle → checkboxes + bulk-delete bar (own inventory only). -->
           <button id="btnSelectMode" class="inv-select-btn js-select-toggle" type="button" title="Select multiple">
             <span class="icon icon-check icon-13"></span>
