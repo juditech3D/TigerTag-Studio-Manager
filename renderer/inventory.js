@@ -29419,9 +29419,28 @@ import { initScreenTools } from './ai/screen-tools.js';
      material is the one word that makes a bay identifiable at a glance. The rest
      — the bay's name and the filament's brand — comes on hover. */
   function _printerSlotsHtml(p) {
-    return _slotStripHtml(_printerSlots(p));
+    return _slotStripHtml(_printerSlots(p), undefined, p);
   }
-  function _slotStripHtml(slots, forceCols) {
+  /* A Bambu bay holding a spool the AMS recognised: a small corner badge, ✓ when
+     that spool is in the stock (click → its page), + when it is not (click → add
+     it), the same choice as the pill under the bay on the printer's own page.
+     Nothing for any other bay, brand or account view. */
+  function _slotStockBadge(p, s) {
+    if (p?.brand !== "bambulab" || !s?.hw || s.hw.amsId === 255) return { html: "", tip: "" };
+    const tray = bambuAmsTray(bambuKey(p), s.hw.amsId, s.hw.trayId);
+    const own = tray ? _printerCtx.amsStockSpool?.(tray) : undefined;
+    if (own === undefined) return { html: "", tip: "" };
+    const pct = Number.isFinite(tray.remain) ? `${tray.remain} %` : "";
+    const w = own && Number.isFinite(+own.weight) ? `${Math.round(+own.weight)} g` : "";
+    const tip = own ? ["✓", w || t("amsStockIn"), pct].filter(Boolean).join(" ")
+                    : [t("amsStockAddTip"), pct].filter(Boolean).join(" · ");
+    const html = `<button type="button" class="pcs-stock${own ? " pcs-stock--in" : ""}"
+        data-pcs-stock="1" data-printer-key="${esc(bambuKey(p))}" data-ams-id="${s.hw.amsId}" data-tray-id="${s.hw.trayId}"
+        aria-label="${esc(own ? t("amsStockOpen") : t("amsStockAddTip"))}"
+        ><span class="icon ${own ? "icon-check" : "icon-plus"} icon-10" aria-hidden="true"></span></button>`;
+    return { html, tip };
+  }
+  function _slotStripHtml(slots, forceCols, p) {
     if (!slots || !slots.length) return "";
     /* Five across at most, and the rows are BALANCED. Eight squares on one row
        shrink until the material is an ellipsis — the one thing the square is
@@ -29433,7 +29452,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     return `<div class="printer-card-slots" style="--pcs-cols:${cols}">${slots.map(s => {
       const full  = [s.material, s.detail].filter(Boolean).join(" ");
       const name  = [s.vendor, full].filter(Boolean).join(" · ");
-      const tip   = `${s.label}${name ? " — " + name : ""}`;
+      const stock = _slotStockBadge(p, s);
+      const tip   = `${s.label}${name ? " — " + name : ""}${stock.tip ? " — " + stock.tip : ""}`;
       /* FOUR states, the same four the machine's own panel draws:
            — nothing known about the bay        → outline, "?"
            — told what it holds, but NOT loaded → its colour as a ring, "?"
@@ -29453,7 +29473,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         : unmounted ? `--pcs-color:${esc(s.color)}` : "";
       const cls = filled ? "" : unmounted ? " is-unmounted" : " is-empty";
       return `<span class="pcs-slot${cls}" data-tip="${esc(tip)}" style="${style}"
-                 ><span class="pcs-slot-txt">${esc(filled ? (s.material || "—") : "?")}</span></span>`;
+                 ><span class="pcs-slot-txt">${esc(filled ? (s.material || "—") : "?")}</span>${stock.html}</span>`;
     }).join("")}</div>`;
   }
 
@@ -29483,7 +29503,7 @@ import { initScreenTools } from './ai/screen-tools.js';
             </div>
           </div>
         </div>
-        ${_slotStripHtml(u.slots, u.cols)}
+        ${_slotStripHtml(u.slots, u.cols, p)}
       </div>`;
   }
   /* Grouped: one widget holding every unit, named after the machine. Split: one
@@ -29841,7 +29861,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         ${(empty ? [{ label: "—", slots: [{ label: "", empty: true }], cols: 1 }] : units).map(u => `
           <div class="slots-unit">
             <div class="slots-unit-name">${esc(empty ? "—" : _unitLabel(u))}</div>
-            ${_slotStripHtml(u.slots, u.cols)}
+            ${_slotStripHtml(u.slots, u.cols, p)}
           </div>`).join("")}
       </div>`;
   }
@@ -29946,7 +29966,7 @@ import { initScreenTools } from './ai/screen-tools.js';
           // The link coming up changes the card's standing, not just its colours.
           el.classList.toggle("is-stale", !!u.stale);
           const strip = el.querySelector(".printer-card-slots");
-          const next = _slotStripHtml(u.slots, u.cols);
+          const next = _slotStripHtml(u.slots, u.cols, p);
           if (strip && next && strip.outerHTML !== next) strip.outerHTML = next;
         });
         return;
@@ -34095,6 +34115,15 @@ import { initScreenTools } from './ai/screen-tools.js';
       onAction: (_id, close) => { close(); then?.(); },
     });
   }
+  // The corner badge on a board card's bay: caught before the card's own click
+  // (which opens the printer's panel).
+  document.addEventListener("click", e => {
+    const b = e.target.closest?.("[data-pcs-stock]");
+    if (!b) return;
+    e.preventDefault(); e.stopPropagation();
+    const printer = (state.printers || []).find(p => p.brand === "bambulab" && bambuKey(p) === b.dataset.printerKey);
+    if (printer) _amsStockClick(printer, parseInt(b.dataset.amsId, 10), parseInt(b.dataset.trayId, 10));
+  }, true);
   function _amsStockClick(printer, amsId, trayId) {
     const key = bambuKey(printer);
     const t0 = bambuAmsTray(key, amsId, trayId);
