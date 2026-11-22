@@ -337,9 +337,9 @@
   }
   /* A recognised Bambu spool: ✓ in stock / + to add, in the bay's corner. */
   .pcs-stock {
-    position: absolute; top: 2px; right: 2px;
+    position: absolute; top: 3px; right: 3px;
     display: flex; align-items: center; justify-content: center;
-    width: 14px; height: 14px; padding: 0; border: 0; border-radius: 50%;
+    width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%;
     background: var(--surface-3); color: var(--text);
     box-shadow: 0 0 0 1px var(--border-strong);
     cursor: pointer;

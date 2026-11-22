@@ -29437,7 +29437,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const html = `<button type="button" class="pcs-stock${own ? " pcs-stock--in" : ""}"
         data-pcs-stock="1" data-printer-key="${esc(bambuKey(p))}" data-ams-id="${s.hw.amsId}" data-tray-id="${s.hw.trayId}"
         aria-label="${esc(own ? t("amsStockOpen") : t("amsStockAddTip"))}"
-        ><span class="icon ${own ? "icon-check" : "icon-plus"} icon-10" aria-hidden="true"></span></button>`;
+        ><span class="icon ${own ? "icon-check" : "icon-plus"} icon-14" aria-hidden="true"></span></button>`;
     return { html, tip };
   }
   function _slotStripHtml(slots, forceCols, p) {
