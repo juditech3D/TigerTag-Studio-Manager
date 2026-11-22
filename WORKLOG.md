@@ -37,7 +37,8 @@
   too (it sends nothing to the printer). A first-use help window (what it is for / what you can
   do / how), reopened by the "?" next to the Filament title. On the Printers board cards, the
   same bay square carries a corner badge (✓ in stock / + to add, same click), and its hover tip
-  gives the weight and the AMS %. Matched on a real H2D (PLA-CF, linked chip via `tag_uid`).
+  gives the weight and the AMS %. A spool added from its bay is not offered a chip burn (the AMS
+  already identifies it), unless the "+ Inventory & burn" button was used. Matched on a real H2D (PLA-CF, linked chip via `tag_uid`).
   `renderer/printers/bambulab/index.js` (`_mergeTrayStock`, `bambuAmsTrays`, `bambuAmsTray`,
   `ctx.onAmsTrays`), `renderer/printers/bambulab/cards.js` (`_bblStockChip`), `renderer/inventory.js` (`_slotStockBadge`, `.pcs-stock` in `40-printers.css`),
   `renderer/printers/bambulab/bambulab.css` (`.bbl-ams-stock`, `.bbl-ams-help`,

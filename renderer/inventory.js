@@ -16393,7 +16393,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // confirmation, so the burn starts as soon as the blank chips are checked.
   // linkMakers: created from a held "Link the proprietary Tag(s)" banner — the
   // maker chips on the TigerPOD get linked to it, and nothing is burned.
-  async function _openCreatedSpool(cloudId, { autoBurn = false, linkMakers = false, openLabel = false } = {}) {
+  async function _openCreatedSpool(cloudId, { autoBurn = false, linkMakers = false, openLabel = false, noBurn = false } = {}) {
     closeChipChoice();   // the spool it was opened for now exists
     const t0 = Date.now();
     while (!state.inventory[cloudId] && Date.now() - t0 < 4000) await new Promise(res => setTimeout(res, 100));
@@ -16409,6 +16409,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     }
     openDetail(cloudId);
     if (openLabel) { if (!labelCardOpen()) openLabelCard({ ...row, idProduct: row.raw?.id_product }); return; }
+    // A spool added from its AMS bay is already identified by the printer: no burn offered.
+    if (noBurn && !autoBurn) return;
     if (HAS_NATIVE && state.nfcReaderCount > 0 && row.isCloud && !_encodeModalOpen()) openEncodeModal(row, { auto: autoBurn });
   }
 
@@ -17817,7 +17819,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       // The product card has done its job: close it and open the new spool's
       // own card from the inventory (and, reader plugged in, its TigerTag+ burn).
       if ($("productCardPanel")?.classList.contains("open")) closeProductCard(); else closeReorderPanel();
-      _openCreatedSpool(cloudId, { autoBurn, linkMakers, openLabel });
+      _openCreatedSpool(cloudId, { autoBurn, linkMakers, openLabel, noBurn: !!ams });
     } catch (e) {
       console.error("[catalog] create failed:", e);
       toast(res$, "bad", t("catalogCreateError"));
