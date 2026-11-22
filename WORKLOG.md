@@ -35,7 +35,9 @@
 - A macOS build (Apple Silicon `mac-arm64` + Intel `mac-x64`, `.dmg` + `.zip`) in every release. It is
   signed ad-hoc (`build.mac.identity: "-"`, no hardened runtime, no notarization: the fork holds no
   Apple Developer ID), which Apple Silicon needs to start it at all; Gatekeeper still asks the user to
-  allow it once. `latest-mac.yml` is deliberately left out of the release: Squirrel.Mac only installs an
+  allow it once. The app's Info.plist carries `NSLocalNetworkUsageDescription` (`build.mac.extendInfo`), so
+  macOS 15+ asks for Local Network access with a reason instead of the scale, TigerPOD and printers
+  waiting forever (first Mac tester, 2026-11-22); README tells users where to turn it back on. `latest-mac.yml` is deliberately left out of the release: Squirrel.Mac only installs an
   update signed by the same Developer ID, so Mac users download each new `.dmg` by hand. README
   "Opening the app on macOS / Ouvrir l'application sur macOS" gives the end-user steps in French and
   English (Open Anyway on Sequoia+, right-click → Open on Sonoma and older, `xattr -cr` for "damaged");

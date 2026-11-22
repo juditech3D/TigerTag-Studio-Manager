@@ -129,6 +129,10 @@ fois** :
    - **macOS 14 Sonoma et plus ancien** : dans le dossier Applications, faites un **clic droit** (ou
      Ctrl + clic) sur l'application → **Ouvrir**, puis **Ouvrir** dans la fenêtre qui s'affiche.
 5. C'est fait : les fois suivantes, elle s'ouvre normalement, d'un double-clic.
+6. Pour la balance TigerScale, le TigerPOD et les imprimantes : la première fois qu'elle cherche un
+   appareil, macOS demande d'autoriser l'accès au **réseau local**. Cliquez sur **Autoriser**. Si vous
+   avez refusé, ou si rien ne se connecte : **Réglages Système → Confidentialité et sécurité → Réseau
+   local**, activez **Tiger Studio Manager**, puis quittez et rouvrez l'application.
 
 **Si macOS dit que l'application « est endommagée »** (ou si l'étape 4 ne propose rien), ouvrez
 l'application **Terminal** (dans Applications → Utilitaires), collez cette ligne puis appuyez sur Entrée :
@@ -155,6 +159,8 @@ drag the app into Applications and open it once, click **OK**, then allow it **o
   **Open Anyway**, confirm with your password.
 - **macOS 14 Sonoma or earlier**: **right-click** (Ctrl-click) the app → **Open** → **Open**.
 - **"The app is damaged"**: in Terminal, run `xattr -cr "/Applications/Tiger Studio Manager.app"`.
+- **Scale, TigerPOD or printers never connect**: allow the app in *System Settings → Privacy &
+  Security → Local Network*, then quit and reopen it.
 
 It does not update itself: download each new `.dmg` by hand.
 
