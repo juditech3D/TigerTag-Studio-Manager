@@ -51,10 +51,13 @@
   /* The board's own scroller — the cards never move, this does. */
   .printers-scroll {
     flex: 1; min-height: 0; overflow: auto;
-    scrollbar-width: none;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
     position: relative;
   }
-  .printers-scroll::-webkit-scrollbar { display: none; }
+  /* Thin bars: the wheel scrolls the board, Ctrl / ⌘ + wheel zooms it. */
+  .printers-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+  .printers-scroll::-webkit-scrollbar-track { background: transparent; }
+  .printers-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
   .printers-scroll.is-panning { cursor: grabbing; user-select: none; }
   /* Same row as Storage's: the arrange toggle first — it is an action you take
      while placing machines — then the zoom. */
@@ -75,6 +78,7 @@
   /* Only the controls themselves take the pointer; the strip between them must
      not swallow a rubber band started near the top of the board. */
   .pv-plan-bar > * { pointer-events: auto; }
+  .pv-plan-bar > [hidden] { display: none; }   /* "Stop all cameras" with nothing playing */
 
 
   /* Connect / Disconnect button in the printer side-card header.
@@ -3164,6 +3168,9 @@ details[open] .pba-step-chev { transform: rotate(90deg); }
   .printer-card:hover .cam-play--card,
   .cam-play--card:focus-visible { opacity: 1; }
   .cam-play--card:active { transform: translate(-50%, -50%) scale(.94); }
+  /* On an external camera card cut by "Stop all cameras" the key is the only
+     thing in the frame, so it stays visible. */
+  .cam-play--card.cam-play--shown { opacity: 1; }
   /* The feed takes the photo's place: same box, filled rather than contained —
      a camera frame cropped to the card reads better than one letterboxed. */
   /* The feed goes straight into the photo box, with NO wrapper — exactly the

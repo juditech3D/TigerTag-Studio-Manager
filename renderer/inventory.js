@@ -100,7 +100,8 @@ import { renderPrusaCamBanner, renderPrusaCamWallBanner, prusaCamStopAll } from 
 import { openPrusaAddFlow } from './printers/prusa/add-flow.js';
 import { initExtCam, extCamSubscribe, extCamUnsubscribe, openExtCamAddFlow, openExtCamEditor,
          extCamBoardObj, extCamMaxZ, extCamBoardSave, extCamBoardCardsHtml, wireExtCamBoard,
-         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamForDetach, extCamEmbedHtml } from './ext-cam/ext-cam.js';
+         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamForDetach, extCamEmbedHtml,
+         extCamBoardLive, extCamBoardPauseAll, extCamBoardIdle, extCamBoardResumeAll } from './ext-cam/ext-cam.js';
 // Self-contained printer plugins (renderer/printers/<id>/plugin.js) — see docs/PRINTER-PLUGINS.md.
 import { printerPlugin, printerPlugins, printerPluginIds, mergePluginStrings } from './printers/plugins.js';
 import { betaBadgeInlineHtml } from './printers/beta-badge.js';
@@ -14301,6 +14302,7 @@ import { initScreenTools } from './ai/screen-tools.js';
        stream is billed in RTC minutes while the channel is joined, so leave it —
        and forget it was asked for, or coming back would restart it unasked — as
        soon as the board is no longer on screen. */
+    if (mode === "printer" && prevMode !== "printer") _camAutoHeld = false;   // the board reopened: automatic start applies again
     if (prevMode === "printer" && mode !== "printer") {
       for (const k of [..._camPlaying]) if (k.startsWith("anycubic:")) _camPlaying.delete(k);
       try { acuReleaseCloudCameras(); } catch (_) {}
@@ -29626,6 +29628,10 @@ import { initScreenTools } from './ai/screen-tools.js';
      "I want to look now" is not a setting, and a board reopened tomorrow should
      be quiet again. */
   const _camPlaying = new Set();
+  /* Set by "Stop all cameras" (#272) so the automatic start does not put the
+     feeds straight back; lifted when the board is opened again from another
+     view. A play key still starts its own camera meanwhile. */
+  let _camAutoHeld = false;
   /* THE BOARD'S OWN BANNER. FlashForge holds ONE stream at a time, and its panel
      banner opens that stream itself — several cards, or a card and an open
      panel, would fight over it. The camera wall already solved this: its banner
@@ -29697,6 +29703,7 @@ import { initScreenTools } from './ai/screen-tools.js';
      machines are left alone, so nothing retries in a loop. */
   function _autoStartCams() {
     if (!HAS_NATIVE) return;
+    if (_camAutoHeld) return;   // "Stop all cameras" was pressed: no restart behind the user's back
     for (const p of state.printers || []) {
       if (p.camAutoStart !== true) continue;
       const key = _printerKey(p);
@@ -29731,6 +29738,61 @@ import { initScreenTools } from './ai/screen-tools.js';
       placed = true;
     });
     if (placed) _wireCamWidgets(root);
+    _syncCamStopBtn();
+  }
+
+  /* "Stop all cameras" (#272): every feed the board is showing — the machines'
+     played cameras and the external camera cards — goes back to its play key at
+     once. The machine open in the side panel keeps its stream, since the panel
+     is still showing it. */
+  const _boardCamsLive = () => _camPlaying.size > 0 || extCamBoardLive();
+  /* Machines whose camera could be shown on the board but is not playing. */
+  const _camPlayable = p => {
+    const online = _isPrinterOnline(p);
+    return (!!((online || _camSourceId(p)) && _boardCamHtml(p)) || (online && _camStartable(p)));
+  };
+  const _boardCamsIdle = () =>
+    (state.printers || []).some(p => !_camPlaying.has(_printerKey(p)) && _camPlayable(p)) || extCamBoardIdle();
+  /* Each key shows only while it has something to do. A play key starts a feed
+     without redrawing the board, so both are re-checked in place. */
+  function _syncCamStopBtn() {
+    const b = document.getElementById("pvCamStopAll");
+    if (b) b.hidden = !_boardCamsLive();
+    const a = document.getElementById("pvCamPlayAll");
+    if (a) a.hidden = !_boardCamsIdle();
+  }
+  /* "Show all cameras": the mirror of the stop key — every machine whose camera
+     can be shown is played exactly as if its own play key had been pressed
+     (same set, same kick), and the cut external cameras come back. */
+  function _camPlayAllBoard() {
+    for (const p of state.printers || []) {
+      const key = _printerKey(p);
+      if (_camPlaying.has(key) || !_camPlayable(p)) continue;
+      _camPlaying.add(key);
+      _camKick(p);
+    }
+    extCamBoardResumeAll();
+    questBump("cameraOpen");
+    renderPrintersView(true);
+  }
+  document.addEventListener("xc-board-play", _syncCamStopBtn);
+  function _camStopAllBoard() {
+    const keep = _activePrinter ? _printerKey(_activePrinter) : null;
+    for (const key of [..._camPlaying]) {
+      _camPlaying.delete(key);
+      if (key === keep) continue;
+      const p = state.printers.find(v => _printerKey(v) === key);
+      if (!p || _camSourceId(p)) continue;   // an external camera stops when its card is gone
+      try {
+        if (p.brand === "bambulab")   bambuStopCam(bambuKey(p));
+        if (p.brand === "creality"   && p.ip) stopCreCam(p.ip);
+        if (p.brand === "flashforge") ffgMuxStop(ffgKey(p));
+        if (p.brand === "anycubic")   acuReleaseCamera(p);
+      } catch (e) { console.warn("[board-cam] stop failed for", key, e?.message || e); }
+    }
+    extCamBoardPauseAll();
+    _camAutoHeld = true;
+    renderPrintersView(true);
   }
 
   function _camShow(key) {
@@ -29740,6 +29802,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!p || !root) return;
     _camKick(p);
     questBump("cameraOpen", 1, p);
+    _syncCamStopBtn();
     const thumb = root.querySelector(`.printer-card[data-printer-key="${CSS.escape(key)}"] .printer-card-thumb`);
     if (thumb) {
       const html = _boardCamHtml(p);
@@ -30426,6 +30489,14 @@ import { initScreenTools } from './ai/screen-tools.js';
                  value="${Math.round(_printerZoom * 100)}" aria-label="${esc(t("rackPlanZoom"))}"><span class="pct">%</span>
           <button type="button" id="pvZoomIn" aria-label="${esc(t("rackPlanZoomIn"))}">+</button>
         </div>
+        <button type="button" class="rv-plan-btn" id="pvCamPlayAll"${_boardCamsIdle() ? "" : " hidden"}>
+          <span class="icon icon-play icon-14"></span>
+          <span>${esc(t("boardCamPlayAll"))}</span>
+        </button>
+        <button type="button" class="rv-plan-btn" id="pvCamStopAll"${_boardCamsLive() ? "" : " hidden"}>
+          <span class="icon icon-eye-off icon-14"></span>
+          <span>${esc(t("boardCamStopAll"))}</span>
+        </button>
       </div>
       <div class="printers-scroll">
         <div class="printers-grid printers-grid--plan">${cards}</div>
@@ -30453,6 +30524,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     wireExtCamBoard(host.querySelector(".printers-grid"));
     wirePlanPan(host.querySelector(".printers-scroll"), ".printer-card");
     wirePrinterZoom(host);
+    host.querySelector("#pvCamStopAll")?.addEventListener("click", _camStopAllBoard);
+    host.querySelector("#pvCamPlayAll")?.addEventListener("click", _camPlayAllBoard);
     wirePrinterArrange(host);
     wirePrinterCardMenus(host);
     wirePlanClusterMenu(host);
@@ -31249,10 +31322,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!scroller._camZoomWired) {
       scroller._camZoomWired = true;
       scroller.addEventListener("wheel", e => {
+        /* The bare wheel scrolls (#301, #315); Ctrl / ⌘ + wheel zooms, and so
+           does a trackpad pinch, which arrives as a wheel with ctrlKey set. */
+        if (!_planWheelZooms(e)) return;
+        e.preventDefault();
         /* A wheel held down still turns a little under the thumb, and those stray
            notches were landing on the zoom while the user was only panning. */
         if (_planPanning) return;
-        e.preventDefault();
         stepZoom(e.deltaY < 0 ? +1 : -1, { x: e.clientX, y: e.clientY });
       }, { passive: false });
     }
@@ -33046,10 +33122,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (sc && !sc._zoomWired) {
       sc._zoomWired = true;
       sc.addEventListener("wheel", e => {
+        // The bare wheel scrolls; Ctrl / ⌘ + wheel (or a pinch) zooms.
+        if (!_planWheelZooms(e)) return;
+        e.preventDefault();
         // A wheel held down still turns a little under the thumb; those stray
         // notches were landing on the zoom while the user was only panning.
         if (_planPanning) return;
-        e.preventDefault();
         stepPrinterZoom(e.deltaY < 0 ? +1 : -1, { x: e.clientX, y: e.clientY });
       }, { passive: false });
     }
@@ -39178,6 +39256,26 @@ import { initScreenTools } from './ai/screen-tools.js';
      stray notches was landing on the zoom — the view crept in or out on its own
      for as long as the button was held. */
   let _planPanning = false;
+  /* The plans (storage, printers, camera wall) zoom on the wheel only with
+     Ctrl / ⌘ held — or on a trackpad pinch, which Chromium sends as a wheel
+     event with ctrlKey. The bare wheel is left to scroll the view. */
+  const _planWheelZooms = e => e.ctrlKey || e.metaKey;
+  /* Ctrl / ⌘ + and Ctrl / ⌘ − zoom the plan on screen (#301) instead of the
+     whole window: the keys press that plan's own + / − buttons, so the step,
+     the bounds and the saved level are exactly the buttons'. Off every plan,
+     and while typing, the keys keep their usual meaning. */
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const dir = (e.key === "+" || e.key === "=") ? "In" : (e.key === "-" || e.key === "_") ? "Out" : null;
+    if (!dir) return;
+    if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+    const btn = ["rvPlanZoom", "pvZoom", "cwZoom"]
+      .map(id => document.getElementById(id + dir))
+      .find(b => b && b.getClientRects().length > 0);   // on screen (fixed-safe)
+    if (!btn) return;
+    e.preventDefault();
+    btn.click();
+  }, true);
 
   /* Where a rack sits on the plan, in PIXELS from the top-left of the board.
 
@@ -40934,14 +41032,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     $("rvPlanZoomIn")?.addEventListener("click", () => _stepPlanZoom(1));
     $("rvPlanZoomVal")?.addEventListener("change", e => _applyPlanZoom(parseFloat(e.target.value)));
     $("rvPlanZoomVal")?.addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
-    // Wheel zoom, held under ⌘ / Ctrl. A bare wheel keeps scrolling the plan —
-    // it is often taller than the window even zoomed out, and a view that
-    // cannot be scrolled any more is a worse trade than one keystroke.
-    /* The wheel zooms, it does not scroll — the board convention, and the one
-       that makes sense now that holding the wheel button pans. Bound to the
-       storage area alone so the "not stored" list beside it keeps scrolling
-       normally; binding it to the whole view took that away. */
+    /* Wheel zoom, held under Ctrl / ⌘ (a trackpad pinch counts). A bare wheel
+       scrolls the plan (#301, #315): with a mouse, a wheel that zoomed on every
+       notch left no way to simply move down the room. Bound to the storage area
+       alone so the "not stored" list beside it keeps its own scrolling. */
     list.querySelector(".rp-racks-scroll")?.addEventListener("wheel", e => {
+      if (!_planWheelZooms(e)) return;
       e.preventDefault();
       if (_planPanning) return;      // the wheel is being held down, not turned on purpose
       _stepPlanZoom(e.deltaY > 0 ? -1 : 1, { x: e.clientX, y: e.clientY });

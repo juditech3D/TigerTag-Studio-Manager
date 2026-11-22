@@ -1587,6 +1587,8 @@
   "boardTempTitle": "Temperatura",
   "boardJobTitle": "Wydruk",
   "boardCamPlay": "Pokaż podgląd",
+  "boardCamPlayAll": "Pokaż wszystkie kamery",
+  "boardCamStopAll": "Wyłącz wszystkie kamery",
   "boardUnitsTitle": "Magazyn filamentu",
   "boardWidgets": "Widżety",
   "unitsSplit": "Rozdziel jednostki",
