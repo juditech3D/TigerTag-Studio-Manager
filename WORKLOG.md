@@ -200,6 +200,7 @@
 - Release v2.59.2-fork.3: `package.json` / `package-lock.json` version, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.3.md`, FEATURES / llms.txt version. Bundled data not refreshed (`db_update.py` cannot reach the API from the build session).
 - Release v2.59.2-fork.4: `package.json` / `package-lock.json` version, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.4.md`, FEATURES / llms.txt version. Bundled data not refreshed (`db_update.py` cannot reach the API from the build session).
 - Upstream v2.60.0 merged in; the fork's own entries for the plan wheel scroll (#323), the `.ttag` Import-mode fix (#319) and the ROCKEY-ARM filter (#320) dropped, upstream ships the same changes and its code was kept. Version set to 2.60.0-fork.1 (not released).
+- Release v2.60.0-fork.1: `CHANGELOG.md`, `data/release-notes/v2.60.0-fork.1.md` (version already set by the merge). Bundled data is upstream's refresh (24,865 products).
 
 ### Fixed
 

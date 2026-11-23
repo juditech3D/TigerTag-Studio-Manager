@@ -5,6 +5,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.60.0-fork.1 — 2026-11-23
+
+Upstream v2.60.0 merged onto 2.59.2-fork.4 (PR #18). Fork additions kept. The plan wheel scroll /
+zoom (#323), the `.ttag` Import-mode fix (#319) and the ROCKEY-ARM filter (#320) now come from
+upstream; the fork's own versions of them were dropped in favour of upstream's code.
+
+---
+
 ## v2.60.0 — 2026-11-23
 
 ### Added
