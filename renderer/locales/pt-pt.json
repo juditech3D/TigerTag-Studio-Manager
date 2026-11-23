@@ -515,6 +515,7 @@
   "catEmptyFilteredCta": "Limpar os filtros",
   "colorSearchBtn": "Procurar por cor",
   "colorSearchSub": "Escolhe uma cor, escreve um código HEX ou RAL, ou tira-a de uma fotografia: todos os filamentos e resinas do catálogo são ordenados pela proximidade.",
+  "colorSearchSubInv": "Escolhe uma cor, escreve um código HEX ou RAL, ou tira-a de uma fotografia: só ficam as bobinas do teu inventário que se parecem com ela, as mais próximas primeiro.",
   "colorSearchHex": "Código HEX",
   "colorSearchRal": "RAL Classic",
   "colorSearchPhoto": "Foto",
@@ -3280,7 +3281,7 @@
   "bambuPairHintPod": "Uma bobina Bambu Lab tem um chip de cada lado. Pouse-a deitada entre os dois leitores: é guardada quando os dois chips forem lidos.",
   "bambuPairHintScale": "Uma bobina Bambu Lab tem um chip de cada lado, e o segundo leitor da balança não o vê. Na TigerScale, abra Definições → RFID e toque em Auto com a bobina no lugar; depois pouse-a de novo.",
   "linkedChipOfferTip": "Associa os Tags detetados a este material.",
-  "linkedChipLinkTip": "São chips RFID já presentes que pretende ligar a um material do seu inventário.",
+  "linkedChipLinkTip": "O chip que a marca já colocou na bobina (Bambu Lab, Creality, Anycubic…): associe-o a uma das suas bobinas e, ao lê-lo, essa bobina abre.",
   "linkedChipLinkBlankTip": "O material já está no seu inventário como TigerData ou TigerData+: será gravado neste Tag virgem.",
   "linkedChipLinkNeedTag": "Coloque um Tag NFC vazio no TigerPOD: um TigerData ou TigerData+ é gravado nele e passa a TigerTag ou TigerTag+.",
   "linkedChipLinkNeedPod": "Coloque primeiro o material no TigerPOD: é o Tag vazio dele que será gravado.",
@@ -3337,7 +3338,7 @@
   "linkedChipQrTip": "Mostra a etiqueta TigerQR de uma bobina à câmara: o produto abre, com tudo preenchido.",
   "catPickSearch": "Nome, material, cor, SKU, código de barras…",
   "linkedChipAddCatalogue": "Adicionar a partir do catálogo",
-  "linkedChipAddTag": "Adicionar com TigerTag",
+  "linkedChipAddTag": "Adicionar com uma Tag",
   "linkedChipAddQr": "Adicionar por código QR",
   "linkedChipAddManual": "Adicionar manualmente",
   "linkedChipExisting": "Associar ao meu inventário",
@@ -3447,5 +3448,27 @@
     "one": "{{n}} zona desfocada",
     "other": "{{n}} zonas desfocadas"
   },
-  "friendNoName": "Novo membro"
+  "friendNoName": "Novo membro",
+  "catBrandsTitle": "As tuas marcas",
+  "catBrandsBtn": {
+    "one": "{{n}} marca",
+    "other": "{{n}} marcas"
+  },
+  "catBrandsTip": "O catálogo só mostra as marcas que escolhes: mais leve de percorrer, menos fotografias para carregar. Acrescenta ou retira quando quiseres.",
+  "catBrandsSearch": "Procurar uma marca",
+  "catBrandsAll": "Todas",
+  "catBrandsNone": "Nenhuma",
+  "catBrandsDone": "Ver o catálogo",
+  "catBrandsCount": {
+    "one": "{{n}} marca escolhida",
+    "other": "{{n}} marcas escolhidas"
+  },
+  "catBrandsAskTitle": "Com que marcas imprimes?",
+  "catBrandsAskSub": "Escolhe-as uma vez e o catálogo só mostra as delas. Podes acrescentar ou retirar mais tarde.",
+  "catBrandsAskCta": "Escolher as minhas marcas",
+  "catBrandsElsewhereCta": "Editar as minhas marcas",
+  "catBrandsElsewhere": {
+    "one": "{{n}} resultado, numa marca que não segues",
+    "other": "{{n}} resultados, em marcas que não segues"
+  }
 }

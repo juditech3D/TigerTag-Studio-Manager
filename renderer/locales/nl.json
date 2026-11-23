@@ -515,6 +515,7 @@
   "catEmptyFilteredCta": "Filters wissen",
   "colorSearchBtn": "Zoek op kleur",
   "colorSearchSub": "Kies een kleur, typ een HEX- of RAL-code of haal hem uit een foto: alle filamenten en harsen uit de catalogus worden gerangschikt op gelijkenis.",
+  "colorSearchSubInv": "Kies een kleur, typ een HEX- of RAL-code of neem hem uit een foto: alleen de spoelen uit je voorraad die erop lijken blijven, de meest gelijkende eerst.",
   "colorSearchHex": "HEX-code",
   "colorSearchRal": "RAL Classic",
   "colorSearchPhoto": "Foto",
@@ -3280,7 +3281,7 @@
   "bambuPairHintPod": "Een Bambu Lab-spoel heeft aan elke kant een chip. Leg hem plat tussen de twee lezers: hij wordt opgeslagen zodra beide chips gelezen zijn.",
   "bambuPairHintScale": "Een Bambu Lab-spoel heeft aan elke kant een chip, en de tweede lezer van de weegschaal ziet hem niet. Open op de TigerScale Instellingen → RFID en druk op Auto met de spoel erop, en leg hem daarna opnieuw neer.",
   "linkedChipOfferTip": "Koppelt de gedetecteerde Tags aan dit materiaal.",
-  "linkedChipLinkTip": "Dit zijn bestaande RFID-chips die u wilt koppelen aan een materiaal uit uw voorraad.",
+  "linkedChipLinkTip": "De chip die het merk al op de spoel heeft gezet (Bambu Lab, Creality, Anycubic…): koppel hem aan een van je spoelen, en een scan opent die spoel.",
   "linkedChipLinkBlankTip": "Het materiaal staat al in uw voorraad als TigerData of TigerData+: het wordt op deze lege Tag geschreven.",
   "linkedChipLinkNeedTag": "Leg een lege NFC-tag op de TigerPOD: een TigerData of TigerData+ wordt erop gebrand en wordt een TigerTag of TigerTag+.",
   "linkedChipLinkNeedPod": "Leg het materiaal eerst op de TigerPOD: de lege tag ervan wordt gebrand.",
@@ -3337,7 +3338,7 @@
   "linkedChipQrTip": "Houd het TigerQR-label van een spoel voor de camera: het product opent, alles al ingevuld.",
   "catPickSearch": "Naam, materiaal, kleur, SKU, barcode…",
   "linkedChipAddCatalogue": "Toevoegen uit de catalogus",
-  "linkedChipAddTag": "Toevoegen met TigerTag",
+  "linkedChipAddTag": "Toevoegen met een Tag",
   "linkedChipAddQr": "Toevoegen via QR-code",
   "linkedChipAddManual": "Handmatig toevoegen",
   "linkedChipExisting": "Koppelen aan mijn voorraad",
@@ -3447,5 +3448,27 @@
     "one": "{{n}} zone vervaagd",
     "other": "{{n}} zones vervaagd"
   },
-  "friendNoName": "Nieuw lid"
+  "friendNoName": "Nieuw lid",
+  "catBrandsTitle": "Jouw merken",
+  "catBrandsBtn": {
+    "one": "{{n}} merk",
+    "other": "{{n}} merken"
+  },
+  "catBrandsTip": "De catalogus toont alleen de merken die je kiest: lichter om door te bladeren, minder foto's om te laden. Voeg er toe of haal er weg wanneer je wilt.",
+  "catBrandsSearch": "Zoek een merk",
+  "catBrandsAll": "Alle",
+  "catBrandsNone": "Geen",
+  "catBrandsDone": "Toon de catalogus",
+  "catBrandsCount": {
+    "one": "{{n}} merk gekozen",
+    "other": "{{n}} merken gekozen"
+  },
+  "catBrandsAskTitle": "Met welke merken print je?",
+  "catBrandsAskSub": "Kies ze één keer en de catalogus toont alleen die van hen. Later kun je er toevoegen of weghalen.",
+  "catBrandsAskCta": "Kies mijn merken",
+  "catBrandsElsewhereCta": "Mijn merken bewerken",
+  "catBrandsElsewhere": {
+    "one": "{{n}} resultaat, bij een merk dat je niet volgt",
+    "other": "{{n}} resultaten, bij merken die je niet volgt"
+  }
 }

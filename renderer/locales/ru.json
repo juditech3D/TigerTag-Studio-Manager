@@ -525,6 +525,7 @@
   "catEmptyFilteredCta": "Сбросить фильтры",
   "colorSearchBtn": "Найти по цвету",
   "colorSearchSub": "Выбери цвет, введи код HEX или RAL или возьми его с фото: все филаменты и смолы каталога упорядочены по сходству.",
+  "colorSearchSubInv": "Выбери цвет, введи код HEX или RAL или возьми его с фото: останутся только катушки из твоего инвентаря, похожие на него, — самые близкие первыми.",
   "colorSearchHex": "Код HEX",
   "colorSearchRal": "RAL Classic",
   "colorSearchPhoto": "Фото",
@@ -3314,7 +3315,7 @@
   "bambuPairHintPod": "У катушки Bambu Lab по чипу с каждой стороны. Положите её ровно между двумя считывателями: она сохранится, когда будут прочитаны оба чипа.",
   "bambuPairHintScale": "У катушки Bambu Lab по чипу с каждой стороны, но второй считыватель весов его не видит. На TigerScale откройте Настройки → RFID и нажмите Auto, когда катушка лежит на месте, затем положите её снова.",
   "linkedChipOfferTip": "Связывает обнаруженные теги с этим материалом.",
-  "linkedChipLinkTip": "Это уже имеющиеся RFID-чипы, которые вы хотите связать с материалом вашего склада.",
+  "linkedChipLinkTip": "Чип, который производитель уже поставил на катушку (Bambu Lab, Creality, Anycubic…): привяжите его к одной из своих катушек, и при сканировании откроется эта катушка.",
   "linkedChipLinkBlankTip": "Материал уже есть на складе как TigerData или TigerData+: он будет записан на этот пустой тег.",
   "linkedChipLinkNeedTag": "Положите пустой NFC-тег на TigerPOD: TigerData или TigerData+ будет записан на него и станет TigerTag или TigerTag+.",
   "linkedChipLinkNeedPod": "Сначала положите материал на TigerPOD: записывается его пустой тег.",
@@ -3371,7 +3372,7 @@
   "linkedChipQrTip": "Покажите камере этикетку TigerQR катушки: откроется её товар, всё уже заполнено.",
   "catPickSearch": "Название, материал, цвет, SKU, штрихкод…",
   "linkedChipAddCatalogue": "Добавить из каталога",
-  "linkedChipAddTag": "Добавить по TigerTag",
+  "linkedChipAddTag": "Добавить с помощью Tag",
   "linkedChipAddQr": "Добавить по QR-коду",
   "linkedChipAddManual": "Добавить вручную",
   "linkedChipExisting": "Связать с моим складом",
@@ -3483,5 +3484,27 @@
     "many": "{{n}} зон размыто",
     "other": "{{n}} зоны размыто"
   },
-  "friendNoName": "Новый участник"
+  "friendNoName": "Новый участник",
+  "catBrandsTitle": "Твои бренды",
+  "catBrandsBtn": {
+    "one": "{{n}} бренд",
+    "other": "{{n}} брендов"
+  },
+  "catBrandsTip": "Каталог показывает только выбранные тобой бренды: легче листать, меньше фото загружать. Добавляй или убирай их когда угодно.",
+  "catBrandsSearch": "Найти бренд",
+  "catBrandsAll": "Все",
+  "catBrandsNone": "Ни одного",
+  "catBrandsDone": "Открыть каталог",
+  "catBrandsCount": {
+    "one": "Выбран {{n}} бренд",
+    "other": "Выбрано брендов: {{n}}"
+  },
+  "catBrandsAskTitle": "Какими брендами ты печатаешь?",
+  "catBrandsAskSub": "Выбери их один раз — каталог покажет только их. Позже можно добавить или убрать.",
+  "catBrandsAskCta": "Выбрать мои бренды",
+  "catBrandsElsewhereCta": "Изменить мои бренды",
+  "catBrandsElsewhere": {
+    "one": "{{n}} результат — в бренде, который ты не отслеживаешь",
+    "other": "Результатов: {{n}} — в брендах, которые ты не отслеживаешь"
+  }
 }
