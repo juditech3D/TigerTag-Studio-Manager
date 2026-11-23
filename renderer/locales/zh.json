@@ -510,6 +510,7 @@
   "catEmptyFilteredCta": "清除筛选",
   "colorSearchBtn": "按颜色查找",
   "colorSearchSub": "选择颜色、输入 HEX 或 RAL 色号，或从照片中取色：目录中的所有耗材和树脂按相似度排序。",
+  "colorSearchSubInv": "选择一种颜色、输入 HEX 或 RAL 代码，或从照片中取色：只保留库存中颜色相近的耗材，最接近的排在前面。",
   "colorSearchHex": "HEX 色值",
   "colorSearchRal": "RAL Classic 色卡",
   "colorSearchPhoto": "照片",
@@ -3269,7 +3270,7 @@
   "bambuPairHintPod": "Bambu Lab 料盘两侧各有一个芯片。请将其平放在两个读卡器之间：两个芯片都读取后才会保存。",
   "bambuPairHintScale": "Bambu Lab 料盘两侧各有一个芯片，但秤的第二个读卡器没有读到。请在 TigerScale 上打开 设置 → RFID，放好料盘后按 Auto，然后重新放置料盘。",
   "linkedChipOfferTip": "将检测到的标签关联到此材料。",
-  "linkedChipLinkTip": "这些是已有的 RFID 芯片，您想把它们关联到库存中的某个材料。",
+  "linkedChipLinkTip": "品牌已经装在线盘上的芯片（Bambu Lab、Creality、Anycubic……）：把它关联到你的某个线盘，扫描它就会打开那个线盘。",
   "linkedChipLinkBlankTip": "该材料已作为 TigerData 或 TigerData+ 在库存中：将被写入此空白标签。",
   "linkedChipLinkNeedTag": "将空白 NFC 标签放在 TigerPOD 上：TigerData 或 TigerData+ 会写入其中，变成 TigerTag 或 TigerTag+。",
   "linkedChipLinkNeedPod": "请先把耗材放到 TigerPOD 上：写入的是它的空白标签。",
@@ -3326,7 +3327,7 @@
   "linkedChipQrTip": "把线轴的 TigerQR 标签对准摄像头：直接打开对应产品，信息全部自动填好。",
   "catPickSearch": "名称、材料、颜色、SKU、条码…",
   "linkedChipAddCatalogue": "从目录添加",
-  "linkedChipAddTag": "用 TigerTag 添加",
+  "linkedChipAddTag": "用 Tag 添加",
   "linkedChipAddQr": "扫码添加",
   "linkedChipAddManual": "手动添加",
   "linkedChipExisting": "关联到我的库存",
@@ -3435,5 +3436,27 @@
   "aiEvShotHidden": {
     "other": "已模糊 {{n}} 处"
   },
-  "friendNoName": "新成员"
+  "friendNoName": "新成员",
+  "catBrandsTitle": "你的品牌",
+  "catBrandsBtn": {
+    "one": "{{n}} 个品牌",
+    "other": "{{n}} 个品牌"
+  },
+  "catBrandsTip": "目录只显示你选择的品牌：浏览更轻快，加载的图片更少。随时可以添加或移除。",
+  "catBrandsSearch": "搜索品牌",
+  "catBrandsAll": "全选",
+  "catBrandsNone": "全不选",
+  "catBrandsDone": "查看目录",
+  "catBrandsCount": {
+    "one": "已选 {{n}} 个品牌",
+    "other": "已选 {{n}} 个品牌"
+  },
+  "catBrandsAskTitle": "你用哪些品牌打印？",
+  "catBrandsAskSub": "选一次，目录就只显示这些品牌。之后可以随时添加或移除。",
+  "catBrandsAskCta": "选择我的品牌",
+  "catBrandsElsewhereCta": "编辑我的品牌",
+  "catBrandsElsewhere": {
+    "one": "{{n}} 个结果，在你未关注的品牌中",
+    "other": "{{n}} 个结果，在你未关注的品牌中"
+  }
 }

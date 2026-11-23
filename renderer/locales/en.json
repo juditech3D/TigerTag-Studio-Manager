@@ -515,6 +515,7 @@
   "catEmptyFilteredCta": "Clear the filters",
   "colorSearchBtn": "Find by colour",
   "colorSearchSub": "Pick a colour, type a HEX or RAL code, or take it from a photo: every filament and resin of the catalogue is ranked by how close it looks.",
+  "colorSearchSubInv": "Pick a colour, type a HEX or RAL code, or take it from a photo: only the spools of your inventory that look close stay, closest first.",
   "colorSearchHex": "HEX code",
   "colorSearchRal": "RAL Classic",
   "colorSearchPhoto": "Photo",
@@ -3280,7 +3281,7 @@
   "bambuPairHintPod": "A Bambu Lab spool has a chip on each side. Set it down flat between the two readers: it is saved once both chips are read.",
   "bambuPairHintScale": "A Bambu Lab spool has a chip on each side, and the scale's second reader does not see it. On the TigerScale, open Settings → RFID and press Auto with the spool in place, then set it down again.",
   "linkedChipOfferTip": "Links the detected Tags to this material.",
-  "linkedChipLinkTip": "These RFID chips are already there: connect them to a material of your inventory.",
+  "linkedChipLinkTip": "The chip the brand already put on the spool (Bambu Lab, Creality, Anycubic…): link it to one of your spools, and scanning it opens that spool.",
   "linkedChipLinkBlankTip": "The material is already in your inventory as a TigerData or TigerData+: it gets burned onto this blank Tag.",
   "linkedChipLinkNeedTag": "Place a blank NFC Tag on the TigerPOD: a TigerData or TigerData+ gets burned onto it and becomes a TigerTag or TigerTag+.",
   "linkedChipLinkNeedPod": "Place the material on the TigerPOD first: its blank Tag is what gets burned.",
@@ -3337,7 +3338,7 @@
   "linkedChipQrTip": "Show a spool's TigerQR label to the camera: its product opens, everything filled in for you.",
   "catPickSearch": "Name, material, colour, SKU, barcode…",
   "linkedChipAddCatalogue": "Add from the catalogue",
-  "linkedChipAddTag": "Add with TigerTag",
+  "linkedChipAddTag": "Add with a Tag",
   "linkedChipAddQr": "Add from QR code",
   "linkedChipAddManual": "Add manually",
   "linkedChipExisting": "Link to my inventory",
@@ -3447,5 +3448,27 @@
     "one": "{{n}} zone blurred",
     "other": "{{n}} zones blurred"
   },
-  "friendNoName": "New member"
+  "friendNoName": "New member",
+  "catBrandsTitle": "Your brands",
+  "catBrandsBtn": {
+    "one": "{{n}} brand",
+    "other": "{{n}} brands"
+  },
+  "catBrandsTip": "The catalogue only shows the brands you pick: lighter to browse, fewer photos to load. Add or drop some whenever you like.",
+  "catBrandsSearch": "Search a brand",
+  "catBrandsAll": "All",
+  "catBrandsNone": "None",
+  "catBrandsDone": "Show the catalogue",
+  "catBrandsCount": {
+    "one": "{{n}} brand picked",
+    "other": "{{n}} brands picked"
+  },
+  "catBrandsAskTitle": "Which brands do you print with?",
+  "catBrandsAskSub": "Pick them once and the catalogue shows only theirs. You can add or drop some later.",
+  "catBrandsAskCta": "Pick my brands",
+  "catBrandsElsewhereCta": "Edit my brands",
+  "catBrandsElsewhere": {
+    "one": "{{n}} match, in a brand you don't follow",
+    "other": "{{n}} matches, in brands you don't follow"
+  }
 }
