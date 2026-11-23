@@ -390,7 +390,7 @@ Per-brand scan/manual flows live in `printers/<brand>/add-flow.js`; `inventory.j
 
 ---
 
-## Display name + friend requests (L41649-44661)
+## Display name + friend requests (L41649-44823)
 | L | What | Anchors |
 |---|---|---|
 | 15147-15190 | **Display-name setup modal** (first-login pseudo picker) | `openDisplayNameSetup` |

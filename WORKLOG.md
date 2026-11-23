@@ -201,6 +201,7 @@
 - Release v2.59.2-fork.4: `package.json` / `package-lock.json` version, `CHANGELOG.md`, `data/release-notes/v2.59.2-fork.4.md`, FEATURES / llms.txt version. Bundled data not refreshed (`db_update.py` cannot reach the API from the build session).
 - Upstream v2.60.0 merged in; the fork's own entries for the plan wheel scroll (#323), the `.ttag` Import-mode fix (#319) and the ROCKEY-ARM filter (#320) dropped, upstream ships the same changes and its code was kept. Version set to 2.60.0-fork.1 (not released).
 - Release v2.60.0-fork.1: `CHANGELOG.md`, `data/release-notes/v2.60.0-fork.1.md` (version already set by the merge). Bundled data is upstream's refresh (24,865 products).
+- Upstream main 99c9b1a merged in (after v2.60.0): the Printers board is rebuilt only when its shape changes and the side panel's connect button patches the status dots, so cameras no longer flicker at launch or on Connect / Disconnect (`renderer/inventory.js`, `renderer/CODEMAP.md`). Version 2.60.0-fork.2 (not released).
 
 ### Fixed
 

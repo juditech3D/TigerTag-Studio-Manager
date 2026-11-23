@@ -5,6 +5,14 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.60.0-fork.2 — 2026-11-24
+
+Upstream fix that landed after v2.60.0 (commit 99c9b1a): the Printers board is rebuilt only when its
+shape changes, and the side panel's Connect / Disconnect button patches the status dots in place, so
+the cameras no longer flicker at launch or on Connect / Disconnect.
+
+---
+
 ## v2.60.0-fork.1 — 2026-11-23
 
 Upstream v2.60.0 merged onto 2.59.2-fork.4 (PR #18). Fork additions kept. The plan wheel scroll /
