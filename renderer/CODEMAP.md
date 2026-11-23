@@ -357,7 +357,7 @@ Per-brand scan/manual flows live in `printers/<brand>/add-flow.js`; `inventory.j
 
 ---
 
-## Friend view (L40739-42745)
+## Friend view (L40739-43000)
 | L | What | Anchors |
 |---|---|---|
 | 14590-14671 | Friend inventory open/close (one-shot read, no live updates) | `openFriendInventory`, `closeFriendInventory` |
@@ -368,7 +368,7 @@ Per-brand scan/manual flows live in `printers/<brand>/add-flow.js`; `inventory.j
 
 ---
 
-## Display name + friend requests (L41868-44395)
+## Display name + friend requests (L41868-44650)
 | L | What | Anchors |
 |---|---|---|
 | 15059-15102 | **Display-name setup modal** (first-login pseudo picker) | `openDisplayNameSetup` |
@@ -377,7 +377,7 @@ Per-brand scan/manual flows live in `printers/<brand>/add-flow.js`; `inventory.j
 
 ---
 
-## Keys + profile sync (L42967-44510)
+## Keys + profile sync (L42967-44750)
 | L | What | Anchors |
 |---|---|---|
 | 15257-15301 | **`claimPublicKey(uid, oldKey)`** atomic transaction (10 retries) + regenerate + send friend request | `claimPublicKey`, `sendFriendRequest` |

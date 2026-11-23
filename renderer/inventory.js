@@ -31566,19 +31566,53 @@ import { initScreenTools } from './ai/screen-tools.js';
        nothing to scroll — the empty tail used to let the wheel carry every
        camera off screen. The transform scales the box, so the size is written
        in unscaled units for the scaled result to just cover the cards. */
+    _fitCamWall(container, right, bottom);
+    _watchCamWall(container);
+  }
+  /* Size the wall to its cards and lock its scroller when they all fit. Run
+     after every layout, and again whenever a card changes size on its own (a
+     stream arriving swaps the placeholder for a 16:9 picture): a size measured
+     before that left the wall taller than its cards, so the wheel still slid
+     them under the bar although every camera was on screen. */
+  function _fitCamWall(container, right, bottom) {
+    if (right == null) {
+      right = bottom = 0;
+      Array.from(container.children).forEach(el => {
+        if (!el.dataset.camKey || el.classList.contains("cam-wall-card--fs")) return;
+        right  = Math.max(right,  el.offsetLeft + el.offsetWidth);
+        bottom = Math.max(bottom, el.offsetTop  + el.offsetHeight);
+      });
+    }
     const pad = _camArrange ? 240 : 12;
     container.style.width  = (right  + pad) + "px";
     container.style.height = (bottom + pad) + "px";
     container.style.minHeight = _camArrange ? "" : "0";
     container.style.transform = `scale(${_camZoom})`;
     /* Nothing past the edges, nothing to scroll: the scroller is locked so the
-       wheel cannot slide the wall under the bar (it holds no hidden card). */
+       wheel cannot slide the wall under the bar (it holds no hidden card). The
+       test is on the cards themselves, not on the margin around them, and a
+       locked wall is given exactly the visible area. */
     const sc = container.parentElement;
     if (sc && !_camArrange) {
-      const fits = (right + pad) * _camZoom <= sc.clientWidth + 1 && (bottom + pad) * _camZoom <= sc.clientHeight + 1;
+      const fits = right * _camZoom <= sc.clientWidth + 1 && bottom * _camZoom <= sc.clientHeight + 1;
       sc.style.overflow = fits ? "hidden" : "";
-      if (fits) sc.scrollTop = sc.scrollLeft = 0;
+      if (fits) {
+        container.style.width  = Math.floor(sc.clientWidth  / _camZoom) + "px";
+        container.style.height = Math.floor(sc.clientHeight / _camZoom) + "px";
+        sc.scrollTop = sc.scrollLeft = 0;
+      }
     } else if (sc) sc.style.overflow = "";
+  }
+  let _camWallRO = null;
+  function _watchCamWall(container) {
+    if (typeof ResizeObserver === "undefined") return;
+    if (!_camWallRO) _camWallRO = new ResizeObserver(entries => {
+      const wall = entries[0]?.target?.closest?.(".cam-wall--plan");
+      if (wall && wall.isConnected && !_camResizing.size && !_camHeld.size) _fitCamWall(wall);
+    });
+    Array.from(container.children).forEach(el => {
+      if (el.dataset.camKey && !el._camFitWatched) { el._camFitWatched = true; _camWallRO.observe(el); }
+    });
   }
   const _camHeld = new Set();
   const _camSel  = new Set();

@@ -67,6 +67,9 @@
   kept the last frame as if live and the detached window stayed on its loading dots.
   `bambuStopCam` now forgets the last frame, so the next start opens the stream again
   (`renderer/printers/bambulab/index.js`).
+- Camera wall: it is fitted again whenever a card changes size (a stream arriving), through a
+  ResizeObserver, and the "does it fit" test uses the cards without the padding, so a wall that
+  fits never scrolls (`_fitCamWall`, `_watchCamWall` in `renderer/inventory.js`).
 - Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
   Cut, every card keeps its place and size on the eye-off placeholder and the streams only
   the wall was holding are closed (session-only). The wall is sized to its cards outside
