@@ -1,0 +1,110 @@
+name: upstream-watch
+
+# Tells the fork's owner when the official Tiger Studio publishes a release,
+# and tries to bring it in.
+#
+# Once a day it reads the latest release of the official repository. For a
+# release it has not reported yet, it:
+#   1. merges that release into a new branch `sync/<tag>` cut from this fork's
+#      default branch;
+#   2. if the merge is clean, pushes the branch and opens a pull request, so the
+#      update is one review and one merge away;
+#   3. always opens an issue (GitHub e-mails the repository's owner) saying what
+#      came out, with the release notes link and the merge result -- the list of
+#      conflicting files when the merge was not clean.
+#
+# Nothing is released by this workflow: publishing stays a tag pushed by hand.
+# A pull request opened with the built-in token does not start other workflows,
+# so its build is checked when the branch is merged and tagged.
+#
+# The issue title carries the tag, which is how a release is recognised as
+# already reported.
+
+on:
+  schedule:
+    - cron: '37 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+env:
+  UPSTREAM: TigerTag-Project/TigerTag-Studio-Manager
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Look for a new official release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh release view --repo "$UPSTREAM" --json tagName -q .tagName 2>/dev/null || true)
+          if [ -z "$TAG" ]; then echo "No official release found."; echo "new=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "Latest official release: $TAG"
+          SEEN=$(gh issue list --repo "${{ github.repository }}" --state all --limit 200 \
+                   --search "\"Version officielle $TAG\" in:title" --json number -q 'length')
+          if [ "$SEEN" != "0" ]; then echo "Already reported."; echo "new=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          # A release this fork already contains (the one it was built on) is not news.
+          git fetch --no-tags "https://github.com/$UPSTREAM.git" "refs/tags/$TAG:refs/tags/upstream-$TAG"
+          if git merge-base --is-ancestor "upstream-$TAG" HEAD; then
+            echo "Already in this fork."; echo "new=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "new=true" >> "$GITHUB_OUTPUT"
+
+      - name: Try to merge it
+        if: steps.release.outputs.new == 'true'
+        id: merge
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -uo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          BRANCH="sync/$TAG"
+          git switch -c "$BRANCH"
+          if git merge --no-edit -m "Merge official release $TAG" "upstream-$TAG"; then
+            echo "clean=true" >> "$GITHUB_OUTPUT"
+            git push origin "$BRANCH"
+          else
+            echo "clean=false" >> "$GITHUB_OUTPUT"
+            git diff --name-only --diff-filter=U > conflicts.txt
+            git merge --abort
+          fi
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request and the issue
+        if: steps.release.outputs.new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          CLEAN: ${{ steps.merge.outputs.clean }}
+          BRANCH: ${{ steps.merge.outputs.branch }}
+          BASE: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          NOTES="https://github.com/$UPSTREAM/releases/tag/$TAG"
+          PR_LINE=""
+          if [ "$CLEAN" = "true" ]; then
+            PR_URL=$(gh pr create --repo "${{ github.repository }}" --base "$BASE" --head "$BRANCH" \
+              --title "Fusionner la version officielle $TAG" \
+              --body "La version officielle [$TAG]($NOTES) a été fusionnée sans conflit dans \`$BRANCH\`. À relire, compiler (Test build) et tester avant de fusionner, puis publier une version du fork (nouveau numéro et tag)." \
+              || true)
+            PR_LINE="La fusion s'est faite sans conflit : ${PR_URL:-branche \`$BRANCH\`}."
+          else
+            FILES=$(sed 's/^/- `/; s/$/`/' conflicts.txt 2>/dev/null || true)
+            PR_LINE=$(printf "La fusion automatique a des conflits, à résoudre à la main dans ces fichiers :\n\n%s" "$FILES")
+          fi
+          BODY=$(printf "Le TigerTag Project a publié **%s** de Tiger Studio : %s\n\n%s\n\nEnsuite : relire les changements, lancer le Test build (Windows, macOS, Linux), tester l'appli, puis publier une version du fork." "$TAG" "$NOTES" "$PR_LINE")
+          gh issue create --repo "${{ github.repository }}" \
+            --title "Version officielle $TAG disponible" \
+            --body "$BODY"
