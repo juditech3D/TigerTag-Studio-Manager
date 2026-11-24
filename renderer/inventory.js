@@ -163,7 +163,7 @@ import { renderElegooCamBanner } from './printers/elegoo/widget_camera.js';
 import { sdcpWireLive } from './printers/elegoo/sdcp.js';
 import { elgFanStep } from './printers/elegoo/widget_control.js';
 import { jobBar, jobBarFill } from './printers/job-bar.js';
-import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, reportDragState, syncReports, refreshSquadCard, reportCall } from './report/index.js';
+import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, reportDragState, syncReports, markTeamNotifsRead, refreshSquadCard, reportCall } from './report/index.js';
 import { initSupportTools } from './ai/support-tools.js';
 import { initScreenTools } from './ai/screen-tools.js';
 
@@ -9474,6 +9474,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // Common handler called when a named-instance user session becomes active.
   // uid must equal user.uid and be the current active account.
   async function handleSignedIn(user, uid) {
+    _dropRequestNotifs();   // the previous account's request notices (a reply, the author wrote) do not follow into this one
     unsubscribeInventory(); unsubscribeFriendRequests(); unsubscribeFriends(); unsubscribeNotifications(); unsubscribeRacks(); unsubscribeScales(); unsubscribeTigerSpools(); unsubscribeTigerTouchs(); unsubscribePrinters(); unsubscribeProducts(); unsubscribeFriendProducts(); unsubscribeLists(); unsubscribeFriendLists(); unsubscribeContainerOverrides();
     // CRITICAL — drop the previous account's racks immediately. `state.racks`
     // is derived per-account state that (unlike the inventory/racks SNAPSHOTS,
@@ -30763,8 +30764,13 @@ import { initScreenTools } from './ai/screen-tools.js';
        client slot — which is exactly why the camera view then showed a black
        card while the board had a picture. The side panel already gives its own
        back on close; the board must do the same when it stops being on screen. */
-    _prevPlanImgs.forEach(({ key, img }) => { try { ffgMuxUnregister(key, img); } catch {} });
-    _prevPlanImgs.length = 0;
+    /* (On the board itself this waits until the rebuild is certain: a rebuild
+       that turns out identical keeps its elements, and they stay registered.) */
+    const _releasePlanImgs = () => {
+      _prevPlanImgs.forEach(({ key, img }) => { try { ffgMuxUnregister(key, img); } catch {} });
+      _prevPlanImgs.length = 0;
+    };
+    if (_printerSub !== "grid") _releasePlanImgs();
 
     if (_printerSub === "table") { _renderPrinterTable(host); return; }
     if (_printerSub === "cam")   { _renderPrinterCam(host); return; }
@@ -30792,6 +30798,42 @@ import { initScreenTools } from './ai/screen-tools.js';
        each card carries its own coordinates. Sorting by state was the whole
        reason a printer moved when it blinked. */
     const _orderedPrinters = state.printers;
+
+    /* NOTHING TO REDRAW, NOTHING REDRAWN. At launch this ran some twenty-five
+       times in thirty seconds — each brand's Firestore snapshot, every
+       inventory render, a brand tick, the last-seen seed — and each pass tore
+       down every live camera on the board and restarted it: the whole board
+       flickered while the app came up. What a rebuild is FOR is the board's
+       shape: which machines, their names, their widgets, whether a card offers
+       a camera or job keys, the selection, the arrange mode. Everything live
+       inside that shape — the dots, the job bars, the widgets' values, a feed
+       placed by `_camCatchUp` — is patched in place between rebuilds
+       (`_patchGridStatus`, `_patchGridJobs`, `_patchSlotsWidgets`). So the
+       board is rebuilt when its shape changed, and otherwise only re-laid out:
+       the positions live outside the markup. */
+    const _camOffered = p => {
+      const online = _isOnline(p);
+      const html   = (online || _camSourceId(p)) ? _boardCamHtml(p) : "";
+      return !!html || (online && (_camStartable(p) || _camStarting(p)));
+    };
+    const _boardSig = [
+      state.lang, _printerArrange, Math.round(_printerZoom * 100),
+      ...state.printers.map(p => {
+        const k   = _printerKey(p);
+        const job = _getPrinterJob(p);
+        return [k, p.printerName, p.printerModelId, p.demo ? 1 : 0, p.mode, p.isActive ? 1 : 0,
+                state.selectedPrinters.has(k) ? 1 : 0, _camOffered(p) ? 1 : 0,
+                (job?.isActive && brands.get(p.brand)?.isReadOnly?.(p) !== true) ? 1 : 0,
+                ...BOARD_WIDGETS.map(w => widgetOn(p, w.kind) ? 1 : 0), unitsAreSplit(p) ? 1 : 0].join("~");
+      }).sort(),
+      (() => { try { return extCamBoardCardsHtml(); } catch { return ""; } })(),
+    ].join("|");
+    if (!force && host._boardSig === _boardSig && host.querySelector(":scope > .printers-scroll > .printers-grid--plan")) {
+      layoutPrintersPlan();
+      applyPrinterFilter();
+      _syncSelAllHeader();
+      return;
+    }
 
     // One flat grid — all brands mixed, ordered strictly by user-defined
     // sortIndex (set via drag & drop). Each card carries its brand pill so
@@ -30946,7 +30988,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     /* The board lives in its own scroller: the cards are placed in plan
        coordinates and the scroller is what moves over them, so panning and
        zooming never touch a single position. */
-    host.innerHTML = `
+    const _boardHtml = `
       <div class="pv-plan-bar">
         <button type="button" class="rv-plan-btn${_printerArrange ? " on" : ""}" id="pvArrangeBtn"
                 aria-pressed="${_printerArrange ? "true" : "false"}">
@@ -30972,6 +31014,10 @@ import { initScreenTools } from './ai/screen-tools.js';
       <div class="printers-scroll">
         <div class="printers-grid printers-grid--plan">${cards}</div>
       </div>`;
+
+    _releasePlanImgs();
+    host.innerHTML = _boardHtml;
+    host._boardSig = _boardSig;
 
     /* No sort drag-and-drop on the board. Two ways to move the same card is one
        too many, and the old one rewrote `sortIndex` behind the arrangement —
@@ -34430,12 +34476,16 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (p.brand === "elegoo")                           elegooConnect(p);
       if (p.brand === "anycubic"   && (p.ip || p.mode === "cloud")) acuConnect(p);
     }
-    // Refresh the panel body and the printer grid immediately so the badge
-    // dots in the card list also flip to offline/connecting right away.
+    /* Refresh the panel body, and only the status dots of the board — the same
+       patch a brand's own status change uses. A full `renderPrintersView()`
+       here rebuilt every card, so every other machine's live camera was torn
+       down and restarted: one click on Connect made the whole board's feeds
+       flicker. */
     try { renderPrinterDetail(); } catch (_) {}
     if (_isPrinterMode(state.viewMode)) {
-      if (state.viewMode === "printer-cam") try { _patchCamWall(); } catch (_) {}
-      else try { renderPrintersView(); } catch (_) {}
+      if (state.viewMode === "printer-cam")        try { _patchCamWall(); } catch (_) {}
+      else if (state.viewMode === "printer-table") try { _patchTableStatus(); } catch (_) {}
+      else                                         try { _patchGridStatus(); } catch (_) {}
     }
   });
 
@@ -40301,12 +40351,36 @@ import { initScreenTools } from './ai/screen-tools.js';
        never closed: moving one printer rearranged its neighbour. */
     const isWidget = b => { const o = _boardObj(b.id); return !!(o && o.unit); };
     const ownerOf = b => { const o = _boardObj(b.id); return o && o.p ? _printerKey(o.p) : b.id; };
+    /* And it is the NEWCOMER that gives way. Pushing the other machine's card
+       down to make room moved a printer nobody touched (#42); the widget just
+       placed steps down past whatever of another machine it landed on, to the
+       first gap in its own column, and its own followers go down with it.
+       A GROUP the user made is one block: a gap between its members is not a
+       free place for another machine's widget, so the whole group's outline is
+       in the way, not only the boxes in it. */
+    const groups = new Map();
+    for (const b of all) {
+      const cid = clusterOf(b.id);
+      if (!cid) continue;
+      const g = groups.get(cid);
+      if (!g) { groups.set(cid, { x: b.x, y: b.y, r: b.x + b.w, bt: b.y + b.h, owners: new Set([ownerOf(b)]) }); continue; }
+      g.x = Math.min(g.x, b.x); g.y = Math.min(g.y, b.y);
+      g.r = Math.max(g.r, b.x + b.w); g.bt = Math.max(g.bt, b.y + b.h); g.owners.add(ownerOf(b));
+    }
+    const blocks = [...groups.values()]
+      .map(g => ({ x: g.x, y: g.y, w: g.r - g.x, h: g.bt - g.y, owners: g.owners }));
     const sorted = all.slice().sort((u, v) => u.y - v.y);
     for (const a of sorted) {
-      if (!isWidget(a) || !autoPlaced.has(a.id)) continue;
-      for (const b of sorted) {
-        if (b === a || ownerOf(b) === ownerOf(a) || b.y < a.y) continue;
-        if (overlaps(a, b) && a.y + a.h + PAD > b.y) push(a, b);
+      if (!isWidget(a) || !autoPlaced.has(a.id) || _boardHeld.has(a.id)) continue;
+      for (let step = 0; step < 40; step++) {
+        const b = all.find(o => o !== a && ownerOf(o) !== ownerOf(a) && overlaps(a, o))
+               || blocks.find(g => !g.owners.has(ownerOf(a)) && overlaps(a, g));
+        if (!b) break;
+        a.y = Math.round(b.y + b.h + PAD); moved.add(a.id);
+      }
+      if (!moved.has(a.id)) continue;
+      for (const c of sorted) {
+        if (c !== a && ownerOf(c) === ownerOf(a) && c.y >= a.y - a.h && overlaps(a, c) && c.y >= a.y - PAD) push(a, c);
       }
     }
     for (const id of moved) {
@@ -43970,7 +44044,7 @@ import { initScreenTools } from './ai/screen-tools.js';
          // A reply on one of my requests is a local notice (the server only notifies
          // a change of status): without this it chimed but left the bell unlit. The
          // passive nudges (avatar, community links…) stay out of the count.
-         + (state.localNotifications || []).filter(n => String(n.id).startsWith("req-reply-")).length;
+         + (state.localNotifications || []).filter(n => /^req-reply-/.test(String(n.id)) || (/^req-author-/.test(String(n.id)) && !n.read)).length;   // the author's notices stay in the centre once read, but stop counting
   }
 
   // Upsert a local (per-install, non-Firestore) notification keyed by id, and
@@ -43984,7 +44058,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     renderNotifCenter();
     // Ring for a freshly-arrived local notice (paxx firmware, app update), but
     // not for passive startup nudges (avatar / community links).
-    if (isNew && !_PASSIVE_NOTIF_IDS.has(notif.id)) _notifChime();
+    if (isNew && !notif.quiet && !_PASSIVE_NOTIF_IDS.has(notif.id)) _notifChime();   // quiet: an old notice put back
   }
   // ── Paxx firmware release notification ────────────────────────────────────
   // Raises a clickable local notification when at least one Snapmaker in the
@@ -44123,6 +44197,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     const i = list.findIndex(n => n.id === id);
     if (i < 0) return;
     list.splice(i, 1);
+    renderNotifBadge();
+    renderNotifCenter();
+  }
+  // The notices about requests belong to ONE account (a reply on its request, the author wrote on one
+  // the team can answer): they leave with it, so the next account never sees them.
+  function _dropRequestNotifs() {
+    const list = state.localNotifications;
+    if (!list || !list.some(n => /^req-(reply|author)-/.test(String(n.id)))) return;
+    state.localNotifications = list.filter(n => !/^req-(reply|author)-/.test(String(n.id)));
     renderNotifBadge();
     renderNotifCenter();
   }
@@ -44316,6 +44399,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Local notices (app update, firmware, nudges, a reply on my request): current state, so "today".
     for (const n of locals) {
       if (n.action === "lowstock") { stock.push({ key: n.id, img: n.img, title: n.title, text: n.text, at: Date.now() }); continue; }
+      // TigerMasters / admins: the author of an open request wrote (report/index.js) — the card of a new
+      // request (`request_new` below): same kind, art and button, with the time of that message.
+      if (/^req-author-/.test(n.id)) {
+        items.push({ kind: "requests", at: n.at || Date.now(), html: card({ kind: "requests", accent: NOTIF_ACCENT.report, fresh: !n.read || _notifFresh.has(n.id),
+          attrs: `data-local-id="${esc(n.id)}"`, art: icon("suggestion", " notif-ic--req notif-ic--req-open"),
+          title: n.title, text: n.text, when: n.at ? timeAgo(n.at) : "",
+          act: { id: "teamReport", arg: String(n.id).replace(/^req-author-/, ""), icon: "chat", label: t("notifActDiscussion") } }) });
+        continue;
+      }
       const isCommunity = !!COMMUNITY[n.action], isFw = n.action === "paxx" || n.action === "ffgfw";
       const clickable = isCommunity || n.action === "avatar" || isFw || n.action === "report";
       const art = n.img ? `<img src="${esc(n.img)}" alt="" onerror="this.style.display='none'">`
@@ -44650,7 +44742,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     // slide-in, which isn't part of _closeAllSidePanels).
     _closeAllSidePanels();
     closeFriends();
-    _notifFresh = new Set((state.notifications || []).filter(n => !n.read).map(n => n.id));   // their dot stays while open
+    const authorUnread = (state.localNotifications || []).filter(n => /^req-author-/.test(String(n.id)) && !n.read);   // the team's notices: unread until now
+    _notifFresh = new Set([...(state.notifications || []).filter(n => !n.read).map(n => n.id), ...authorUnread.map(n => n.id)]);   // their dot stays while open
     renderNotifCenter();
     $("notifPanel").classList.add("open");
     // No backdrop — keep the rest of the UI clickable while the panel is open,
@@ -44658,6 +44751,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // overlay either). Closes via the ✕ / its » close tab.
     _setTab($("notifCloseTab"), true, $("notifPanel").offsetWidth, $("notifPanel"));
     _markNotifsRead();
+    if (authorUnread.length) { authorUnread.forEach(n => { n.read = true; }); markTeamNotifsRead(); }   // read now, and kept
     renderNotifBadge();
   }
   // XP history side card (the TigerSquad "History" tab): what the account won and

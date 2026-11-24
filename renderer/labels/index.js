@@ -435,8 +435,11 @@ function printerOptions(sel) {
   if (!opts.some(o => o[0] === sel)) { const pr = printerFor(sel); opts.push([sel, pr.name, pr.kind === "p15" ? thumbOf("p15") : pr.ql || isQl(pr.name) ? thumbOf("ql", pr.model || pr.name) : ""]); }
   return opts;
 }
-// A label fits the P15 when one of its sides is no wider than the roll.
-const fitsP15 = tpl => Math.min(tpl.w, tpl.h) <= P15_MAX_MM;
+// A label fits the P15 when its short side is no wider than the roll and its
+// long side no longer than one of the roll's 30 mm labels: a 40 × 12 label is
+// narrow enough but runs past the end of the label it is printed on.
+const P15_LABEL_MM = 30;
+const fitsP15 = tpl => Math.min(tpl.w, tpl.h) <= P15_MAX_MM && Math.max(tpl.w, tpl.h) <= P15_LABEL_MM;
 // A label fits a printer's roll: the P15's 15 mm roll; a Brother QL's roll as
 // picked in the card — a continuous roll by its width, a die-cut one by its label,
 // either way round (5 % leeway: the job is scaled to the printable area). Any
@@ -703,7 +706,7 @@ function render(body, cur) {
       ${link ? `<span class="lbl-open-hint"><span class="icon icon-arrow-up-right icon-12" aria-hidden="true"></span>${esc(t("labelOpenLink"))}</span></button>` : "</div>"}
     ${onA4 ? "</div>" : ""}</div>
     ${link && !batch ? `<div class="lbl-linkrow"><button type="button" class="ghost sm" data-lbl-copy><span class="icon icon-copy icon-14"></span><span>${esc(t("labelCopyLink"))}</span></button>${link ? `<button type="button" class="ghost sm" data-lbl-share><span class="icon icon-send icon-14"></span><span>${esc(t("productShare"))}</span></button>` : ""}</div>` : ""}
-    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div>` : ""}<div class="lbl-giant-wrap">${giant()}</div>
+    ${tpl.slots ? `<div class="panel-label">${esc(t("labelSlots"))}</div><div class="lbl-giant-wrap">${giant()}</div>` : ""}
     <div class="panel-label">${esc(t("labelPrinter"))}</div>
     <div class="lbl-printer">
       <select class="lbl-printer-sel" data-lbl-printer>${printerOptions(p.printer).map(([v, txt, img]) => `<option value="${esc(v)}"${img ? ` data-thumb="${esc(img)}"` : ""}${v === p.printer ? " selected" : ""}>${esc(txt)}</option>`).join("")}</select>
@@ -963,11 +966,13 @@ async function exportLabel(format, items, msg) {
   const fileName = items.length > 1 ? `tigertag-labels-${items.length}-${lbl.mmW}x${lbl.mmH}` : `tigertag-${kind}-${id}-${lbl.mmW}x${lbl.mmH}`;
   const svg = format === "svg" ? lbl.svg : undefined;   // the label itself, sized in millimetres
   try {
-    // The system dialog prints on the sheet chosen for it; PDF / PNG / SVG keep the label's size.
+    // Print and PDF use the sheet chosen in the card for the system dialog (on the
+    // label's own size a PDF holds one label per page); PNG / SVG keep the label's size.
     const dialog = printerFor("dialog");
-    const page = format === "print" ? pageFor(dialog, prefs()) : "label";
-    const run = format === "print" ? runOf(items, dialog) : items.map((_, k) => k);
-    const sheets = format === "print" ? sheetsFor(dialog, items) : format === "pdf" && items.length > 1 ? run.map(k => [[0, 0, k]]) : undefined;
+    const sheeted = format === "print" || (format === "pdf" && pageFor(dialog, prefs()) !== "label");
+    const page = sheeted ? pageFor(dialog, prefs()) : "label";
+    const run = sheeted ? runOf(items, dialog) : items.map((_, k) => k);
+    const sheets = sheeted ? sheetsFor(dialog, items) : format === "pdf" && items.length > 1 ? run.map(k => [[0, 0, k]]) : undefined;
     const labels = items.length > 1 ? items.map(x => x.lbl.html) : undefined;
     const res = await window.electronAPI?.renderLabel?.({ ...lbl, svg, format, fileName, page, sheets, labels });
     if (!res?.ok && res?.reason !== "cancelled" && format !== "print") throw new Error(res?.reason || "render failed");
