@@ -3,10 +3,10 @@ import { decimalSpoolIdToHex, repairTruncatedNtagUid, isDecimalSpoolId, planTrun
 import { initRfidTester } from './rfid_protocol/tigertag/index.js';
 import { RAL_CLASSIC } from './ral-classic.js';
 import { openColorPop } from './color-pop.js';
-import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
+import { initLinkedChips, brandHasMakerChips, linkedChipsSignIn, linkedChipsSignOut, linkedChipsOf, onForeignChip, holdForeignChip, pendingMakerChips, presentMakerChips, makerLinkBannerHtml, linkMakerChipsTo, linkedChipsHtml, wireLinkedChips, linkPendingTo, clearPendingLink, openBlankChipWindow, bambuPairGap, closeChipChoice, closeChipLink, wireSearchBox, linkOfferHtml, wireLinkOffer, openAddChooser, refreshChipChoice, chooseChipView } from './rfid_protocol/linked/index.js';
 import { initChipEraser, openChipEraser, closeChipEraser, chipEraserOpen, eraserCardPresent, eraserForeignChip, eraserReadersChanged } from './rfid_protocol/eraser/index.js';
 import { initChipRestore, openChipRestore, closeChipRestore, chipRestoreOpen, restoreCardPresent, restoreReadersChanged } from './rfid_protocol/restore/index.js';
-import { initLabels, openLabelCard, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
+import { initLabels, openLabelCard, openLabelBatch, syncLabelBatch, closeLabelCard, labelCardOpen, mountLabel, refreshLabelCard, redrawLabelCard, labelFor, saveLabel, qrSvg, LABEL_TEMPLATES, LABEL_SLOTS } from './labels/index.js';
 import { parseQrLink, spoolIdFromPath, linkValues, productLink, productShareLink, spoolLink, spoolShareLink } from './qr-link.js';
 
 // ── Offline timezone → country (telemetry, no IP geolocation) ──────────────
@@ -100,7 +100,8 @@ import { renderPrusaCamBanner, renderPrusaCamWallBanner, prusaCamStopAll } from 
 import { openPrusaAddFlow } from './printers/prusa/add-flow.js';
 import { initExtCam, extCamSubscribe, extCamUnsubscribe, openExtCamAddFlow, openExtCamEditor,
          extCamBoardObj, extCamMaxZ, extCamBoardSave, extCamBoardCardsHtml, wireExtCamBoard,
-         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamForDetach, extCamEmbedHtml } from './ext-cam/ext-cam.js';
+         EXTCAM_BRAND, extCamWallItems, extCamProtoLabel, extCamWallHtml, wireExtCamWall, extCamWallSave, extCamList, extCamForDetach, extCamEmbedHtml,
+         extCamBoardLive, extCamBoardPauseAll, extCamBoardIdle, extCamBoardResumeAll } from './ext-cam/ext-cam.js';
 // Self-contained printer plugins (renderer/printers/<id>/plugin.js) — see docs/PRINTER-PLUGINS.md.
 import { printerPlugin, printerPlugins, printerPluginIds, mergePluginStrings } from './printers/plugins.js';
 import { betaBadgeInlineHtml } from './printers/beta-badge.js';
@@ -162,7 +163,7 @@ import { renderElegooCamBanner } from './printers/elegoo/widget_camera.js';
 import { sdcpWireLive } from './printers/elegoo/sdcp.js';
 import { elgFanStep } from './printers/elegoo/widget_control.js';
 import { jobBar, jobBarFill } from './printers/job-bar.js';
-import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, reportDragState, syncReports, refreshSquadCard, reportCall } from './report/index.js';
+import { initReport, toggleReport, openReport, isReportOpen, reportDropFiles, reportDragState, syncReports, markTeamNotifsRead, refreshSquadCard, reportCall } from './report/index.js';
 import { initForkReport } from './fork-report/fork-report.js';
 import { initSupportTools } from './ai/support-tools.js';
 import { initScreenTools } from './ai/screen-tools.js';
@@ -251,6 +252,53 @@ import { initScreenTools } from './ai/screen-tools.js';
       const n = Number((await res.json())?.[0]?.result?.aggregateFields?.n?.integerValue);
       return Number.isFinite(n) ? n : null;
     } catch (_) { return null; }
+  }
+  // ── Logs read by difference (xpHistory, coinLog, the community history) ──
+  // The rows last read are kept in localStorage under `key`; an opening reads
+  // only the rows past the newest kept `field` (one read when nothing is new)
+  // instead of the whole log every time. `inclusive` re-reads the newest row too,
+  // for a log whose last row moves during the day. `count` (a users/{uid}
+  // subcollection) checks the copy against the server's document count (1 read
+  // per 1,000): a log the server rebuilt or pruned no longer adds up and is read
+  // in full again — as it is once a month anyway, and when more than `limit` rows
+  // are new. A copy read with a smaller `limit` than asked is read again too.
+  // `minGapMs`: a copy topped up less than that ago is returned unread (across launches).
+  // Rows come back newest first, as Firestore gave them (Timestamps revived).
+  async function _deltaLog(key, { query, limit, field = "at", inclusive = false, count = null, uid = null, force = false, minGapMs = 0 }) {
+    let kept = null;
+    try { kept = JSON.parse(localStorage.getItem(key) || "null"); } catch (_) {}
+    const usable = !force && Array.isArray(kept?.rows) && kept.rows.length
+      && Date.now() - (+kept.fullAt || 0) < 30 * 86400e3
+      && (kept.complete || (+kept.cover || 0) >= limit);
+    const ms = v => v?.toMillis ? v.toMillis() : v;
+    const order = (a, b) => { const x = ms(a[field]), y = ms(b[field]); return x === y ? 0 : x > y ? -1 : 1; };
+    const readFull = async () => {
+      const [snap, n] = await Promise.all([query.orderBy(field, "desc").limit(limit).get(), count ? _serverCount(uid, count) : null]);
+      const rows = snap.docs.map(d => ({ ...d.data(), _id: d.id }));
+      return { rows, n, fullAt: Date.now(), cover: limit, complete: rows.length < limit };
+    };
+    if (usable && minGapMs && Date.now() - (+kept.toppedAt || 0) < minGapMs) return _reviveTimestamps(kept.rows);
+    let copy;
+    if (!usable) copy = await readFull();
+    else {
+      const rows = _reviveTimestamps(kept.rows);
+      const newest = rows[0][field];
+      const [snap, n] = await Promise.all([
+        query.orderBy(field, "desc").where(field, inclusive ? ">=" : ">", newest).limit(limit).get(),
+        count && kept.n != null ? _serverCount(uid, count) : null]);
+      const byId = new Map(rows.map(r => [r._id, r]));
+      const added = snap.docs.filter(d => !byId.has(d.id)).length;
+      for (const d of snap.docs) byId.set(d.id, { ...d.data(), _id: d.id });
+      if (snap.size >= limit || (n != null && n !== kept.n + added)) copy = await readFull();
+      else {
+        const merged = [...byId.values()].sort(order);
+        copy = { rows: merged.slice(0, kept.cover), n: n ?? kept.n, fullAt: kept.fullAt, cover: kept.cover,
+                 complete: kept.complete && merged.length <= kept.cover };
+      }
+    }
+    copy.toppedAt = Date.now();
+    try { localStorage.setItem(key, JSON.stringify(copy)); } catch (_) {}
+    return copy.rows;
   }
   // Listens to users/{uid}/<name>: in full, or — with a local copy (`base`,
   // id → data) synced at `syncedAt` — only to what changed since. `onSnap`
@@ -938,7 +986,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       // The header's last figures { stats: { key: number }, coins: { balance, n } },
       // painted at launch before the data arrives (renderStats, _paintDealsBadge).
       header:     uid => `tigertag.header.${uid}`,
-      coinlog:    uid => `tigertag.coinlog.${uid}`,    // the TigerCoins history last read (100 newest)
+      coinlog:    uid => `tigertag.coinlog.${uid}`,    // the TigerCoins history kept and topped up by difference (_deltaLog, 300 newest)
       colorStyle: uid => `tigertag.colorStyle.${uid}`, // my avatar / theme style last read (userProfiles colorStyle), painted at launch
       colorMemo:  uid => `tigertag.colorMemo.${uid}`,  // the 3 style colours last picked, kept across modes (_setOwnStyle)
       // Delta sync (_listenSynced): when the inventory / products copies were last
@@ -3733,6 +3781,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (e.key === "Escape" && $("chipChoicePanel")?.classList.contains("open")) closeChipChoice();
     if (e.key === "Escape" && $("qrScanPanel")?.dataset.mode === "find") closeQrScanPanel();
     if (e.key === "Escape" && $("colorSearchPanel")?.classList.contains("open")) closeColorSearch();
+    if (e.key === "Escape" && $("catBrandsPanel")?.classList.contains("open")) closeCatBrands();
   });
   // Delegated on the container: the rows are re-rendered on every open.
   $("matSourceList")?.addEventListener("click", e => {
@@ -3973,7 +4022,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const makers = HAS_NATIVE && brandHasMakerChips(parseInt($("adpBrand")?.value, 10)) ? presentMakerChips().length : 0;
     const burn = !makers && HAS_NATIVE && state.nfcReaderCount > 0;
     const chip = burn && state.nfcCardPresent.size > 0;
-    const mode = makers ? `link:${makers}` : chip ? "burn:chip" : burn ? "burn" : "";
+    const mode = makers ? `link:${makers}${bambuPairGap() ? ":gap" : ""}` : chip ? "burn:chip" : burn ? "burn" : "";
     if (slot.dataset.mode === mode) return;
     slot.dataset.mode = mode;
     slot.innerHTML = makers ? makerLinkBannerHtml("adpLinkBanner", makers)
@@ -4027,6 +4076,8 @@ import { initScreenTools } from './ai/screen-tools.js';
 
     const uid = state.activeAccountId;
     if (!uid) return showErr(t("invalidKey", { r: "no account" }));
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || pendingMakerChips()) && bambuPairGap()) return showErr(t("bambuPairMissing"));
 
     const get = id => $(id)?.value;
     const { r, g, b } = _adpHexToRgb(_adpColorSlots[0]);
@@ -4335,6 +4386,13 @@ import { initScreenTools } from './ai/screen-tools.js';
   $("btnSelectMode")?.addEventListener("click", _toggleSelectMode);
   $("bulkExit")?.addEventListener("click", _exitSelectMode);
   $("bulkTags")?.addEventListener("click", _openBulkTags);
+  // Bulk "Labels" (own spools): the label card for every selected spool, one label
+  // each, a twin pair (two chips on one spool) printed once.
+  $("bulkLabels")?.addEventListener("click", () => {
+    if (state.friendView) return;
+    openLabelBatch(_labelSelectionRows());
+  });
+  $("btnSelectAll")?.addEventListener("click", () => _toggleSelectAllVisible());
   setupHoldToConfirm($("bulkDelete"), 1500, () => { _bulkCtx().del().catch(e => reportError("bulk.delete", e)); }, { hint: true });
   // Bulk ★ Favorite / ❤ Love (materials selection; also the only bulk actions in a friend view).
   $("bulkFavorite")?.addEventListener("click", () => _bulkApplyFlag("favorite").catch(e => reportError("bulk.favorite", e)));
@@ -5080,6 +5138,51 @@ import { initScreenTools } from './ai/screen-tools.js';
   // black on white. Until it is in, or when the brand has
   // none or it cannot be read, the label prints the brand as text.
   const _brandLogos = new Map();   // id_brand → { uri, aspect } | null | "loading"
+  // A logo in one colour, black on clear (RGBA `d`, changed in place); returns the
+  // box holding its ink, null when nothing is left. Dark and coloured pixels print
+  // black. Near-white ones are paper, a hole in the black (white letters on a
+  // coloured block, a sticker's white rim, an opaque white background) — unless the
+  // logo is drawn for a dark background: when the white shapes standing on the
+  // clear background are 30 % or more of the logo (OVV3D, American Filament, IC3D's
+  // "3D PRINTING"), they are its letters and print black too. Same rule in Tiger
+  // NFC Connect (lib/services/brand_logo.dart).
+  function _monoLabelLogo(d, w, h) {
+    const n = w * h;
+    const kind = new Uint8Array(n);   // 0 clear, 1 ink, 2 near-white
+    let inkCount = 0;
+    for (let p = 0; p < n; p++) {
+      const i = p * 4;
+      kind[p] = d[i + 3] < 128 ? 0 : 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] > 220 ? 2 : 1;
+      if (kind[p] === 1) inkCount++;
+    }
+    const seen = new Uint8Array(n), stack = [], onClear = [];
+    let lightOnClear = 0;
+    for (let s = 0; s < n; s++) {
+      if (kind[s] !== 2 || seen[s]) continue;
+      const area = []; let touchesClear = false;
+      seen[s] = 1; stack.push(s);
+      while (stack.length) {
+        const p = stack.pop(); area.push(p);
+        const x = p % w, y = (p - x) / w;
+        for (const q of [x > 0 ? p - 1 : -1, x < w - 1 ? p + 1 : -1, y > 0 ? p - w : -1, y < h - 1 ? p + w : -1]) {
+          if (q < 0) continue;
+          if (kind[q] === 0) touchesClear = true;
+          else if (kind[q] === 2 && !seen[q]) { seen[q] = 1; stack.push(q); }
+        }
+      }
+      if (touchesClear) { onClear.push(area); lightOnClear += area.length; }
+    }
+    if (lightOnClear >= (inkCount + lightOnClear) * 0.3) for (const area of onClear) for (const p of area) kind[p] = 1;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let p = 0; p < n; p++) {
+      const i = p * 4;
+      d[i] = d[i + 1] = d[i + 2] = 0;
+      if (kind[p] !== 1) { d[i + 3] = 0; continue; }
+      const x = p % w, y = (p - x) / w;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
   function _brandLogoFor(r) {
     const id = Number(r?.raw?.id_brand ?? r?.idBrand);
     if (!id) return null;
@@ -5102,15 +5205,15 @@ import { initScreenTools } from './ai/screen-tools.js';
       const g = c.getContext("2d");
       g.drawImage(bmp, 0, 0);
       const px = g.getImageData(0, 0, c.width, c.height);
-      // Every inked pixel black; a near-white one (white letters on a coloured block)
-      // becomes paper, so it still reads as a hole in the black.
-      const d = px.data;
-      for (let i = 0; i < d.length; i += 4) {
-        if (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2] > 220) d[i + 3] = 0;
-        d[i] = d[i + 1] = d[i + 2] = 0;
-      }
+      const box = _monoLabelLogo(px.data, c.width, c.height);
+      if (!box) throw new Error("no ink");
       g.putImageData(px, 0, 0);
-      _brandLogos.set(id, { uri: c.toDataURL("image/png"), aspect: bmp.width / bmp.height });
+      // Cropped to its ink: a logo drawn small in a wide transparent square would
+      // otherwise print small on the label.
+      const out = document.createElement("canvas");
+      out.width = box.w; out.height = box.h;
+      out.getContext("2d").drawImage(c, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
+      _brandLogos.set(id, { uri: out.toDataURL("image/png"), aspect: box.w / box.h });
       redrawLabelCard();
     })().catch(e => { _brandLogos.set(id, null); console.warn("[labels] brand logo unavailable:", id, e?.message || e); });
     return null;
@@ -5122,6 +5225,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     shareProduct: (row, kind) => _openProductShare(row.idProduct ?? row.raw?.id_product, _shareName(row), kind === "spool" ? row.spoolId : ""),
     onLabelOut: o => _sendLabelAnalytics(o).catch(e => console.warn("[analytics] print_label skipped:", e?.message)),
     enhanceSelect: el => _enhanceSelect(el),
+    // The spools of a label's product in stock: how many copies "Stock" prints.
+    stockCount: r => _filamentStockCount(r),
     // The texts a label prints: never a value that goes stale.
     labelInfo: r => {
       const tp = r.temps || {}, rng = (a, b) => (a || b ? `${a || "?"}–${b || "?"} °C` : "");
@@ -5887,22 +5992,48 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!_squadActive()) return null;   // no badge during the wait after leaving (the server publishes none)
     return SQUAD_TIERS.includes(state.squadTier) ? state.squadTier : (state.supporter ? "gold" : "bronze");
   }
-  let _ownProfileUnsub = null, _ownProfileUid = null, _ownXpUnsub = null;
+  // The server's copy of my users/{uid} and userProfiles/{uid}, as the two
+  // listeners below deliver them: syncUserDoc waits on these instead of reading
+  // both docs a second time at every launch. Offline, the latest (cached)
+  // snapshot after 8 s; the caller reads the doc itself when there is none.
+  const _ownSnap = { user: null, profile: null };   // kind → { uid, snap, server, waiters }
+  function _ownSnapEntry(kind, uid) {
+    if (_ownSnap[kind]?.uid !== uid) _ownSnap[kind] = { uid, snap: null, server: false, waiters: [] };
+    return _ownSnap[kind];
+  }
+  function _ownSnapPut(kind, uid, snap) {
+    const e = _ownSnapEntry(kind, uid);
+    e.snap = snap;
+    if (snap.metadata?.fromCache === false && !e.server) { e.server = true; e.waiters.splice(0).forEach(f => f(snap)); }
+  }
+  function _ownServerSnap(kind, uid, ms = 8000) {
+    const e = _ownSnapEntry(kind, uid);
+    if (e.server) return Promise.resolve(e.snap);
+    return new Promise(res => {
+      e.waiters.push(res);
+      setTimeout(() => { const i = e.waiters.indexOf(res); if (i >= 0) { e.waiters.splice(i, 1); res(e.snap); } }, ms);
+    });
+  }
+  let _ownProfileUnsub = null, _ownProfileUid = null, _ownXpUnsub = null, _ownXpUid = null;   // _ownXpUid: the account whose doc the listener has delivered
   function _subscribeOwnSquad(uid) {
     if (uid === _ownProfileUid) return;
     try { _ownProfileUnsub?.(); } catch (_) {}
     try { _ownXpUnsub?.(); } catch (_) {}
-    _ownProfileUnsub = null; _ownXpUnsub = null; _ownProfileUid = uid || null; state.squadTier = null;
+    _ownProfileUnsub = null; _ownXpUnsub = null; _ownXpUid = null; _ownProfileUid = uid || null; state.squadTier = null;
     // My style as last seen, painted at once (the profile snapshot updates it).
     state.ownColorStyle = uid ? Cache.read("colorStyle", uid) : null;
     if (!uid) return;
     // XP lives on the account doc and the server rewrites it after a scan, a
     // join or a leave — follow it live rather than guessing when to re-read.
-    _ownXpUnsub = fbDb(uid).collection("users").doc(uid).onSnapshot(ds => {
+    // Metadata changes too: the cache → server flip hands syncUserDoc its read (_ownServerSnap).
+    _ownXpUnsub = fbDb(uid).collection("users").doc(uid).onSnapshot({ includeMetadataChanges: true }, ds => {
+      _ownSnapPut("user", uid, ds);
       if (uid !== state.activeAccountId) return;
       const d = ds.data() || {};
       // The server's XP split feeds the Quests loot ladder (what the account owns).
       const bd = d.xpBreakdown || null;
+      state.xpUnlocked = d.xpUnlocked || null;   // the TigerSquad board reads it from here (no read of its own)
+      _ownXpUid = uid;
       if (JSON.stringify(bd) !== JSON.stringify(state.xpBreakdown || null)) {
         state.xpBreakdown = bd;
         if (state.viewMode === "questsJourney") renderInventory();
@@ -5915,6 +6046,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       _renderSquadXp();
     }, () => {});
     _ownProfileUnsub = fbDb(uid).collection("userProfiles").doc(uid).onSnapshot({ includeMetadataChanges: true }, ps => {
+      _ownSnapPut("profile", uid, ps);
       if (uid !== state.activeAccountId) return;
       const tier = ps.exists ? (ps.get("tigerSquad")?.tier || null) : null;
       const pubXp = ps.exists ? (ps.get("tigerSquad")?.xp ?? null) : null;
@@ -6527,14 +6659,16 @@ import { initScreenTools } from './ai/screen-tools.js';
       }
     }
   }
-  // The account's coinLog, newest first — the history window's rows. The 100
-  // newest are kept (Cache "coinlog") so the next opening shows them at once.
+  // The account's coinLog, newest first — the history window's rows. Kept on
+  // this computer (Cache "coinlog") and topped up with the new rows only
+  // (_deltaLog), so an opening shows the copy at once and costs one read when
+  // nothing moved. `at` comes back in ms.
+  const _coinRows = rows => (rows || []).map(r => ({ ...r, at: r.at?.toMillis?.() ?? (r.at?.seconds != null ? r.at.seconds * 1000 : +r.at || 0) }));
   async function _coinLog(uid) {
-    const rows = (await fbDb(uid).collection("users").doc(uid).collection("coinLog").orderBy("at", "desc").limit(300).get())
-      .docs.map(d => ({ ...d.data(), at: d.get("at")?.toMillis?.() || 0 }));
-    Cache.write("coinlog", uid, rows.slice(0, 100));
-    return rows;
+    return _coinRows(await _deltaLog(Cache._key.coinlog(uid), {
+      query: fbDb(uid).collection("users").doc(uid).collection("coinLog"), limit: 300, count: "coinLog", uid }));
   }
+  const _cachedCoinLog = uid => { const c = Cache.read("coinlog", uid); return Array.isArray(c?.rows) ? _coinRows(c.rows) : null; };
   // The header's TigerCoins (balance, envelopes): read the status and paint it.
   // At sign-in, and again when the account joins the TigerSquad.
   function _refreshTopCoins(uid) {
@@ -6550,7 +6684,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       // and the same loading animation while the log arrives.
       getCoins: () => _deals.coins,
       loadingHTML: () => _loadingHTML(),
-      coinHistory: () => _coinLog(uid), cachedHistory: () => Cache.read("coinlog", uid),
+      coinHistory: () => _coinLog(uid), cachedHistory: () => _cachedCoinLog(uid),
       friendName: fuid => (state.friends || []).find(f => f.uid === fuid)?.displayName || "",
     // The friend's avatar on an envelope row (history): the Tiger Squad views' sqb-avatar, as is.
     friendAvatar: fuid => { const f = (state.friends || []).find(x => x.uid === fuid); return f ? userAvatar(f, "sqb-avatar") : ""; },
@@ -6687,7 +6821,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     getCoins: () => _deals.coins,   // the latest balance (earned / spent / balance) for the history's summary
     sendCoins: () => _sendCoinsTo(null),   // the history's "Send" beside the balance
     // TigerCoins history (squad-deals.js openCoinsHistory): the account's coinLog, newest first.
-    coinHistory: () => _coinLog(uid), cachedHistory: () => Cache.read("coinlog", uid),
+    coinHistory: () => _coinLog(uid), cachedHistory: () => _cachedCoinLog(uid),
     friendName: fuid => (state.friends || []).find(f => f.uid === fuid)?.displayName || "",
     // The friend's avatar on an envelope row (history): the Tiger Squad views' sqb-avatar, as is.
     friendAvatar: fuid => { const f = (state.friends || []).find(x => x.uid === fuid); return f ? userAvatar(f, "sqb-avatar") : ""; },
@@ -6814,18 +6948,21 @@ import { initScreenTools } from './ai/screen-tools.js';
         first = false;
       }, e => { console.warn("[squad] community pulse:", e.code || e.message); _squadPulse.pulse = null; });
     }
-    // The history moves once a day: re-read when the day changed, else at most
-    // every 30 min (90 documents a time). The live totals
+    // The history moves once a day: topped up when the day changed, else at most
+    // every 30 min (the new days only). The live totals
     // come from the listener above; read once only while it has not answered.
     const day = new Date().toDateString();
     if (_squadPulse.day === day && Date.now() - _squadPulse.at < 30 * 60e3) return;
     _squadPulse.at = Date.now(); _squadPulse.day = day;
     try {
+      // The history is kept on this computer and topped up by difference: the
+      // newest day (still moving) and the days after it, at most every 30 min
+      // across launches (_deltaLog).
       const [doc, hist] = await Promise.all([_squadPulse.pulse === undefined ? ref.get() : null,
-        ref.collection("history").orderBy("day", "desc").limit(90).get()]);
+        _deltaLog("tigertag.squadPulseHistory", { query: ref.collection("history"), field: "day", inclusive: true, limit: 90, minGapMs: 30 * 60e3 })]);
       const d = doc?.data();
       if (doc) _squadPulse.pulse = d ? { ...d, updatedAt: d.updatedAt?.toMillis?.() || null } : null;
-      _squadPulse.history = hist.docs.map(x => x.data()).reverse();
+      _squadPulse.history = hist.slice().reverse();
     } catch (e) { console.warn("[squad] community pulse:", e.code || e.message); _squadPulse.at = 0; if (_squadPulse.pulse === undefined) _squadPulse.pulse = null; }
   }
   try { localStorage.removeItem("tigertag.squadRanks"); } catch (_) {}   // the old local baseline (the server keeps it now)
@@ -7101,12 +7238,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     try { board = await _loadSquadBoard(uid, viewer); } catch (e) { console.warn("[squad] board:", e.code || e.message); if (loading) board = _SQUAD_BOARD_EMPTY; }
     // My XP: the server's split (users/{uid}.xpBreakdown / xpUnlocked) + the
     // latest gains and losses (users/{uid}/xpHistory, server-written).
+    // The account doc is followed live (_subscribeOwnSquad): read only while it
+    // has not answered yet. The history is the XP log kept on this computer,
+    // topped up with its new rows (_loadXpLog).
     try {
-      const me = fbDb(uid).collection("users").doc(uid);
-      const [doc, hist] = await Promise.all([me.get(), me.collection("xpHistory").orderBy("at", "desc").limit(20).get()]);
-      const d = doc.data() || {};
+      const live = state.xpBreakdown !== undefined && _ownXpUid === uid;
+      const [doc, xl] = await Promise.all([live ? null : fbDb(uid).collection("users").doc(uid).get(), _loadXpLog(uid)]);
+      const d = doc ? doc.data() || {} : { xpBreakdown: state.xpBreakdown, xpUnlocked: state.xpUnlocked, xpPoints: state.xpPoints };
       mine = { breakdown: d.xpBreakdown || {}, unlocked: d.xpUnlocked || {}, total: d.xpPoints || 0,
-               history: hist.docs.map(h => h.data()) };
+               history: xl.log.slice(0, 20) };
     } catch (_) { mine = { breakdown: {}, unlocked: {}, total: state.xpPoints || 0, history: [] }; }
     loading = false;
     if (loader) { loader.remove(); card.hidden = false; }
@@ -9335,6 +9475,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // Common handler called when a named-instance user session becomes active.
   // uid must equal user.uid and be the current active account.
   async function handleSignedIn(user, uid) {
+    _dropRequestNotifs();   // the previous account's request notices (a reply, the author wrote) do not follow into this one
     unsubscribeInventory(); unsubscribeFriendRequests(); unsubscribeFriends(); unsubscribeNotifications(); unsubscribeRacks(); unsubscribeScales(); unsubscribeTigerSpools(); unsubscribeTigerTouchs(); unsubscribePrinters(); unsubscribeProducts(); unsubscribeFriendProducts(); unsubscribeLists(); unsubscribeFriendLists(); unsubscribeContainerOverrides();
     // CRITICAL — drop the previous account's racks immediately. `state.racks`
     // is derived per-account state that (unlike the inventory/racks SNAPSHOTS,
@@ -9447,6 +9588,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     requestAnimationFrame(signalFirstPaint);
 
     subscribeInventory(uid);
+    _catBrandsLoad(uid);     // the catalogue's brands as last picked here; prefs/app follows (syncLangFromFirestore)
     syncLangFromFirestore(uid);
     syncUserDoc(uid);
     questsSignIn(uid);
@@ -10363,7 +10505,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "inv-brand-filter csel-btn";      // reuse the filter look + its caret
-    btn.innerHTML = `<span class="csel-label"></span>`;
+    btn.innerHTML = `<img class="csel-thumb" alt="" hidden><span class="csel-label"></span>`;
+    btn.querySelector(".csel-thumb").addEventListener("error", e => { e.target.hidden = true; });   // a missing picture leaves the text alone
     const pop = document.createElement("div");
     pop.className = "csel-pop"; pop.hidden = true;
     wrap.append(btn, pop);
@@ -10374,6 +10517,11 @@ import { initScreenTools } from './ai/screen-tools.js';
       // (an i18n key). The open list still shows the full "All brands" row.
       const short = sel.dataset.cselShort;
       btn.querySelector(".csel-label").textContent = (!sel.value && short) ? t(short) : (o ? o.text : "");
+      // An option may carry a picture (data-thumb: the printer in the label card);
+      // the button shows the chosen one's, the list each one's.
+      const thumb = btn.querySelector(".csel-thumb"), src = o?.dataset.thumb || "";
+      thumb.hidden = !src;
+      if (src && thumb.getAttribute("src") !== src) thumb.src = src;
       btn.classList.toggle("is-active", !!sel.value);
       btn.disabled = sel.disabled;   // a disabled <select> keeps its dropdown shut
       if (sel.title) btn.title = sel.title;
@@ -10392,7 +10540,8 @@ import { initScreenTools } from './ai/screen-tools.js';
         ? `<div class="csel-pop-head"><input type="search" class="csel-search" placeholder="${esc(t("searchShort"))}" aria-label="${esc(t("searchShort"))}"></div>`
         : "";
       pop.innerHTML = filterHTML + `<div class="csel-pop-list">` + Array.from(sel.options).map((o, i) =>
-        `<button type="button" class="csel-opt${i === sel.selectedIndex ? " is-sel" : ""}" data-i="${i}">${esc(o.text)}</button>`).join("") + `</div>`;
+        `<button type="button" class="csel-opt${i === sel.selectedIndex ? " is-sel" : ""}" data-i="${i}">${o.dataset.thumb ? `<img class="csel-thumb" src="${esc(o.dataset.thumb)}" alt="">` : ""}${esc(o.text)}</button>`).join("") + `</div>`;
+      pop.querySelectorAll(".csel-thumb").forEach(img => img.addEventListener("error", () => img.remove(), { once: true }));
       pop.hidden = false; wrap.classList.add("csel--open");
       _cselOpen.add(close);
       // Wired HERE, right after the list is built — not by the caller after
@@ -10662,7 +10811,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       } catch (_) {}
     });
     populateBrandFilter();      // refresh dropdown options on every render
-    const rows = allDisplayRows();
+    const rows = _invColorRank(allDisplayRows());
     renderFriendBanner();
     _refreshGroupPanelIfOpen(); // keep an open group panel's weights live
     _checkLowStockNotifs();     // raise / clear below-min-stock alerts
@@ -10970,9 +11119,10 @@ import { initScreenTools } from './ai/screen-tools.js';
   function applyInventoryFilter() {
     const q = (state.search || "").trim().toLowerCase();
     const hueOn = _hueFilterOn();
-    const noFilter = !q && !state.filters.length && !hueOn;
+    const colorOn = _invColorOn();
+    const noFilter = !q && !state.filters.length && !hueOn && !colorOn;
     const rowsById = new Map(state.rows.map(r => [r.spoolId, r]));
-    const rowMatches = r => (!q || _rowMatchesSearch(r, q)) && _fbPass(r, "inv") && (!hueOn || _rowMatchesHue(r));
+    const rowMatches = r => (!q || _rowMatchesSearch(r, q)) && _fbPass(r, "inv") && (!hueOn || _rowMatchesHue(r)) && _rowMatchesColor(r);
     let visible = 0;
 
     // ── Table rows are group-aware ──────────────────────────────────────────
@@ -13500,6 +13650,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   function _closeAllSideCards() {
     if ($("qrScanPanel")?.dataset.mode === "find") closeQrScanPanel();   // the search bar's QR card
     closeColorSearch();                                                   // the search bar's colour card
+    closeCatBrands();                                                     // the catalogue's brands card
     closeDetail();        // also clears state.selected + any queued scan-open
     _closeGroupPanel();
     closeProductCard();   // light product "business card"
@@ -14015,11 +14166,18 @@ import { initScreenTools } from './ai/screen-tools.js';
     _updateBulkBar();
   }
 
+  // The selected own spools as the label card wants them (twin pairs once).
+  function _labelSelectionRows() {
+    const rows = deduplicateTwins([...state.selectedSpools].map(id => state.rows.find(r => r.spoolId === id)).filter(r => r && !r.deleted));
+    return rows.map(r => ({ ...r, idProduct: r.raw?.id_product ?? r.idProduct }));
+  }
   function _updateBulkBar() {
     const bar = $("bulkBar");
     if (!bar) return;
     const ctx = _bulkCtx();
     const n = ctx.set.size;
+    // A label card opened from the selection follows it as spools are ticked.
+    if (!state.friendView && !ctx.products && !ctx.printers && !ctx.catalog) syncLabelBatch(_labelSelectionRows());
     const dc = $("bulkDeleteCount"); if (dc) dc.textContent = n ? ` (${n})` : "";
     const show = state.bulkSelect && n > 0;
     bar.classList.toggle("hidden", !show);
@@ -14089,6 +14247,8 @@ import { initScreenTools } from './ai/screen-tools.js';
       el.classList.toggle("is-some", some);
       el.setAttribute("aria-checked", all ? "true" : some ? "mixed" : "false");
     });
+    const allBtn = $("btnSelectAll");
+    if (allBtn) { allBtn.classList.toggle("active", all); allBtn.setAttribute("aria-pressed", String(all)); }
   }
 
   // Printer selection (button-triggered checkboxes in printer grid + table).
@@ -14293,6 +14453,7 @@ import { initScreenTools } from './ai/screen-tools.js';
        stream is billed in RTC minutes while the channel is joined, so leave it —
        and forget it was asked for, or coming back would restart it unasked — as
        soon as the board is no longer on screen. */
+    if (mode === "printer" && prevMode !== "printer") _camAutoHeld = false;   // the board reopened: automatic start applies again
     if (prevMode === "printer" && mode !== "printer") {
       for (const k of [..._camPlaying]) if (k.startsWith("anycubic:")) _camPlaying.delete(k);
       try { acuReleaseCloudCameras(); } catch (_) {}
@@ -14328,7 +14489,9 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Search views browse the OFFICIAL catalogue, not the user's stock, so every
     // stock-derived selector beside the search bar is meaningless there.
     document.body.classList.toggle("catalog-filters", _isCatalogMode(mode));
-    if (!_isCatalogMode(mode)) closeColorSearch();   // the colour search is the catalogue's
+    // The colour search: the catalogue's products, or the spools of the inventory views.
+    document.body.classList.toggle("color-search", !!_colorSearchScope(mode));
+    if (!_colorSearchScope(mode)) closeColorSearch();
     // Cam view: the search bar + Scan/Add buttons are useless there, so hide
     // them (via #card-inv.is-cam-view) and surface the cam-wall "Detach" button
     // in the actions slot instead.
@@ -14409,7 +14572,24 @@ import { initScreenTools } from './ai/screen-tools.js';
   }
   // Detach (top, cam view) → pop the camera wall into its own window.
   $("camWallDetachTop")?.addEventListener("click", () => {
-    try { window.electronAPI?.openCamWindow(_serializeCamerasForDetach()); } catch (_) {}
+    try {
+      Promise.resolve(window.electronAPI?.openCamWindow(_serializeCamerasForDetach()))
+        .then(() => {
+          _camDetached = true;
+          /* The detached window runs its own Creality sessions: close the main
+             window's, which nothing shows now (the wall reopens them when it comes back). */
+          for (const p of state.printers || []) {
+            if (p.brand === "creality" && p.ip) { try { stopCreCam(p.ip); } catch (_) {} }
+          }
+          renderPrintersView(true);
+        })
+        .catch(() => {});
+    } catch (_) {}
+  });
+  window.electronAPI?.onCamWindowClosed?.(() => {
+    if (!_camDetached) return;
+    _camDetached = false;
+    renderPrintersView(true);
   });
   $("btnViewTable").addEventListener("click", () => setViewMode("table"));
   $("btnViewGrid").addEventListener("click",  () => setViewMode("grid"));
@@ -15083,6 +15263,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // Delegated on the stable container — cards/rows are rebuilt on every query.
   $("catalogViewBody")?.addEventListener("click", e => {
     if (e.target.closest?.("[data-cv-create]")) { openAddProductPanel(); return; }
+    if (e.target.closest?.("[data-cv-brands]")) { openCatBrands(); return; }
     if (e.target.closest?.("[data-cv-clear-filters]")) {
       state.filters = [];
       _catColorSet(null, { search: false });
@@ -15171,6 +15352,8 @@ import { initScreenTools } from './ai/screen-tools.js';
   // apply it on boot too (setViewMode, which normally does, isn't called on the
   // initial render), else it's missing at startup when launching into grid.
   document.body.classList.toggle("sel-btn-view", state.viewMode === "grid" || state.viewMode === "printer");
+  // …and the colour search button (Search and inventory views), missing at startup otherwise.
+  document.body.classList.toggle("color-search", !!_colorSearchScope(state.viewMode));
   _syncSearchPlaceholder();
   // Grid-only sort control — reveal it on boot if we start straight in grid view
   // (setViewMode, which normally toggles it, isn't called on the initial render).
@@ -15321,12 +15504,12 @@ import { initScreenTools } from './ai/screen-tools.js';
   // bars / colour search and the OTHER chips leave (so a count is what you get).
   function _fbBase(scope) {
     const q = (state.search || "").trim().toLowerCase();
-    if (scope === "inv") return state.rows.filter(r => !r.deleted && (!q || _rowMatchesSearch(r, q)) && _rowMatchesHue(r));
+    if (scope === "inv") return state.rows.filter(r => !r.deleted && (!q || _rowMatchesSearch(r, q)) && _rowMatchesHue(r) && _rowMatchesColor(r));
     if (scope === "prod") {
       const src = _isListsMode(state.viewMode) ? _listItems(_selectedList()) : _favesForFilters();
       return src.filter(p => _prodTextPass(p, q));
     }
-    if (scope === "cat") return _catColorApply(_catalogFilter($("searchInv")?.value, "", ""));
+    if (scope === "cat") return _catColorApply(_catalogFilter($("searchInv")?.value, "", "").filter(_catBrandShown));
     if (scope === "prn") return (state.printers || []).filter(p => _printerMatchesSearch(p, q));
     return [];
   }
@@ -15362,7 +15545,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   function _fbExtraChips() {
     const out = [];
     const c = state.catColor;
-    if (c && _fbScope() === "cat") out.push({
+    if (c && _colorSearchScope()) out.push({
       key: "color", text: `${c.ral || c.hex.toUpperCase()} · ΔE ≤ ${c.max}`, swatch: colorBg({ colorList: [c.hex] }),
       onEdit: () => openColorSearch(), onRemove: () => _catColorSet(null),
     });
@@ -15458,7 +15641,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // and the spool chips are not theirs).
     if (_fbScope() === "prn") return !!state.search || state.printerFilters.length > 0;
     if (state.search || state.filters.length || _hueFilterOn()) return true;
-    return _isCatalogMode(state.viewMode) && !!state.catColor;
+    return !!_colorSearchScope() && !!state.catColor;
   }
   function _syncFilterReset() {
     $("rvHueReset")?.classList.toggle("is-armed", _anyFilterActive());
@@ -15578,14 +15761,50 @@ import { initScreenTools } from './ai/screen-tools.js';
   }
 
   /* ── Colour search (#colorSearchPanel, renderer/color-search.js) ─────────────
-     The Search views' colour finder, the same matching as tigersystem.io's: a HEX,
-     a RAL Classic code or a point of a photo, ranked by CIEDE2000 and kept within
-     a ΔE ceiling. `state.catColor` = { mode, hex, ral, max, multi, lab } | null;
-     _catViewSearch runs it after the other filters (_catColorApply). The card
-     stands alone at the right edge and gives way to any other side card. */
+     The colour finder of the Search views and of the inventory views (grid,
+     table, storage), the same matching as tigersystem.io's: a HEX, a RAL Classic
+     code or a point of a photo, ranked by CIEDE2000 and kept within a ΔE ceiling.
+     `state.catColor` = { mode, hex, ral, max, multi, lab } | null; the catalogue
+     runs it after the other filters (_catColorApply), the inventory keeps the
+     spools within the ceiling (_rowMatchesColor) and ranks the closest first in
+     the grid and the table (_invColorRank). The card stands alone at the right
+     edge and gives way to any other side card. */
+  // Where the colour search works: "cat" (Search views), "inv" (inventory grid,
+  // table, storage — not a friend's), else null.
+  function _colorSearchScope(mode = state.viewMode) {
+    if (_isCatalogMode(mode)) return "cat";
+    return (mode === "grid" || mode === "table" || mode === "rack") && !state.friendView ? "inv" : null;
+  }
+  function _invColorOn() { return !!state.catColor && _colorSearchScope() === "inv"; }
+  // A spool's distance to the colour searched (the closest of its colours), or
+  // null when it is out: past the ceiling, or multicolour while that is off.
+  function _invColorDE(r) {
+    const cache = _invColorDE.cache || (_invColorDE.cache = new WeakMap());   // row → { key, de }
+    const c = state.catColor;
+    const key = `${c.hex}|${c.multi ? 1 : 0}`;
+    let m = cache.get(r);
+    if (!m || m.key !== key) {
+      const labs = _rowColors(r).map(_csNormHex).filter(Boolean).map(hexToLab);
+      let de = Infinity;
+      if (labs.length && (c.multi || labs.length === 1)) for (const l of labs) { const d = deltaE2000(c.lab, l); if (d < de) de = d; }
+      m = { key, de };
+      cache.set(r, m);
+    }
+    return m.de <= c.max ? m.de : null;
+  }
+  function _rowMatchesColor(r) {
+    return !_invColorOn() || _invColorDE(r) != null;
+  }
+  // The inventory's rows, closest to the colour searched first while one is on.
+  function _invColorRank(rows) {
+    if (!_invColorOn()) return rows;
+    const d = r => _invColorDE(r) ?? Infinity;
+    return rows.map((r, i) => [r, d(r), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).map(x => x[0]);
+  }
   let _csr = null, _csrLang = "";
   $("searchColor")?.addEventListener("click", () => {
     if ($("colorSearchPanel")?.classList.contains("open")) { closeColorSearch(); return; }
+    if (!_colorSearchScope()) return;
     openColorSearch();
   });
   $("colorSearchPanelClose")?.addEventListener("click", () => closeColorSearch());
@@ -15598,7 +15817,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!_csr || _csrLang !== state.lang) {
       _csrLang = state.lang;
       _csr = mountColorSearch(root, {
-        t, esc, openColorPop,
+        t, esc,
         swatchBg: hex => colorBg({ colorList: [hex] }),
         value: state.catColor || {},
         onChange: v => _catColorSet(v),
@@ -15606,6 +15825,9 @@ import { initScreenTools } from './ai/screen-tools.js';
     } else {
       _csr.setValue(state.catColor || { hex: null, ral: "" });
     }
+    // What it searches — the catalogue, or the spools of the inventory — in the title's ⓘ.
+    const info = panel.querySelector(".csr-title-info");
+    if (info) { const tip = t(_colorSearchScope() === "inv" ? "colorSearchSubInv" : "colorSearchSub"); info.dataset.tip = tip; info.setAttribute("aria-label", tip); }
     panel.classList.add("open");
     _csrWatchOthers(true);
     _syncPanels();
@@ -15640,7 +15862,10 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (state.catColor.mode === "photo") _appTrophy("colorSearchPhoto");
     }
     _catColorChipSync();
-    if (search && _isCatalogMode(state.viewMode)) _onFilterChange();
+    if (!search) return;
+    if (_isCatalogMode(state.viewMode)) _onFilterChange();
+    // Inventory grid / table: rebuilt in place, closest spools first (_invColorRank).
+    else if (_colorSearchScope() === "inv") { _syncFilterReset(); populateQuickFilters(); if (state.viewMode === "rack") applyRackSearchDim(); else renderInventory(); }
   }
   // The active colour is one of the filter bar's chips (_fbExtraChips): a click
   // reopens the colour card, its cross removes it.
@@ -15698,6 +15923,151 @@ import { initScreenTools } from './ai/screen-tools.js';
     const band = m.declared ? "declared" : deltaBand(m.de);
     const label = m.declared ? t("colorSearchDeclared", { code: state.catColor?.ral || "" }) : t(`colorSearchBand_${band}`);
     return `<span class="${cls} cv-de" data-band="${band}" aria-label="${esc(label)}">${m.declared ? esc(state.catColor?.ral || "") : `ΔE ${m.de.toFixed(1)}`}</span>`;
+  }
+
+  /* ── The catalogue's brands (#catBrandsPanel) ────────────────────────────────
+     The Search views show only the makers the user picked: a lighter view, and
+     fewer product photos asked of the server (each one runs the /img function).
+     `state.catBrands` = the picked brand keys (_catBrandKey: the reference-table
+     id, "n:<name>" for a maker the table does not know), or null while none were
+     ever picked — the view then asks for them first. Kept in prefs/app.catalogBrands
+     (read with the language at launch, no read of its own; shared with the mobile
+     app) and on this computer (tigertag.catalogBrands.<uid>) to paint at once. */
+  function _catBrandsLsKey(uid) { return `tigertag.catalogBrands.${uid}`; }
+  function _catBrandsSetNow() {
+    if (!state.catBrands) return null;
+    if (_catBrandsSetNow.src !== state.catBrands) { _catBrandsSetNow.set = new Set(state.catBrands); _catBrandsSetNow.src = state.catBrands; }
+    return _catBrandsSetNow.set;
+  }
+  function _catBrandShown(it) { const s = _catBrandsSetNow(); return !s || s.has(_catBrandKey(it)); }
+  function _catBrandsLoad(uid) {
+    let v = null;
+    try { v = JSON.parse(localStorage.getItem(_catBrandsLsKey(uid)) || "null"); } catch (_) {}
+    state.catBrands = Array.isArray(v) && v.length ? v.map(String) : null;
+    _cvBrandsBtnSync();
+  }
+  // The account's choice as prefs/app holds it (set on another computer, the phone).
+  // An empty list = everything unticked: back to the first state, the view asks again.
+  function _catBrandsFromPrefs(uid, v) {
+    if (!Array.isArray(v) || uid !== state.activeAccountId) return;
+    const next = v.length ? v.map(String) : null;
+    if (JSON.stringify(next) === JSON.stringify(state.catBrands)) return;
+    state.catBrands = next;
+    try { localStorage.setItem(_catBrandsLsKey(uid), JSON.stringify(next || [])); } catch (_) {}
+    _cvBrandsBtnSync();
+    if (_isCatalogMode(state.viewMode)) _catViewSearch();
+  }
+  // An empty list unticks everything: the catalogue is back to its first state.
+  function _catBrandsSave(list) {
+    const uid = state.activeAccountId;
+    if (!uid) return;
+    state.catBrands = list.length ? list : null;
+    try { localStorage.setItem(_catBrandsLsKey(uid), JSON.stringify(list)); } catch (_) {}
+    fbDb(uid).collection("users").doc(uid).collection("prefs").doc("app").set({ catalogBrands: list }, { merge: true })
+      .catch(e => console.warn("[catalog] brands not saved:", e.code || e.message));
+    _cvBrandsBtnSync();
+    if (_isCatalogMode(state.viewMode)) _catViewSearch();
+  }
+  // Every maker in the catalogue — key, name, product count — once per index.
+  function _catAllBrands() {
+    if (_catAllBrands.idx === _catalogIndex) return _catAllBrands.list;
+    const m = new Map();
+    for (const { it } of _catalogIndex) {
+      const k = _catBrandKey(it);
+      if (!k) continue;
+      const e = m.get(k) || { key: k, name: String(it.brand || (k.startsWith("n:") ? k.slice(2) : brandName(+k)) || k), n: 0 };
+      e.n++;
+      m.set(k, e);
+    }
+    const coll = new Intl.Collator();
+    _catAllBrands.list = [...m.values()].sort((a, b) => coll.compare(a.name, b.name));
+    _catAllBrands.idx = _catalogIndex;
+    return _catAllBrands.list;
+  }
+  function _cvBrandsBtnSync() {
+    const txt = $("cvBrandsBtnText");
+    if (!txt) return;
+    txt.textContent = state.catBrands ? t("catBrandsBtn", { n: state.catBrands.length }) : t("thBrand");
+    $("cvBrandsBtn")?.classList.toggle("is-on", !!state.catBrands);
+  }
+  // The side card edits a draft; it is saved once, when the card closes.
+  let _cbpDraft = null, _cbpAsked = false;
+  $("cvBrandsBtn")?.addEventListener("click", () => ($("catBrandsPanel")?.classList.contains("open") ? closeCatBrands() : openCatBrands()));
+  $("catBrandsPanelClose")?.addEventListener("click", () => closeCatBrands());
+  $("catBrandsCloseTab")?.addEventListener("click", () => closeCatBrands());
+  $("catBrandsDone")?.addEventListener("click", () => closeCatBrands());
+  $("catBrandsSearch")?.addEventListener("input", () => _cbpPaint());
+  $("catBrandsAll")?.addEventListener("click", () => { _cbpDraft = new Set(_catAllBrands().map(b => b.key)); _cbpPaint(); });
+  $("catBrandsNone")?.addEventListener("click", () => { _cbpDraft = new Set(); _cbpPaint(); });
+  $("catBrandsList")?.addEventListener("click", e => {
+    const b = e.target.closest?.(".cbp-row");
+    if (!b || !_cbpDraft) return;
+    const k = b.dataset.key, on = !_cbpDraft.has(k);
+    if (on) _cbpDraft.add(k); else _cbpDraft.delete(k);
+    b.classList.toggle("is-on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+    _cbpPaintHead();
+  });
+  function openCatBrands() {
+    const panel = $("catBrandsPanel");
+    if (!panel) return;
+    if (!_catalogIndex.length) _catalogLoadCache();
+    _closeAllSideCards();
+    _cbpAsked = true;
+    _cbpDraft = new Set(state.catBrands || []);
+    const info = panel.querySelector(".cbp-title-info");
+    if (info) { const tip = t("catBrandsTip"); info.dataset.tip = tip; info.setAttribute("aria-label", tip); }
+    $("catBrandsSearch").value = "";
+    _cbpPaint();
+    panel.classList.add("open");
+    _syncPanels();
+  }
+  function closeCatBrands() {
+    const panel = $("catBrandsPanel");
+    if (!panel?.classList.contains("open")) return;
+    panel.classList.remove("open");
+    _syncPanels();
+    // Saved once, and only when it changed. Everything unticked is a choice too:
+    // the catalogue goes back to asking for brands.
+    if (!_cbpDraft) return;
+    const coll = new Intl.Collator();
+    const next = [..._cbpDraft].sort(coll.compare);
+    _cbpDraft = null;
+    const cur = state.catBrands ? [...state.catBrands].sort(coll.compare) : [];
+    if (JSON.stringify(next) !== JSON.stringify(cur)) _catBrandsSave(next);
+  }
+  function _cbpPaintHead() {
+    $("catBrandsCount").textContent = t("catBrandsCount", { n: _cbpDraft.size });
+  }
+  function _cbpPaint() {
+    const q = ($("catBrandsSearch")?.value || "").trim().toLowerCase();
+    const rows = _catAllBrands().filter(b => !q || b.name.toLowerCase().includes(q));
+    const lang = state.lang || "en";
+    $("catBrandsList").innerHTML = rows.map(b => {
+      const on = _cbpDraft.has(b.key);
+      return `<button type="button" class="cbp-row${on ? " is-on" : ""}" role="option" aria-selected="${on}" data-key="${esc(b.key)}">
+        <span class="cbp-check"><span class="icon icon-check-bold" aria-hidden="true"></span></span>
+        <span class="cbp-name">${esc(b.name)}</span><span class="cbp-n">${b.n.toLocaleString(lang)}</span></button>`;
+    }).join("");
+    _cbpPaintHead();
+  }
+  // No brand picked yet: the view asks for them (and opens the card, once).
+  function _catViewAskBrands() {
+    _catViewHits = [];
+    _catViewRenderedSig = "";
+    const body = $("catalogViewBody");
+    if (body) {
+      body.className = "cv-body";
+      body.innerHTML = `
+        <div class="cv-empty">
+          <span class="icon icon-tag" aria-hidden="true"></span>
+          <div class="cv-empty-title">${esc(t("catBrandsAskTitle"))}</div>
+          <div class="cv-empty-sub">${esc(t("catBrandsAskSub"))}</div>
+          <button type="button" class="cv-empty-cta" data-cv-brands="1"><span class="icon icon-tag icon-14" aria-hidden="true"></span>${esc(t("catBrandsAskCta"))}</button>
+        </div>`;
+    }
+    _catViewSyncStatus();
+    if (!_cbpAsked && _catalogIndex.length) openCatBrands();
   }
   /* ── Add with TigerTag (#tagAddPanel, the new-chip card's pane) ───────────────
      The only way a scanned chip enters the inventory (founder, 2026-11-13). A
@@ -17780,6 +18150,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!keepLink) clearPendingLink();
     // Feedback goes to whichever surface the user actually triggered this from.
     const res$ = $("pcCatMsg") || $("roSaveResult");
+    // A Bambu Lab spool is saved only with both of its chips read (LINKED-CHIPS.md).
+    if ((linkMakers || (keepLink && pendingMakerChips())) && bambuPairGap()) { toast(res$, "bad", t("bambuPairMissing")); return; }
     _catalogSetBusy(true);
     try {
       // The one network call of this path — the same detail endpoint the
@@ -18022,7 +18394,7 @@ import { initScreenTools } from './ai/screen-tools.js';
      within one brand — the control stays disabled until a brand is picked).
      All of it runs over the local cache: changing a filter never hits the API.
   */
-  const CAT_SORTS = { brand: "brand", name: "_name", material: "material" };
+  const CAT_SORTS = { brand: "brand", series: "_series", name: "_name", material: "material" };
   // The whole catalogue sorted ONCE per (index, sort key) into an item → rank
   // map; a search then orders its hits by integer rank. Sorting 18 000 items
   // with localeCompare on every keystroke was most of the typing lag. Title is
@@ -18031,10 +18403,12 @@ import { initScreenTools } from './ai/screen-tools.js';
   function _catSortRank(sortKey) {
     const field = CAT_SORTS[sortKey] || CAT_SORTS.brand;
     if (_catSortCache.idx === _catalogIndex && _catSortCache.key === field) return _catSortCache.rank;
-    const coll = new Intl.Collator();
+    const coll = new Intl.Collator(undefined, { numeric: true });
     const items = _catalogIndex.map(e => e.it);
-    items.sort((a, b) => coll.compare(String(a[field] || ""), String(b[field] || ""))
-                      || coll.compare(String(a.title || ""), String(b.title || "")));
+    const by = f => (a, b) => coll.compare(String(a[f] || ""), String(b[f] || ""));
+    // "Series": brand, then series, then the colour's name — a series' colours side by side.
+    const cmp = field === "_series" ? [by("brand"), by("_series"), by("_name")] : [by(field)];
+    items.sort((a, b) => { for (const c of cmp) { const d = c(a, b); if (d) return d; } return coll.compare(String(a.title || ""), String(b.title || "")); });
     const rank = new Map();
     items.forEach((it, i) => rank.set(it, i));
     _catSortCache = { idx: _catalogIndex, key: field, rank };
@@ -18047,7 +18421,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   function _catViewFillFacets() {
     const sortEl = $("cvSort");
     if (sortEl && !sortEl.options.length) {
-      sortEl.innerHTML = [["brand", "thBrand"], ["name", "thName"], ["material", "thMaterial"]]
+      sortEl.innerHTML = [["brand", "thBrand"], ["series", "thSeries"], ["name", "thName"], ["material", "thMaterial"]]
         .map(([v, k]) => `<option value="${v}">${esc(t("sortBy") + ": " + t(k))}</option>`).join("");
       sortEl._cselRefresh?.();
     }
@@ -18058,7 +18432,10 @@ import { initScreenTools } from './ai/screen-tools.js';
     // The Material chip lists families: once the table is read, search again.
     if (!_matFamiliesP) _loadMaterialFamilies().then(() => _catViewSearch());
     _catViewFillFacets();
-    _catViewHits = _catalogFilter($("searchInv")?.value, "", "").filter(it => _fbPass(it, "cat"));
+    _cvBrandsBtnSync();
+    // No brand picked yet: ask for them before showing any product.
+    if (!state.catBrands) { _catViewAskBrands(); return; }
+    _catViewHits = _catalogFilter($("searchInv")?.value, "", "").filter(it => _catBrandShown(it) && _fbPass(it, "cat"));
     const rank = _catSortRank($("cvSort")?.value || "brand");
     _catViewHits.sort((a, b) => rank.get(a) - rank.get(b));
     // A colour search keeps the products within its ΔE and puts the closest first.
@@ -18098,8 +18475,16 @@ import { initScreenTools } from './ai/screen-tools.js';
         // The search finds products but the selectors above leave none: say so and
         // offer to clear them, rather than "make it yourself" (#217).
         const filtered = (state.filters.length || state.catColor)
-          && _catalogFilter($("searchInv")?.value, "", "").length > 0;
-        body.innerHTML = filtered ? `
+          && _catalogFilter($("searchInv")?.value, "", "").filter(_catBrandShown).length > 0;
+        // …or the search finds products, but only in brands not picked: say how many.
+        const elsewhere = !filtered && String($("searchInv")?.value || "").trim()
+          ? _catalogFilter($("searchInv")?.value, "", "").filter(it => !_catBrandShown(it)).length : 0;
+        body.innerHTML = elsewhere ? `
+          <div class="cv-empty">
+            <span class="icon icon-tag" aria-hidden="true"></span>
+            <div class="cv-empty-title">${esc(t("catBrandsElsewhere", { n: elsewhere }))}</div>
+            <button type="button" class="cv-empty-cta" data-cv-brands="1"><span class="icon icon-tag icon-14" aria-hidden="true"></span>${esc(t("catBrandsElsewhereCta"))}</button>
+          </div>` : filtered ? `
           <div class="cv-empty">
             <span class="icon icon-filter" aria-hidden="true"></span>
             <div class="cv-empty-title">${esc(t("catEmptyFilteredTitle"))}</div>
@@ -18397,6 +18782,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const el = $("catalogViewStatus");
     if (!el) return;
     if (!_catalogIndex.length) { el.textContent = t("catalogSyncing"); return; }
+    if (!state.catBrands) { el.textContent = ""; return; }   // the brands are being asked for
     el.textContent = _catalogSyncing
       ? t("catalogSyncing")
       : t("catalogHits", { n: _catViewHits.length });   // one figure: what the filters match
@@ -18862,6 +19248,19 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (host && !host.querySelector(".inv-loading")) host.innerHTML = _loadingHTML(extraCls);
   }
 
+  // Signature guard for the Favorites / To-order view: renderInventory runs on
+  // every live update (scales, printers, snapshots — up to once a second), and
+  // rebuilding the cards each time made the view flicker and reload its pictures.
+  // Writes `html` only when it differs from what the view already shows; true =
+  // nothing changed (the listeners and the scroll fade wired last time still hold).
+  function _pvSameAsShown(host, mode, html) {
+    const sig = mode + "\n" + html;
+    if (host._pvSig === sig && host.firstElementChild && host.firstElementChild === host._pvFirst) return true;
+    host.innerHTML = html;
+    host._pvSig = sig;
+    host._pvFirst = host.firstElementChild;
+    return false;
+  }
   function renderProductsView() {
     const host = $("invProductsView");
     if (!host) return;
@@ -18892,7 +19291,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       const savedRows = withInfo
         .filter(x => x.p.savedForLater)
         .sort((a, b) => _rank(a) - _rank(b) || _productName(a.p).localeCompare(_productName(b.p)));
-      host.innerHTML = _renderOrderTab(cartRows, savedRows, info, ro);
+      if (_pvSameAsShown(host, "order|" + ro, _renderOrderTab(cartRows, savedRows, info, ro))) return;
       // "Stop tracking" is press-and-hold (1 s) — reset min to 0 → drops the line.
       if (!ro) host.querySelectorAll("[data-reorder-remove]").forEach(btn => {
         const h = btn.closest(".pv-order-line")?.dataset.hash;
@@ -18903,9 +19302,9 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Favorites (liked ❤ / favorite ★) — grid or table.
     const faves = products.filter(p => p.liked || p.favorite)
       .sort((a, b) => _productName(a).localeCompare(_productName(b)));
-    host.innerHTML = state.viewMode === "favesTable"
+    if (_pvSameAsShown(host, state.viewMode + "|" + ro, state.viewMode === "favesTable"
       ? _renderFavesTable(faves, stockMap, info, ro)
-      : _renderFavesGrid(faves, ro);
+      : _renderFavesGrid(faves, ro))) return;
     // Favorites — the grid and the table fill this scroller edge to edge, so the
     // fade covers exactly what is hidden. The To-order view does NOT: it is a
     // card plus a 300 px STICKY side panel, and masking the scroller would fade
@@ -20683,7 +21082,9 @@ import { initScreenTools } from './ai/screen-tools.js';
     // The search bar's colour card, alone at the right edge too.
     const csp = $("colorSearchPanel"), csOpen = !!csp?.classList.contains("open");
     _setTab($("colorSearchCloseTab"), csOpen, csOpen ? csp.offsetWidth : 0, csp);
-    if (ccOpen) ["catalogPickCloseTab", "chipLinkCloseTab", "addProductCloseTab", "qrScanCloseTab", "colorSearchCloseTab"].forEach(id => { if ($(id)) $(id).hidden = true; });
+    const cbp = $("catBrandsPanel"), cbOpen = !!cbp?.classList.contains("open");
+    _setTab($("catBrandsCloseTab"), cbOpen, cbOpen ? cbp.offsetWidth : 0, cbp);
+    if (ccOpen) ["catalogPickCloseTab", "chipLinkCloseTab", "addProductCloseTab", "qrScanCloseTab", "colorSearchCloseTab", "catBrandsCloseTab"].forEach(id => { if ($(id)) $(id).hidden = true; });
     _setTab($("productCardCloseTab"), pcOpen, pcRight + (pcW || upPcW), pcp);
     _setTab($("reorderCloseTab"), roOpen, roRight + roW, rop);
     _setTab($("detailCloseTab"),     dOpen, matRight + detailW, dp);
@@ -21407,9 +21808,11 @@ import { initScreenTools } from './ai/screen-tools.js';
       delete data.rfidListed;
       // The copy is chipless, so it carries NO chip version at all — dropping
       // `id_tigertag` is both what makes it not-a-TigerTag+ and what keeps the
-      // doc inside `id_version.json`'s referential. Removed from the object, not
-      // written as `FieldValue.delete()`: the batch uses set() without merge,
-      // which replaces the whole doc and rejects delete() (the whole import failed).
+      // doc inside `id_version.json`'s referential. (It used to be re-rolled
+      // to a random u32 here, which achieved the first goal and broke the second.)
+      // Taken out of the object rather than written as `FieldValue.delete()`: the
+      // batch uses set() without merge, which replaces the whole doc and refuses
+      // delete() — the whole import failed (#311).
       delete data.id_tigertag;
       // A fresh TigerData copy is a BRAND-NEW spool → reset to 100% (full
       // capacity), not the exported remaining weight.
@@ -26966,6 +27369,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       showUpdateStatus._t = setTimeout(() => { el.hidden = true; }, 6000);
     }
   }
+  // Short sentence for an updater failure; the raw error stays in main.log.
+  function updateErrorText(reason) {
+    if (reason === "pending") return t("aboutCheckUpdatePending") || "An update is being published. Please wait a few minutes and try again.";
+    if (reason === "offline") return t("aboutCheckUpdateOffline") || "Could not reach the update server. Check your connection.";
+    return t("aboutCheckUpdateErr") || "Could not check for updates. The details are in the log.";
+  }
   $("btnCheckUpdate")?.addEventListener("click", async () => {
     const btn = $("btnCheckUpdate");
     if (!btn || btn.disabled) return;
@@ -26974,12 +27383,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     try {
       const r = await window.electronAPI?.checkForUpdates?.();
       if (!r?.ok) {
-        showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (r?.error || "?"), "err");
+        showUpdateStatus(updateErrorText(r?.reason), r?.reason === "pending" ? "warn" : "err");
       }
       // Success cases (up-to-date / available / ready) are surfaced by the
       // 'update-status' event listener below — no extra UI here.
     } catch (e) {
-      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (e?.message || e), "err");
+      console.warn("[updater] check failed:", e);
+      showUpdateStatus(updateErrorText("other"), "err");
     } finally {
       setTimeout(() => { btn.disabled = false; }, 2000);
     }
@@ -26994,7 +27404,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       else if (status === "up-to-date") showUpdateStatus(t("aboutCheckUpdateUpToDate") || "You're on the latest version.", "ok");
       else if (status === "available")  showUpdateStatus((t("aboutCheckUpdateAvailable") || "New version available") + (info.version ? ` (v${info.version})` : "") + " — downloading…", "info");
       else if (status === "ready")      showUpdateStatus((t("aboutCheckUpdateReady") || "Update ready — restart to install") + (info.version ? ` (v${info.version})` : ""), "ok");
-      else if (status === "error")      showUpdateStatus((t("aboutCheckUpdateErr") || "Could not check") + ": " + (info.error || "?"), "err");
+      else if (status === "error")      showUpdateStatus(updateErrorText(info.reason), info.reason === "pending" ? "warn" : "err");
     });
   }
   document.addEventListener("keydown", e => { if (e.key === "Escape") closeDebug(); });
@@ -28809,6 +29219,26 @@ import { initScreenTools } from './ai/screen-tools.js';
       return (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0);
     });
   }
+  function _isRealRack(r) { return r.name != null || Number(r.level) > 0 || Number(r.position) > 0; }
+  /* The ghosts already on an account (#302) are removed, from the server's word
+     only (never from a cached snapshot), on the account's own racks only, and
+     only documents that hold nothing but `plan` / `lastUpdate` — what the bug
+     wrote — and that no spool points at. Once per document per session. */
+  const _ghostRacksSwept = new Set();
+  function _sweepGhostRacks(uid, docs) {
+    if (state.friendView || uid !== state.activeAccountId) return;
+    const ghosts = docs.filter(d => {
+      const data = d.data();
+      return !_isRealRack(data) && Object.keys(data).every(k => k === "plan" || k === "lastUpdate")
+        && !_ghostRacksSwept.has(d.id) && !state.rows.some(r => r.rackId === d.id);
+    });
+    if (!ghosts.length) return;
+    const batch = fbDb(uid).batch();
+    for (const d of ghosts) { _ghostRacksSwept.add(d.id); batch.delete(d.ref); }
+    batch.commit()
+      .then(() => console.log(`[racks] removed ${ghosts.length} empty ghost rack document(s) (#302)`))
+      .catch(e => console.warn("[racks] ghost cleanup failed:", e.code || e.message));
+  }
   function subscribeRacks(uid) {
     unsubscribeRacks();
     state.racksLoading = true;   // spinner until the first snapshot lands (own view)
@@ -28823,7 +29253,7 @@ import { initScreenTools } from './ai/screen-tools.js';
         // keeps the friend's (one-shot) racks visible without the owner's
         // racks bleeding back in. Kept alive, it feeds the own-data stash.
         if (state.friendView) {
-          if (_ownStash?.uid === uid) _ownStash.racks = _sortRacks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          if (_ownStash?.uid === uid) _ownStash.racks = _sortRacks(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(_isRealRack));
           return;
         }
         state.racksLoading = false;   // first (or any) snapshot arrived → drop the spinner
@@ -28832,7 +29262,10 @@ import { initScreenTools } from './ai/screen-tools.js';
            exist. Anything DESTRUCTIVE keyed on "this rack does not exist" has
            to wait for the server's word — see the orphan sweep. */
         if (!snap.metadata.fromCache) _racksFromServer = true;
-        const racks = _sortRacks(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        // A rack document with no name and no grid is not a rack: what a write
+        // after a delete left behind (#302, see updateRack). Not shown, not counted.
+        const racks = _sortRacks(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(_isRealRack));
+        if (!snap.metadata.fromCache) _sweepGhostRacks(uid, snap.docs);
         state.racks = racks;
         // Racks for the active account are now loaded — lift the readiness
         // barrier and run a pass: any spool scanned before the racks arrived
@@ -29611,6 +30044,10 @@ import { initScreenTools } from './ai/screen-tools.js';
      "I want to look now" is not a setting, and a board reopened tomorrow should
      be quiet again. */
   const _camPlaying = new Set();
+  /* Set by "Stop all cameras" (#272) so the automatic start does not put the
+     feeds straight back; lifted when the board is opened again from another
+     view. A play key still starts its own camera meanwhile. */
+  let _camAutoHeld = false;
   /* THE BOARD'S OWN BANNER. FlashForge holds ONE stream at a time, and its panel
      banner opens that stream itself — several cards, or a card and an open
      panel, would fight over it. The camera wall already solved this: its banner
@@ -29682,6 +30119,7 @@ import { initScreenTools } from './ai/screen-tools.js';
      machines are left alone, so nothing retries in a loop. */
   function _autoStartCams() {
     if (!HAS_NATIVE) return;
+    if (_camAutoHeld) return;   // "Stop all cameras" was pressed: no restart behind the user's back
     for (const p of state.printers || []) {
       if (p.camAutoStart !== true) continue;
       const key = _printerKey(p);
@@ -29716,6 +30154,120 @@ import { initScreenTools } from './ai/screen-tools.js';
       placed = true;
     });
     if (placed) _wireCamWidgets(root);
+    _syncCamStopBtn();
+  }
+
+  /* "Stop all cameras" (#272): every feed the board is showing — the machines'
+     played cameras and the external camera cards — goes back to its play key at
+     once. The machine open in the side panel keeps its stream, since the panel
+     is still showing it. */
+  const _boardCamsLive = () => _camPlaying.size > 0 || extCamBoardLive();
+  /* Machines whose camera could be shown on the board but is not playing. */
+  const _camPlayable = p => {
+    const online = _isPrinterOnline(p);
+    return (!!((online || _camSourceId(p)) && _boardCamHtml(p)) || (online && _camStartable(p)));
+  };
+  const _boardCamsIdle = () =>
+    (state.printers || []).some(p => !_camPlaying.has(_printerKey(p)) && _camPlayable(p)) || extCamBoardIdle();
+  /* Each key shows only while it has something to do. A play key starts a feed
+     without redrawing the board, so both are re-checked in place. */
+  function _syncCamStopBtn() {
+    const b = document.getElementById("pvCamStopAll");
+    if (b) b.hidden = !_boardCamsLive();
+    const a = document.getElementById("pvCamPlayAll");
+    if (a) a.hidden = !_boardCamsIdle();
+  }
+  /* "Show all cameras": the mirror of the stop key — every machine whose camera
+     can be shown is played exactly as if its own play key had been pressed
+     (same set, same kick), and the cut external cameras come back. */
+  function _camPlayAllBoard() {
+    for (const p of state.printers || []) {
+      const key = _printerKey(p);
+      if (_camPlaying.has(key) || !_camPlayable(p)) continue;
+      _camPlaying.add(key);
+      _camKick(p);
+    }
+    extCamBoardResumeAll();
+    questBump("cameraOpen");
+    renderPrintersView(true);
+  }
+  document.addEventListener("xc-board-play", _syncCamStopBtn);
+  function _camStopAllBoard() {
+    const keep = _activePrinter ? _printerKey(_activePrinter) : null;
+    for (const key of [..._camPlaying]) {
+      _camPlaying.delete(key);
+      if (key === keep) continue;
+      const p = state.printers.find(v => _printerKey(v) === key);
+      if (!p || _camSourceId(p)) continue;   // an external camera stops when its card is gone
+      try {
+        if (p.brand === "bambulab")   bambuStopCam(bambuKey(p));
+        if (p.brand === "creality"   && p.ip) stopCreCam(p.ip);
+        if (p.brand === "flashforge") ffgMuxStop(ffgKey(p));
+        if (p.brand === "anycubic")   acuReleaseCamera(p);
+      } catch (e) { console.warn("[board-cam] stop failed for", key, e?.message || e); }
+    }
+    extCamBoardPauseAll();
+    _camAutoHeld = true;
+    renderPrintersView(true);
+  }
+
+  /* The camera wall's own "Stop all / Show all cameras" (the board keys' twins).
+     Cut, every card keeps its place and size but shows the eye-off placeholder,
+     and the streams the wall alone was holding are closed. Session-only, like
+     the board's: reopening Studio shows the wall live again. */
+  let _camWallCut = false;
+  /* The wall is shown in its own window ("Detach"): the main window shows a notice
+     with a key to bring it back instead of a second copy of every feed. The
+     connections keep running — the detached window draws the frames they produce. */
+  let _camDetached = false;
+  /* While the wall is cut, the cameras turned back on one at a time with their
+     own play key — the rest stay on their placeholder. */
+  const _camWallOn = new Set();
+  /* The cameras cut one at a time with their own key, the wall staying live. */
+  const _camWallOff = new Set();
+  /* Close the feed the wall alone was holding for this printer. */
+  function _camWallRelease(p) {
+    const key = _printerKey(p);
+    const keep = _activePrinter ? _printerKey(_activePrinter) : null;
+    if (key === keep || _camPlaying.has(key) || _camSourceId(p)) return;   // still shown elsewhere
+    try {
+      if (p.brand === "bambulab")   bambuStopCam(bambuKey(p));
+      if (p.brand === "creality"   && p.ip) stopCreCam(p.ip);
+      if (p.brand === "flashforge") ffgMuxStop(ffgKey(p));
+      if (p.brand === "anycubic")   acuReleaseCamera(p);
+    } catch (e) { console.warn("[cam-wall] stop failed for", key, e?.message || e); }
+  }
+  function _camWallStopOne(key) {
+    const p = (state.printers || []).find(v => _printerKey(v) === key);
+    if (!p) return;
+    _camWallOn.delete(key);
+    _camWallOff.add(key);
+    _camWallRelease(p);
+    renderPrintersView(true);
+  }
+  function _camWallStopAll() {
+    _camWallCut = true;
+    _camWallOn.clear();
+    _camWallOff.clear();
+    for (const p of state.printers || []) _camWallRelease(p);
+    renderPrintersView(true);
+  }
+  function _camWallPlayOne(key) {
+    const p = (state.printers || []).find(v => _printerKey(v) === key);
+    if (!p) return;
+    _camWallOff.delete(key);
+    if (_camWallCut) _camWallOn.add(key);
+    _camKick(p);
+    questBump("cameraOpen");
+    renderPrintersView(true);
+  }
+  function _camWallPlayAll() {
+    _camWallCut = false;
+    _camWallOn.clear();
+    _camWallOff.clear();
+    for (const p of state.printers || []) _camKick(p);
+    questBump("cameraOpen");
+    renderPrintersView(true);
   }
 
   function _camShow(key) {
@@ -29725,6 +30277,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!p || !root) return;
     _camKick(p);
     questBump("cameraOpen", 1, p);
+    _syncCamStopBtn();
     const thumb = root.querySelector(`.printer-card[data-printer-key="${CSS.escape(key)}"] .printer-card-thumb`);
     if (thumb) {
       const html = _boardCamHtml(p);
@@ -30214,8 +30767,13 @@ import { initScreenTools } from './ai/screen-tools.js';
        client slot — which is exactly why the camera view then showed a black
        card while the board had a picture. The side panel already gives its own
        back on close; the board must do the same when it stops being on screen. */
-    _prevPlanImgs.forEach(({ key, img }) => { try { ffgMuxUnregister(key, img); } catch {} });
-    _prevPlanImgs.length = 0;
+    /* (On the board itself this waits until the rebuild is certain: a rebuild
+       that turns out identical keeps its elements, and they stay registered.) */
+    const _releasePlanImgs = () => {
+      _prevPlanImgs.forEach(({ key, img }) => { try { ffgMuxUnregister(key, img); } catch {} });
+      _prevPlanImgs.length = 0;
+    };
+    if (_printerSub !== "grid") _releasePlanImgs();
 
     if (_printerSub === "table") { _renderPrinterTable(host); return; }
     if (_printerSub === "cam")   { _renderPrinterCam(host); return; }
@@ -30243,6 +30801,42 @@ import { initScreenTools } from './ai/screen-tools.js';
        each card carries its own coordinates. Sorting by state was the whole
        reason a printer moved when it blinked. */
     const _orderedPrinters = state.printers;
+
+    /* NOTHING TO REDRAW, NOTHING REDRAWN. At launch this ran some twenty-five
+       times in thirty seconds — each brand's Firestore snapshot, every
+       inventory render, a brand tick, the last-seen seed — and each pass tore
+       down every live camera on the board and restarted it: the whole board
+       flickered while the app came up. What a rebuild is FOR is the board's
+       shape: which machines, their names, their widgets, whether a card offers
+       a camera or job keys, the selection, the arrange mode. Everything live
+       inside that shape — the dots, the job bars, the widgets' values, a feed
+       placed by `_camCatchUp` — is patched in place between rebuilds
+       (`_patchGridStatus`, `_patchGridJobs`, `_patchSlotsWidgets`). So the
+       board is rebuilt when its shape changed, and otherwise only re-laid out:
+       the positions live outside the markup. */
+    const _camOffered = p => {
+      const online = _isOnline(p);
+      const html   = (online || _camSourceId(p)) ? _boardCamHtml(p) : "";
+      return !!html || (online && (_camStartable(p) || _camStarting(p)));
+    };
+    const _boardSig = [
+      state.lang, _printerArrange, Math.round(_printerZoom * 100),
+      ...state.printers.map(p => {
+        const k   = _printerKey(p);
+        const job = _getPrinterJob(p);
+        return [k, p.printerName, p.printerModelId, p.demo ? 1 : 0, p.mode, p.isActive ? 1 : 0,
+                state.selectedPrinters.has(k) ? 1 : 0, _camOffered(p) ? 1 : 0,
+                (job?.isActive && brands.get(p.brand)?.isReadOnly?.(p) !== true) ? 1 : 0,
+                ...BOARD_WIDGETS.map(w => widgetOn(p, w.kind) ? 1 : 0), unitsAreSplit(p) ? 1 : 0].join("~");
+      }).sort(),
+      (() => { try { return extCamBoardCardsHtml(); } catch { return ""; } })(),
+    ].join("|");
+    if (!force && host._boardSig === _boardSig && host.querySelector(":scope > .printers-scroll > .printers-grid--plan")) {
+      layoutPrintersPlan();
+      applyPrinterFilter();
+      _syncSelAllHeader();
+      return;
+    }
 
     // One flat grid — all brands mixed, ordered strictly by user-defined
     // sortIndex (set via drag & drop). Each card carries its brand pill so
@@ -30397,7 +30991,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     /* The board lives in its own scroller: the cards are placed in plan
        coordinates and the scroller is what moves over them, so panning and
        zooming never touch a single position. */
-    host.innerHTML = `
+    const _boardHtml = `
       <div class="pv-plan-bar">
         <button type="button" class="rv-plan-btn${_printerArrange ? " on" : ""}" id="pvArrangeBtn"
                 aria-pressed="${_printerArrange ? "true" : "false"}">
@@ -30411,10 +31005,22 @@ import { initScreenTools } from './ai/screen-tools.js';
                  value="${Math.round(_printerZoom * 100)}" aria-label="${esc(t("rackPlanZoom"))}"><span class="pct">%</span>
           <button type="button" id="pvZoomIn" aria-label="${esc(t("rackPlanZoomIn"))}">+</button>
         </div>
+        <button type="button" class="rv-plan-btn" id="pvCamPlayAll"${_boardCamsIdle() ? "" : " hidden"}>
+          <span class="icon icon-play icon-14"></span>
+          <span>${esc(t("boardCamPlayAll"))}</span>
+        </button>
+        <button type="button" class="rv-plan-btn" id="pvCamStopAll"${_boardCamsLive() ? "" : " hidden"}>
+          <span class="icon icon-eye-off icon-14"></span>
+          <span>${esc(t("boardCamStopAll"))}</span>
+        </button>
       </div>
       <div class="printers-scroll">
         <div class="printers-grid printers-grid--plan">${cards}</div>
       </div>`;
+
+    _releasePlanImgs();
+    host.innerHTML = _boardHtml;
+    host._boardSig = _boardSig;
 
     /* No sort drag-and-drop on the board. Two ways to move the same card is one
        too many, and the old one rewrote `sortIndex` behind the arrangement —
@@ -30438,6 +31044,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     wireExtCamBoard(host.querySelector(".printers-grid"));
     wirePlanPan(host.querySelector(".printers-scroll"), ".printer-card");
     wirePrinterZoom(host);
+    host.querySelector("#pvCamStopAll")?.addEventListener("click", _camStopAllBoard);
+    host.querySelector("#pvCamPlayAll")?.addEventListener("click", _camPlayAllBoard);
     wirePrinterArrange(host);
     wirePrinterCardMenus(host);
     wirePlanClusterMenu(host);
@@ -30851,7 +31459,32 @@ import { initScreenTools } from './ai/screen-tools.js';
        is absent; there is nothing of it to preserve. */
     const _offlinePlaced = _camOrdered.filter(p =>
       !_onlinePrinters.includes(p) && _camWallPos(p));
+    /* "Stop all cameras" on the wall: the same cards, each on its placeholder,
+       which carries the card's own play key to bring that one camera back. */
+    const _cutHtml = k => `<div class="cam-wall-offline cam-wall-cut"><button type="button" class="cam-play" data-cw-play="${esc(k)}" aria-label="${esc(t("boardCamPlay"))}"><span class="icon icon-play icon-18"></span></button></div>`;
+    const _isCut = k => (_camWallCut && !_camWallOn.has(k)) || _camWallOff.has(k);
+    _camHtmlMap.forEach((_, k) => { if (_isCut(k)) _camHtmlMap.set(k, _cutHtml(k)); });
     const _wallPrinters = [..._onlinePrinters, ..._offlinePlaced];
+
+    // ── Step 1b: The wall is in its own window → a notice and a key to bring it back
+    if (_camDetached) {
+      host.innerHTML = `
+        <div class="printers-empty-card cam-wall-detached">
+          <span class="icon icon-eye-off icon-32"></span>
+          <div class="printers-empty-title">${esc(t("camWallDetachedTitle"))}</div>
+          <div class="printers-empty-sub">${esc(t("camWallDetachedSub"))}</div>
+          <button type="button" class="rv-plan-btn" id="cwReattach">
+            <span class="icon icon-eye-on icon-14"></span>
+            <span>${esc(t("camWallReattach"))}</span>
+          </button>
+        </div>`;
+      host.querySelector("#cwReattach")?.addEventListener("click", () => {
+        Promise.resolve(window.electronAPI?.closeCamWindow?.()).catch(() => {});
+        _camDetached = false;
+        renderPrintersView(true);
+      });
+      return;
+    }
 
     // ── Step 2: Empty state ────────────────────────────────────────────────────
     if (!_wallPrinters.length) {
@@ -30884,7 +31517,8 @@ import { initScreenTools } from './ai/screen-tools.js';
                       [...newKeys].every(k => existingKeys.has(k)) &&
                       _wallPrinters.every(p => {
                         const card = existingWall.querySelector(`[data-brand="${p.brand}"][data-id="${p.id}"]`);
-                        return !!card && card.classList.contains("cam-wall-card--offline") === !_camHtmlMap.has(`${p.brand}:${p.id}`);
+                        return !!card && card.classList.contains("cam-wall-card--offline") === !_camHtmlMap.has(`${p.brand}:${p.id}`)
+                                      && card.classList.contains("cam-wall-card--cut") === (_isCut(`${p.brand}:${p.id}`) && _camHtmlMap.has(`${p.brand}:${p.id}`));
                       });
       if (sameSet) {
         _wallPrinters.forEach((p, idx) => {
@@ -30925,11 +31559,12 @@ import { initScreenTools } from './ai/screen-tools.js';
       const sizeCls = csize === "sm" ? " cam-wall-card--sm" : csize === "2x" ? " cam-wall-card--2x" : csize === "fs" ? " cam-wall-card--fs" : "";
       // style.order is set explicitly so DnD can reorder via CSS without moving DOM nodes.
       return `
-        <div class="cam-wall-card${sizeCls}${_camHtmlMap.has(ckey) ? "" : " cam-wall-card--offline"}" data-brand="${esc(p.brand)}" data-id="${esc(p.id)}" data-cam-key="${esc(ckey)}">
+        <div class="cam-wall-card${sizeCls}${_camHtmlMap.has(ckey) ? (_isCut(ckey) ? " cam-wall-card--cut" : "") : " cam-wall-card--offline"}" data-brand="${esc(p.brand)}" data-id="${esc(p.id)}" data-cam-key="${esc(ckey)}">
           <div class="cam-wall-card-head">
             <span class="printer-brand-pill" style="--brand-accent:${esc(meta.accent)}">${esc(meta.label)}</span>
             <span class="cam-wall-card-name">${esc(p.printerName || "(unnamed)")}</span>
-            <div class="cam-size-btns">${_camFsBtn(csize)}</div>
+            <div class="cam-size-btns">${_camHtmlMap.has(ckey) && !_isCut(ckey) && !_camDetached
+              ? `<button type="button" class="cam-size-btn" data-cw-stop="${esc(ckey)}" aria-label="${esc(t("camWallStopOne"))}"><span class="icon icon-eye-off icon-12"></span></button>` : ""}${_camFsBtn(csize)}</div>
           </div>
           ${camHtml}
           <span class="cam-resize" data-cam-resize aria-hidden="true"></span>
@@ -30955,6 +31590,14 @@ import { initScreenTools } from './ai/screen-tools.js';
                  value="${Math.round(_camZoom * 100)}" aria-label="${esc(t("rackPlanZoom"))}"><span class="pct">%</span>
           <button type="button" id="cwZoomIn" aria-label="${esc(t("rackPlanZoomIn"))}">+</button>
         </div>
+        <button type="button" class="rv-plan-btn" id="cwCamPlayAll"${(_camWallCut || _camWallOff.size) && _onlinePrinters.length ? "" : " hidden"}>
+          <span class="icon icon-play icon-14"></span>
+          <span>${esc(t("boardCamPlayAll"))}</span>
+        </button>
+        <button type="button" class="rv-plan-btn" id="cwCamStopAll"${!_camWallCut && _onlinePrinters.length ? "" : " hidden"}>
+          <span class="icon icon-eye-off icon-14"></span>
+          <span>${esc(t("boardCamStopAll"))}</span>
+        </button>
       </div>
       <div class="printers-scroll cam-scroll">
         <div class="cam-wall cam-wall--plan">${camCards.join("")}</div>
@@ -30986,6 +31629,16 @@ import { initScreenTools } from './ai/screen-tools.js';
     _layoutCamWall(host.querySelector(".cam-wall"));
     wireExtCamWall(host.querySelector(".cam-wall"));
     wireCamWallPlan(host);
+    host.querySelector("#cwCamStopAll")?.addEventListener("click", _camWallStopAll);
+    host.querySelector("#cwCamPlayAll")?.addEventListener("click", _camWallPlayAll);
+    host.querySelectorAll("[data-cw-stop]").forEach(btn => {
+      btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); });
+      btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); _camWallStopOne(btn.dataset.cwStop); });
+    });
+    host.querySelectorAll("[data-cw-play]").forEach(btn => {
+      btn.addEventListener("pointerdown", e => { e.preventDefault(); e.stopPropagation(); });
+      btn.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); _camWallPlayOne(btn.dataset.cwPlay); });
+    });
   }
 
   /* Everything that makes the wall a board: move a card, sweep a selection, pan
@@ -31225,6 +31878,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       try { localStorage.setItem("tigertag.camwall.arrange", _camArrange ? "1" : "0"); } catch {}
       if (!_camArrange) { _camSel.clear(); wall.querySelectorAll(".cam-wall-card").forEach(el => el.classList.remove("is-plan-selected")); }
       applyArrange();
+      _layoutCamWall(wall);
     });
     host.querySelector("#cwZoomOut")?.addEventListener("click", () => stepZoom(-1));
     host.querySelector("#cwZoomIn") ?.addEventListener("click", () => stepZoom(+1));
@@ -31234,22 +31888,19 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (!scroller._camZoomWired) {
       scroller._camZoomWired = true;
       scroller.addEventListener("wheel", e => {
+        /* The bare wheel scrolls (#323); Ctrl / ⌘ + wheel zooms, and so does a
+           trackpad pinch, which arrives as a wheel with ctrlKey set. */
+        if (!_planWheelZooms(e)) { _planWheelSideways(scroller, e); return; }
+        e.preventDefault();
         /* A wheel held down still turns a little under the thumb, and those stray
            notches were landing on the zoom while the user was only panning. */
         if (_planPanning) return;
-        e.preventDefault();
         stepZoom(e.deltaY < 0 ? +1 : -1, { x: e.clientX, y: e.clientY });
       }, { passive: false });
     }
   }
 
-  /* ── Printer drag & drop reordering ────────────────────────────────────
-     Uses the native HTML5 DnD API on each card. On drop we persist the
-     new order to Firestore by writing a fresh `sortIndex` (0, 1, 2, …)
-     to every card's doc — a Firestore batch keeps the rewrite atomic
-     even across the 5 brand subcollections. Each printer's brand is
-     known from its `brand` property, which we set when ingesting the
-     snapshot, so the path resolution is local.                            */
+  // A card just dragged on the printer plan: its click must not open the side card.
   let _printerJustDragged = false;
 
   /* ── The camera wall is a PLAN ────────────────────────────────────────────
@@ -31311,6 +31962,13 @@ import { initScreenTools } from './ai/screen-tools.js';
      that just came online — flows below the arrangement rather than landing on
      top of it, and is GIVEN that spot for good: left computed, it would drift
      every time a neighbour changed size. */
+  /* The window can grow or shrink under a locked wall or board: lay it out
+     again so the scroll lock follows what fits. */
+  window.addEventListener("resize", () => {
+    const w = document.querySelector("#invPrinterView .cam-wall--plan");
+    if (w) _layoutCamWall(w);
+    else if (document.querySelector("#invPrinterView .printers-grid--plan")) layoutPrintersPlan();
+  });
   function _layoutCamWall(container) {
     if (!container) return;
     const orphans = [];
@@ -31362,9 +32020,58 @@ import { initScreenTools } from './ai/screen-tools.js';
       right  = Math.max(right,  x + el.offsetWidth);
       bottom = Math.max(bottom, y + el.offsetHeight);
     });
-    container.style.width  = (right  + 240) + "px";
-    container.style.height = (bottom + 240) + "px";
+    /* Arranging keeps a wide empty margin to drag cards into. Watching does
+       not: the wall is sized to its cards, so a wall that fits on screen has
+       nothing to scroll — the empty tail used to let the wheel carry every
+       camera off screen. The transform scales the box, so the size is written
+       in unscaled units for the scaled result to just cover the cards. */
+    _fitCamWall(container, right, bottom);
+    _watchCamWall(container);
+  }
+  /* Size the wall to its cards and lock its scroller when they all fit. Run
+     after every layout, and again whenever a card changes size on its own (a
+     stream arriving swaps the placeholder for a 16:9 picture): a size measured
+     before that left the wall taller than its cards, so the wheel still slid
+     them away although every camera was on screen. */
+  function _fitCamWall(container, right, bottom) {
+    if (right == null) {
+      right = bottom = 0;
+      Array.from(container.children).forEach(el => {
+        if (!el.dataset.camKey || el.classList.contains("cam-wall-card--fs")) return;
+        right  = Math.max(right,  el.offsetLeft + el.offsetWidth);
+        bottom = Math.max(bottom, el.offsetTop  + el.offsetHeight);
+      });
+    }
+    const pad = _camArrange ? 240 : 12;
+    container.style.width  = (right  + pad) + "px";
+    container.style.height = (bottom + pad) + "px";
+    container.style.minHeight = _camArrange ? "" : "0";
     container.style.transform = `scale(${_camZoom})`;
+    /* Nothing past the edges, nothing to scroll: the scroller is locked so the
+       wheel cannot slide the wall off screen (it holds no hidden card). The
+       test is on the cards themselves, not on the margin around them, and a
+       locked wall is given exactly the visible area. */
+    const sc = container.parentElement;
+    if (sc && !_camArrange) {
+      const fits = right * _camZoom <= sc.clientWidth + 1 && bottom * _camZoom <= sc.clientHeight + 1;
+      sc.style.overflow = fits ? "hidden" : "";
+      if (fits) {
+        container.style.width  = Math.floor(sc.clientWidth  / _camZoom) + "px";
+        container.style.height = Math.floor(sc.clientHeight / _camZoom) + "px";
+        sc.scrollTop = sc.scrollLeft = 0;
+      }
+    } else if (sc) sc.style.overflow = "";
+  }
+  let _camWallRO = null;
+  function _watchCamWall(container) {
+    if (typeof ResizeObserver === "undefined") return;
+    if (!_camWallRO) _camWallRO = new ResizeObserver(entries => {
+      const wall = entries[0]?.target?.closest?.(".cam-wall--plan");
+      if (wall && wall.isConnected && !_camResizing.size && !_camHeld.size) _fitCamWall(wall);
+    });
+    Array.from(container.children).forEach(el => {
+      if (el.dataset.camKey && !el._camFitWatched) { el._camFitWatched = true; _camWallRO.observe(el); }
+    });
   }
   const _camHeld = new Set();
   const _camSel  = new Set();
@@ -32322,6 +33029,14 @@ import { initScreenTools } from './ai/screen-tools.js';
     container.style.width  = Math.max(availW, Math.ceil((right  + 240) * _printerZoom)) + "px";
     container.style.height = Math.max(availH, Math.ceil((bottom + 200) * _printerZoom)) + "px";
     container.style.minWidth = "";
+    /* Every machine on screen and not arranging: nothing to scroll to, so the
+       scroller is locked — the empty board past the cards let the wheel carry
+       them off screen. Arranging keeps the free board to drop onto. */
+    if (box) {
+      const fits = !_printerArrange && right * _printerZoom <= availW + 1 && bottom * _printerZoom <= availH + 1;
+      box.style.overflow = fits ? "hidden" : "";
+      if (fits) { box.scrollTop = box.scrollLeft = 0; container.style.width = availW + "px"; container.style.height = availH + "px"; }
+    }
     // Last, because it rings where the cards ENDED UP.
     _drawClusterHulls(container);
   }
@@ -33031,39 +33746,18 @@ import { initScreenTools } from './ai/screen-tools.js';
     if (sc && !sc._zoomWired) {
       sc._zoomWired = true;
       sc.addEventListener("wheel", e => {
+        // The bare wheel scrolls (#323); Ctrl / ⌘ + wheel (or a pinch) zooms.
+        if (!_planWheelZooms(e)) { _planWheelSideways(sc, e); return; }
+        e.preventDefault();
         // A wheel held down still turns a little under the thumb; those stray
         // notches were landing on the zoom while the user was only panning.
         if (_planPanning) return;
-        e.preventDefault();
         stepPrinterZoom(e.deltaY < 0 ? +1 : -1, { x: e.clientX, y: e.clientY });
       }, { passive: false });
     }
   }
 
 
-
-  async function persistPrinterSortIndices(orderedPrinters) {
-    const uid = state.activeAccountId;
-    if (!uid) return;
-    try {
-      const db = fbDb(uid);
-      const batch = db.batch();
-      const ts = firebase.firestore.FieldValue.serverTimestamp();
-      orderedPrinters.forEach((p, idx) => {
-        const ref = db.collection("users").doc(uid)
-                      .collection("printers").doc(p.brand)
-                      .collection("devices").doc(p.id);
-        // serverTimestamp ensures `updatedAt` is monotonic across the
-        // 5 brand subcollections even when several clients write at once.
-        batch.update(ref, { sortIndex: idx, updatedAt: ts });
-      });
-      await batch.commit();
-    } catch (e) {
-      // The next snapshot will re-establish the persisted order; we just
-      // log so the user sees something went wrong without breaking the UI.
-      console.warn("[printers] persist sortIndex failed:", e?.code, e?.message);
-    }
-  }
 
   async function persistCamSize(printer, size) {
     const uid = state.activeAccountId;
@@ -33785,12 +34479,16 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (p.brand === "elegoo")                           elegooConnect(p);
       if (p.brand === "anycubic"   && (p.ip || p.mode === "cloud")) acuConnect(p);
     }
-    // Refresh the panel body and the printer grid immediately so the badge
-    // dots in the card list also flip to offline/connecting right away.
+    /* Refresh the panel body, and only the status dots of the board — the same
+       patch a brand's own status change uses. A full `renderPrintersView()`
+       here rebuilt every card, so every other machine's live camera was torn
+       down and restarted: one click on Connect made the whole board's feeds
+       flicker. */
     try { renderPrinterDetail(); } catch (_) {}
     if (_isPrinterMode(state.viewMode)) {
-      if (state.viewMode === "printer-cam") try { _patchCamWall(); } catch (_) {}
-      else try { renderPrintersView(); } catch (_) {}
+      if (state.viewMode === "printer-cam")        try { _patchCamWall(); } catch (_) {}
+      else if (state.viewMode === "printer-table") try { _patchTableStatus(); } catch (_) {}
+      else                                         try { _patchGridStatus(); } catch (_) {}
     }
   });
 
@@ -37428,10 +38126,16 @@ import { initScreenTools } from './ai/screen-tools.js';
     const invRef = fbDb().collection("users").doc(user.uid).collection("inventory");
     const rackRef = fbDb().collection("users").doc(user.uid).collection("racks").doc(rackId);
     const batch = fbDb().batch();
-    batch.set(rackRef, {
+    /* update(), never set(merge): an update of a rack that no longer exists
+       fails instead of bringing it back. With set(merge), a write landing after
+       a delete — the plan giving a place to a rack the launch's cached snapshot
+       still listed, though it was deleted since — recreated the document with
+       only `plan` and `lastUpdate`: "undefined · 0/NaN" racks that came back
+       every day however often they were removed (#302). */
+    batch.update(rackRef, {
       ...fields,
       lastUpdate: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    });
 
     // If dimensions shrink, every spool whose slot is out of the new bounds
     // is orphaned and must return to the unranked sidebar — same batch so
@@ -38886,7 +39590,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // up one spool's slot WITHOUT writing anything in the search bar.
     const locate = state.locateUid ? String(state.locateUid).toLowerCase() : "";
     const hueOn = _hueFilterOn();
-    const noFilter = !q && !state.filters.length && !locate && !hueOn;
+    const noFilter = !q && !state.filters.length && !locate && !hueOn && !_invColorOn();
     document.querySelectorAll("#invRackView .rp-slot--filled").forEach(el => {
       if (noFilter) {
         el.classList.remove("rp-dim");
@@ -38899,7 +39603,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       const matchLocate = !locate
         || String(r.uid).toLowerCase() === locate || String(r.spoolId).toLowerCase() === locate;
       const matches = (!q || _rowMatchesSearch(r, q)) && _fbPass(r, "inv") && matchLocate
-        && (!hueOn || _rowMatchesHue(r));
+        && (!hueOn || _rowMatchesHue(r)) && _rowMatchesColor(r);
       el.classList.toggle("rp-dim", !matches);
       // Positive match indicator on the slot CONTAINER (border + glow) —
       // makes depleted spools (whose .rp-fill is invisible at 0%) still
@@ -39163,6 +39867,37 @@ import { initScreenTools } from './ai/screen-tools.js';
      stray notches was landing on the zoom — the view crept in or out on its own
      for as long as the button was held. */
   let _planPanning = false;
+  /* The plans (storage, printers, camera wall) zoom on the wheel only with
+     Ctrl / ⌘ held — or on a trackpad pinch, which Chromium sends as a wheel
+     event with ctrlKey. The bare wheel scrolls the view (#323). */
+  function _planWheelZooms(e) { return e.ctrlKey || e.metaKey; }
+  /* A plan wide but not tall (racks laid out in a row) has nothing to scroll
+     down, so a bare wheel did nothing: there it moves the plan sideways, the
+     way a horizontal timeline scrolls. True when it took the event. */
+  function _planWheelSideways(sc, e) {
+    if (!sc || e.deltaX || e.shiftKey || !e.deltaY) return false;
+    if (sc.scrollHeight > sc.clientHeight + 1) return false;      // can scroll down: left native
+    if (sc.scrollWidth <= sc.clientWidth + 1) return false;       // nothing sideways either
+    e.preventDefault();
+    sc.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? sc.clientWidth : 1);
+    return true;
+  }
+  /* Ctrl / ⌘ + and Ctrl / ⌘ − zoom the plan on screen instead of the whole
+     window: the keys press that plan's own + / − buttons, so the step, the
+     bounds and the saved level are the buttons'. Off the plans, and while
+     typing, the keys keep their usual meaning. */
+  document.addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    const dir = (e.key === "+" || e.key === "=") ? "In" : (e.key === "-" || e.key === "_") ? "Out" : null;
+    if (!dir) return;
+    if (e.target?.closest?.("input, textarea, select, [contenteditable='true']")) return;
+    const btn = ["rvPlanZoom", "pvZoom", "cwZoom"]
+      .map(id => document.getElementById(id + dir))
+      .find(b => b && b.getClientRects().length > 0);   // the plan on screen
+    if (!btn) return;
+    e.preventDefault();
+    btn.click();
+  }, true);
 
   /* Where a rack sits on the plan, in PIXELS from the top-left of the board.
 
@@ -39214,6 +39949,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     Array.from(container.children).forEach(el => {
       const id = el.dataset.rackId;
       const r = id ? state.racks.find(x => x.id === id) : null;
+      /* A card whose rack is gone from the list (deleted a moment ago, here or
+         on another device, before the board was rebuilt) is not placed, and
+         above all not ADOPTED: giving it a place wrote to the deleted rack and
+         brought it back as an empty "undefined · 0/NaN" document (#302 — four
+         at once, x 0 / 14 / 28 / 42: zero-width cards of a view not on screen). */
+      if (id && !r) { el.style.display = "none"; return; }
       const pos = r ? rackPlanPos(r) : null;
       el.style.position = "absolute";
       if (!pos) { orphans.push(el); return; }
@@ -39300,7 +40041,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const r = state.racks.find(v => v.id === rackId);
     if (r) r.plan = { x, y, z };                      // optimistic: no render wait
     try { await updateRack(rackId, { plan: { x, y, z } }); }
-    catch (e) { reportError("rack.plan.move", e); }
+    catch (e) { if (e?.code !== "not-found") reportError("rack.plan.move", e); }   // a rack deleted meanwhile: nothing to place (#302)
   }
 
   /* Entering the plan for the first time freezes whatever the masonry had
@@ -39317,8 +40058,9 @@ import { initScreenTools } from './ai/screen-tools.js';
       const x = Math.max(0, Math.round(parseFloat(el.style.left || "0")));
       const y = Math.max(0, Math.round(parseFloat(el.style.top  || "0")));
       const r = state.racks.find(v => v.id === id);
+      if (!r) return;   // a card left over from a deleted rack: never written back (#302)
       const z = seedZ++;
-      if (r) r.plan = { x, y, z };
+      r.plan = { x, y, z };
       writes.push(updateRack(id, { plan: { x, y, z } }));
     });
     try { await Promise.all(writes); } catch (e) { reportError("rack.plan.seed", e); }
@@ -39612,12 +40354,36 @@ import { initScreenTools } from './ai/screen-tools.js';
        never closed: moving one printer rearranged its neighbour. */
     const isWidget = b => { const o = _boardObj(b.id); return !!(o && o.unit); };
     const ownerOf = b => { const o = _boardObj(b.id); return o && o.p ? _printerKey(o.p) : b.id; };
+    /* And it is the NEWCOMER that gives way. Pushing the other machine's card
+       down to make room moved a printer nobody touched (#42); the widget just
+       placed steps down past whatever of another machine it landed on, to the
+       first gap in its own column, and its own followers go down with it.
+       A GROUP the user made is one block: a gap between its members is not a
+       free place for another machine's widget, so the whole group's outline is
+       in the way, not only the boxes in it. */
+    const groups = new Map();
+    for (const b of all) {
+      const cid = clusterOf(b.id);
+      if (!cid) continue;
+      const g = groups.get(cid);
+      if (!g) { groups.set(cid, { x: b.x, y: b.y, r: b.x + b.w, bt: b.y + b.h, owners: new Set([ownerOf(b)]) }); continue; }
+      g.x = Math.min(g.x, b.x); g.y = Math.min(g.y, b.y);
+      g.r = Math.max(g.r, b.x + b.w); g.bt = Math.max(g.bt, b.y + b.h); g.owners.add(ownerOf(b));
+    }
+    const blocks = [...groups.values()]
+      .map(g => ({ x: g.x, y: g.y, w: g.r - g.x, h: g.bt - g.y, owners: g.owners }));
     const sorted = all.slice().sort((u, v) => u.y - v.y);
     for (const a of sorted) {
-      if (!isWidget(a) || !autoPlaced.has(a.id)) continue;
-      for (const b of sorted) {
-        if (b === a || ownerOf(b) === ownerOf(a) || b.y < a.y) continue;
-        if (overlaps(a, b) && a.y + a.h + PAD > b.y) push(a, b);
+      if (!isWidget(a) || !autoPlaced.has(a.id) || _boardHeld.has(a.id)) continue;
+      for (let step = 0; step < 40; step++) {
+        const b = all.find(o => o !== a && ownerOf(o) !== ownerOf(a) && overlaps(a, o))
+               || blocks.find(g => !g.owners.has(ownerOf(a)) && overlaps(a, g));
+        if (!b) break;
+        a.y = Math.round(b.y + b.h + PAD); moved.add(a.id);
+      }
+      if (!moved.has(a.id)) continue;
+      for (const c of sorted) {
+        if (c !== a && ownerOf(c) === ownerOf(a) && c.y >= a.y - a.h && overlaps(a, c) && c.y >= a.y - PAD) push(a, c);
       }
     }
     for (const id of moved) {
@@ -40919,14 +41685,12 @@ import { initScreenTools } from './ai/screen-tools.js';
     $("rvPlanZoomIn")?.addEventListener("click", () => _stepPlanZoom(1));
     $("rvPlanZoomVal")?.addEventListener("change", e => _applyPlanZoom(parseFloat(e.target.value)));
     $("rvPlanZoomVal")?.addEventListener("keydown", e => { if (e.key === "Enter") e.target.blur(); });
-    // Wheel zoom, held under ⌘ / Ctrl. A bare wheel keeps scrolling the plan —
-    // it is often taller than the window even zoomed out, and a view that
-    // cannot be scrolled any more is a worse trade than one keystroke.
-    /* The wheel zooms, it does not scroll — the board convention, and the one
-       that makes sense now that holding the wheel button pans. Bound to the
-       storage area alone so the "not stored" list beside it keeps scrolling
-       normally; binding it to the whole view took that away. */
+    /* Wheel zoom, held under Ctrl / ⌘ (a trackpad pinch counts). A bare wheel
+       scrolls the plan (#323, asked in #301 and #315): a wheel that zoomed on
+       every notch left no way to simply move down the room. Bound to the storage
+       area alone so the "not stored" list beside it keeps its own scrolling. */
     list.querySelector(".rp-racks-scroll")?.addEventListener("wheel", e => {
+      if (!_planWheelZooms(e)) { _planWheelSideways(e.currentTarget, e); return; }
       e.preventDefault();
       if (_planPanning) return;      // the wheel is being held down, not turned on purpose
       _stepPlanZoom(e.deltaY > 0 ? -1 : 1, { x: e.clientX, y: e.clientY });
@@ -42196,7 +42960,7 @@ import { initScreenTools } from './ai/screen-tools.js';
       // Racks read alongside the stock (one-shot, read-only view). Denied →
       // an empty rack list, the Storage tab just shows "no racks yet".
       const racksP = readFriendCollectionWithRetry(ownerUid, friendUid, "racks")
-        .then(rs => _sortRacks(rs.docs.map(d => ({ id: d.id, ...d.data() }))))
+        .then(rs => _sortRacks(rs.docs.map(d => ({ id: d.id, ...d.data() })).filter(_isRealRack)))
         .catch(re => { console.warn("[FriendView] racks read failed:", re.code, re.message); return []; });
       const snap = await readFriendCollectionWithRetry(ownerUid, friendUid, "inventory");
       console.log(`[FriendView] received ${snap.docs.length} docs`);
@@ -43283,7 +44047,7 @@ import { initScreenTools } from './ai/screen-tools.js';
          // A reply on one of my requests is a local notice (the server only notifies
          // a change of status): without this it chimed but left the bell unlit. The
          // passive nudges (avatar, community links…) stay out of the count.
-         + (state.localNotifications || []).filter(n => String(n.id).startsWith("req-reply-")).length;
+         + (state.localNotifications || []).filter(n => /^req-reply-/.test(String(n.id)) || (/^req-author-/.test(String(n.id)) && !n.read)).length;   // the author's notices stay in the centre once read, but stop counting
   }
 
   // Upsert a local (per-install, non-Firestore) notification keyed by id, and
@@ -43297,7 +44061,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     renderNotifCenter();
     // Ring for a freshly-arrived local notice (paxx firmware, app update), but
     // not for passive startup nudges (avatar / community links).
-    if (isNew && !_PASSIVE_NOTIF_IDS.has(notif.id)) _notifChime();
+    if (isNew && !notif.quiet && !_PASSIVE_NOTIF_IDS.has(notif.id)) _notifChime();   // quiet: an old notice put back
   }
   // ── Paxx firmware release notification ────────────────────────────────────
   // Raises a clickable local notification when at least one Snapmaker in the
@@ -43436,6 +44200,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     const i = list.findIndex(n => n.id === id);
     if (i < 0) return;
     list.splice(i, 1);
+    renderNotifBadge();
+    renderNotifCenter();
+  }
+  // The notices about requests belong to ONE account (a reply on its request, the author wrote on one
+  // the team can answer): they leave with it, so the next account never sees them.
+  function _dropRequestNotifs() {
+    const list = state.localNotifications;
+    if (!list || !list.some(n => /^req-(reply|author)-/.test(String(n.id)))) return;
+    state.localNotifications = list.filter(n => !/^req-(reply|author)-/.test(String(n.id)));
     renderNotifBadge();
     renderNotifCenter();
   }
@@ -43629,6 +44402,15 @@ import { initScreenTools } from './ai/screen-tools.js';
     // Local notices (app update, firmware, nudges, a reply on my request): current state, so "today".
     for (const n of locals) {
       if (n.action === "lowstock") { stock.push({ key: n.id, img: n.img, title: n.title, text: n.text, at: Date.now() }); continue; }
+      // TigerMasters / admins: the author of an open request wrote (report/index.js) — the card of a new
+      // request (`request_new` below): same kind, art and button, with the time of that message.
+      if (/^req-author-/.test(n.id)) {
+        items.push({ kind: "requests", at: n.at || Date.now(), html: card({ kind: "requests", accent: NOTIF_ACCENT.report, fresh: !n.read || _notifFresh.has(n.id),
+          attrs: `data-local-id="${esc(n.id)}"`, art: icon("suggestion", " notif-ic--req notif-ic--req-open"),
+          title: n.title, text: n.text, when: n.at ? timeAgo(n.at) : "",
+          act: { id: "teamReport", arg: String(n.id).replace(/^req-author-/, ""), icon: "chat", label: t("notifActDiscussion") } }) });
+        continue;
+      }
       const isCommunity = !!COMMUNITY[n.action], isFw = n.action === "paxx" || n.action === "ffgfw";
       const clickable = isCommunity || n.action === "avatar" || isFw || n.action === "report";
       const art = n.img ? `<img src="${esc(n.img)}" alt="" onerror="this.style.display='none'">`
@@ -43963,7 +44745,8 @@ import { initScreenTools } from './ai/screen-tools.js';
     // slide-in, which isn't part of _closeAllSidePanels).
     _closeAllSidePanels();
     closeFriends();
-    _notifFresh = new Set((state.notifications || []).filter(n => !n.read).map(n => n.id));   // their dot stays while open
+    const authorUnread = (state.localNotifications || []).filter(n => /^req-author-/.test(String(n.id)) && !n.read);   // the team's notices: unread until now
+    _notifFresh = new Set([...(state.notifications || []).filter(n => !n.read).map(n => n.id), ...authorUnread.map(n => n.id)]);   // their dot stays while open
     renderNotifCenter();
     $("notifPanel").classList.add("open");
     // No backdrop — keep the rest of the UI clickable while the panel is open,
@@ -43971,6 +44754,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     // overlay either). Closes via the ✕ / its » close tab.
     _setTab($("notifCloseTab"), true, $("notifPanel").offsetWidth, $("notifPanel"));
     _markNotifsRead();
+    if (authorUnread.length) { authorUnread.forEach(n => { n.read = true; }); markTeamNotifsRead(); }   // read now, and kept
     renderNotifBadge();
   }
   // XP history side card (the TigerSquad "History" tab): what the account won and
@@ -43978,15 +44762,26 @@ import { initScreenTools } from './ai/screen-tools.js';
   // ── XP history — the side card (breakdown ring + last transactions) and the
   // full page (view mode "xpHistory"), both drawn by quests/xp-history.js from
   // the server's log users/{uid}/xpHistory ({ key, delta, total, n, at }).
-  const _xpLog = { uid: null, at: 0, log: [], total: 0, full: false };
-  async function _loadXpLog(uid, full = false) {
-    // Reused for a minute — or for 10 while the live total (users/{uid}.xpPoints)
-    // still matches the log's: no gain or loss since, nothing new to read.
+  const _xpLog = { uid: null, at: 0, log: [], total: 0 };
+  const _xpLogRebuiltChecked = new Set();   // uids whose copy was re-read in full this session after its total disagreed
+  // The log, newest first: kept on this computer (tigertag.xpLog.<uid>) and topped
+  // up with the new rows only (_deltaLog). The total is the live one
+  // (users/{uid}.xpPoints, followed by _subscribeOwnSquad) — no read of the doc.
+  async function _loadXpLog(uid) {
+    // Reused for a minute — or for 10 while the live total still matches the log's.
     const age = Date.now() - _xpLog.at;
-    if (_xpLog.uid === uid && (_xpLog.full || !full) && (age < 60e3 || (age < 10 * 60e3 && _xpLog.total === state.xpPoints))) return _xpLog;
-    const me = fbDb(uid).collection("users").doc(uid);
-    const [doc, hist] = await Promise.all([me.get(), me.collection("xpHistory").orderBy("at", "desc").limit(full ? 2000 : 300).get()]);
-    Object.assign(_xpLog, { uid, at: Date.now(), full, total: doc.data()?.xpPoints || 0, log: hist.docs.map(h => h.data()) });
+    if (_xpLog.uid === uid && (age < 60e3 || (age < 10 * 60e3 && _xpLog.log[0]?.total === state.xpPoints))) return _xpLog;
+    const query = fbDb(uid).collection("users").doc(uid).collection("xpHistory");
+    const opts = { query, limit: 2000, count: "xpHistory", uid };
+    let log = await _deltaLog(`tigertag.xpLog.${uid}`, opts);
+    // Every gain or loss is logged with the running total in the same server
+    // transaction: a newest total that differs from the account's means the server
+    // rebuilt the log under the copy — read it in full again (once a session).
+    if (typeof state.xpPoints === "number" && log[0] && log[0].total !== state.xpPoints && !_xpLogRebuiltChecked.has(uid)) {
+      _xpLogRebuiltChecked.add(uid);
+      log = await _deltaLog(`tigertag.xpLog.${uid}`, { ...opts, force: true });
+    }
+    Object.assign(_xpLog, { uid, at: Date.now(), total: state.xpPoints ?? log[0]?.total ?? 0, log });
     return _xpLog;
   }
   function _xphCtx() {
@@ -44061,7 +44856,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const uid = state.activeAccountId; if (!uid) return;
     if (_xpLog.uid === uid) _paintXpHistView(); else host.innerHTML = _loadingHTML();   // same loader as a friend's stock
     // The leagues load with the page: their displays show beside mine.
-    try { await Promise.all([_loadXpLog(uid, true), _loadLeagues(uid)]); } catch (_) {}
+    try { await Promise.all([_loadXpLog(uid), _loadLeagues(uid)]); } catch (_) {}
     if (state.viewMode === "xpHistory" && uid === state.activeAccountId) _paintXpHistView();
   }
   let _hourglassTaps = [];   // when the banner's hourglass was turned (ms), the last 30 s
@@ -44918,6 +45713,14 @@ import { initScreenTools } from './ai/screen-tools.js';
   let _studioStateRecordedUid = null;
   let _studioStateTimer = null;
 
+  // What the launch telemetry last wrote from this computer, per account
+  // (tigertag.telemetryMemo.<uid>: part → { sig, at }, + the milestone stamps
+  // known written). A part is written again only when its values changed or its
+  // last write is a day old: the same figures at every launch cost writes and
+  // function runs (500,000 users) and tell nothing new.
+  const _telMemo = uid => { try { return JSON.parse(localStorage.getItem(`tigertag.telemetryMemo.${uid}`) || "{}") || {}; } catch (_) { return {}; } };
+  const _telMemoSave = (uid, m) => { try { localStorage.setItem(`tigertag.telemetryMemo.${uid}`, JSON.stringify(m)); } catch (_) {} };
+  const _telDue = (memo, part, sig) => memo[part]?.sig !== sig || Date.now() - (+memo[part]?.at || 0) > 86400e3;
   function scheduleStudioStateRecord() {
     const uid = state.activeAccountId;
     if (!uid) return;
@@ -44992,8 +45795,11 @@ import { initScreenTools } from './ai/screen-tools.js';
       // Phase 2 — onboarding funnel: stamp each milestone once (the first
       // session where the user reaches it), plus firstSeen. Read the doc to
       // know which stamps already exist; never overwrite an existing one.
-      let existing = {};
-      try { existing = (await ref.get()).data() || {}; } catch (_) {}
+      // The doc as read at sign-in (hydratePodSignal) — no second read; a stamp
+      // written by an earlier session of this computer counts as there too.
+      const memo = _telMemo(uid);
+      const existing = { ...((await _telStudioRead.get(uid)) || (await ref.get().then(d => d.data() || {}, () => ({})))), ...(memo.stamps || {}) };
+      const counts = JSON.stringify(payload);
       if (!existing.firstSeen)                                 payload.firstSeen    = FV.serverTimestamp();
       if (payload.spoolsCount  > 0 && !existing.firstSpoolAt)   payload.firstSpoolAt   = FV.serverTimestamp();
       if (payload.racksCount   > 0 && !existing.firstRackAt)    payload.firstRackAt    = FV.serverTimestamp();
@@ -45005,7 +45811,14 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (payload.scalesCount  > 0 && !existing.firstScaleAt)   payload.firstScaleAt = FV.serverTimestamp();
       if ((state.nfcReaderCount > 0 || _telRfidMax > 0) && !existing.firstRfidReaderAt) payload.firstRfidReaderAt = FV.serverTimestamp();
 
-      await ref.set(payload, { merge: true });
+      // Written only when a count or a stamp changed, or once a day.
+      const stamps = Object.keys(payload).filter(k => /^first/.test(k));
+      if (stamps.length || _telDue(memo, "state", counts)) {
+        await ref.set(payload, { merge: true });
+        for (const k of stamps) existing[k] = true;
+        _telMemoSave(uid, { ...memo, stamps: Object.fromEntries(Object.keys(existing).filter(k => /^first/.test(k)).map(k => [k, true])),
+          state: { sig: counts, at: Date.now() } });
+      }
       _questGauges();
 
       // Stock is a GENERAL account fact (the inventory is ecosystem-wide, not
@@ -45013,7 +45826,9 @@ import { initScreenTools } from './ai/screen-tools.js';
       // doc as a `stock` object — the entry TigerSystem / TigerHub read to roll up
       // account value without touching Studio telemetry or every spool. (The copy
       // in telemetry/studio above stays for Studio's own use.)
-      db.collection("users").doc(uid).set({
+      // Only when it moved, or once a day (every write of users/{uid} runs its triggers).
+      const stockSig = JSON.stringify([payload.stockValueHt, payload.stockWeightG, payload.stockCurrency, payload.spoolsCount]);
+      if (_telDue(_telMemo(uid), "stock", stockSig)) db.collection("users").doc(uid).set({
         stock: {
           valueHt:  payload.stockValueHt,
           weightG:  payload.stockWeightG,
@@ -45021,7 +45836,7 @@ import { initScreenTools } from './ai/screen-tools.js';
           spools:   payload.spoolsCount,
           at:       FV.serverTimestamp(),
         },
-      }, { merge: true }).catch(() => {});
+      }, { merge: true }).then(() => _telMemoSave(uid, { ..._telMemo(uid), stock: { sig: stockSig, at: Date.now() } })).catch(() => {});
     } catch (e) {
       _studioStateRecordedUid = null;  // allow a retry on the next trigger
       console.warn("[telemetry] studio state write failed:", e.code || e.message);
@@ -45034,10 +45849,14 @@ import { initScreenTools } from './ai/screen-tools.js';
   // reader count on a successful read, kept at lifetime max. hydratePodSignal seeds
   // both at login so the toggle reflects reality AND _telRfidMax starts at the
   // PERSISTED max (else a fresh session could write a lower count over a stored 2).
+  // telemetry/studio as read at sign-in, per account — recordStudioState reads
+  // its milestone stamps from here instead of reading the doc again.
+  const _telStudioRead = new Map();   // uid → Promise<data | null>
   async function hydratePodSignal(uid) {
     try {
-      const cur = (await fbDb(uid).collection("users").doc(uid)
-        .collection("telemetry").doc("studio").get()).data() || {};
+      const read = fbDb(uid).collection("users").doc(uid).collection("telemetry").doc("studio").get().then(d => d.data() || {});
+      _telStudioRead.set(uid, read.catch(() => null));
+      const cur = await read;
       if (uid !== state.activeAccountId) return;
       state.hasPod = !!cur.hasPod;
       // THIS account's stored max — not the session's: a count recorded on another
@@ -45380,7 +46199,7 @@ import { initScreenTools } from './ai/screen-tools.js';
   // A label printed or saved (labels/index.js onLabelOut): which product, which
   // template, which output. Deduped per (kind, spool or product, template, output)
   // over 10 s against double clicks. Never the note, weight, rack or link.
-  async function _sendLabelAnalytics({ row, kind, template, output, dpi }) {
+  async function _sendLabelAnalytics({ row, kind, template, output, dpi, copies }) {
     if (!ANALYTICS_LABEL_EVENT || state.friendView || !row) return;
     const spool = kind === "spool";
     const key = `print_label:${kind}:${spool ? row.spoolId : row.idProduct}:${template}:${output}`;
@@ -45390,7 +46209,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     const doc = spool ? state.inventory?.[row.spoolId] : null;
     const id = _xanoChipFields(doc || row.raw || {});
     const f = { IdBrand: id.IdBrand, IdMaterial: id.IdMaterial, IdType: id.IdType, IdDiameter: id.IdDiameter, Color: id.Color,
-                LabelKind: kind, Template: template, Output: output, Dpi: dpi, Copies: 1 };
+                LabelKind: kind, Template: template, Output: output, Dpi: dpi, Copies: copies || 1 };
     const pid = Number(row.idProduct ?? doc?.id_product);
     if (_hasRealProductId(pid)) f.IdProduct = pid;
     if (spool) {
@@ -45998,17 +46817,13 @@ import { initScreenTools } from './ai/screen-tools.js';
     // at promise-resolution time and can point to the wrong account.
     const db = fbDb(uid);
     try {
-      // Force-server read on first sync to avoid showing the "Set display
-      // name" prompt based on a stale empty cache (the user could have set
-      // the name on another device but the local cache hasn't synced yet).
-      // Falls back to cache automatically if offline.
-      let snap;
-      try {
-        snap = await db.collection("users").doc(uid).get({ source: "server" });
-      } catch (_) {
-        // Offline / blocked → fall back to default (cache OR server)
-        snap = await db.collection("users").doc(uid).get();
-      }
+      // The SERVER's copy, so the "Set display name" prompt never opens on a
+      // stale empty cache (the name may have been set on another device). It is
+      // the live listener's first server snapshot (_subscribeOwnSquad follows the
+      // doc anyway): no second read. Offline: its cached snapshot, else a get().
+      _subscribeOwnSquad(uid);
+      let snap = await _ownServerSnap("user", uid);
+      if (!snap) snap = await db.collection("users").doc(uid).get();
       if (!snap.exists) return;
       // Guard: by the time the Firestore round-trip completes, the active account
       // may have changed. Only apply UI side-effects for the current active account.
@@ -46246,7 +47061,8 @@ import { initScreenTools } from './ai/screen-tools.js';
       // avatar showing; we'll pick up the real value on the next
       // successful read.
       try {
-        const profSnap = await db.collection("userProfiles").doc(uid).get();
+        // The profile listener's snapshot (_subscribeOwnSquad) — not a second read.
+        const profSnap = (await _ownServerSnap("profile", uid)) || await db.collection("userProfiles").doc(uid).get();
         const photoURL = profSnap.exists ? (profSnap.data().photoURL || null) : null;
         // Cache on the Account object in localStorage.
         const accsForPhoto = getAccounts();
@@ -46300,7 +47116,11 @@ import { initScreenTools } from './ai/screen-tools.js';
 
       // 1. users/{uid} — last-known client state (overwritten each session).
       //    Used for deployment targeting: "push to all darwin arm64 on < 1.8".
-      db.collection("users").doc(uid).set({
+      //    Written only when one of these changed or once a day (_telDue): every
+      //    write of users/{uid} runs its server triggers. studioLastSeen is
+      //    therefore precise to the day.
+      const telMemo = _telMemo(uid);
+      const clientState = {
         studioVersion:   info.appVersion       || null,
         studioElectron:  info.electron         || null,
         studioPlatform:  info.platform         || null,
@@ -46311,21 +47131,28 @@ import { initScreenTools } from './ai/screen-tools.js';
         studioLocale:    navigator.language    || null,
         studioCountry:   country,
         studioTimezone:  timezone,
-        studioLastSeen:  FV.serverTimestamp(),
-      }, { merge: true }).catch(e => console.warn("[telemetry] user doc write failed:", e.code));
+      };
+      const clientSig = JSON.stringify(clientState);
+      if (_telDue(telMemo, "user", clientSig)) db.collection("users").doc(uid).set({ ...clientState, studioLastSeen: FV.serverTimestamp() }, { merge: true })
+        .then(() => _telMemoSave(uid, { ..._telMemo(uid), user: { sig: clientSig, at: Date.now() } }))
+        .catch(e => console.warn("[telemetry] user doc write failed:", e.code));
 
       // 2. users/{uid}/telemetry/studio — aggregated lifetime metrics.
       //    Never overwritten — only grows. Standard Firebase pattern:
       //    increment() for counters, arrayUnion() for sets, serverTimestamp() for events.
+      //    At most once a day, or when the version / platform is new: so
+      //    sessionsCount counts the days Studio was used (one a day at most).
       const agg = {
         sessionsCount: FV.increment(1),
         versionsUsed:  FV.arrayUnion(info.appVersion || "?"),
         platformsUsed: FV.arrayUnion(info.platform   || "?"),
         lastSeen:      FV.serverTimestamp(),
       };
-      db.collection("users").doc(uid)
+      const aggSig = JSON.stringify([info.appVersion || "?", info.platform || "?"]);
+      if (_telDue(telMemo, "agg", aggSig)) db.collection("users").doc(uid)
         .collection("telemetry").doc("studio")
         .set(agg, { merge: true })
+        .then(() => _telMemoSave(uid, { ..._telMemo(uid), agg: { sig: aggSig, at: Date.now() } }))
         .catch(e => console.warn("[telemetry] studio aggregate write failed:", e.code));
 
       // 3. Current-state snapshot + onboarding milestones — deferred until the
@@ -46354,6 +47181,8 @@ import { initScreenTools } from './ai/screen-tools.js';
       if (!doc.exists) return;
       const data = doc.data();
       // Language — apply if remote differs (more recent on another device).
+      // The brands the catalogue shows (picked on another computer or the phone).
+      _catBrandsFromPrefs(uid, data.catalogBrands);
       const cloudLang = data.lang;
       if (cloudLang && state.i18n[cloudLang] && cloudLang !== state.lang) {
         state.lang = cloudLang;

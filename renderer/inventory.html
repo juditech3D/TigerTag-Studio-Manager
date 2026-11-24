@@ -8,7 +8,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Tiger Studio Manager 2</title>
+<title>Tiger Studio Fork (unofficial)</title>
 <link rel="stylesheet" href="css/00-base.css" />
 <link rel="stylesheet" href="css/10-settings.css" />
 <link rel="stylesheet" href="css/20-friends.css" />
@@ -52,7 +52,7 @@
     <div class="sb-header">
       <div class="sb-brand">
         <div class="sb-brand-dot">T</div>
-        <span class="sb-brand-name">Studio Manager 2</span>
+        <span class="sb-brand-name">Studio Fork</span>
       </div>
       <button id="btnSidebarToggle" class="sb-toggle" title="Toggle sidebar"><span class="icon icon-chevron-l icon-14 sb-chevron"></span></button>
     </div>
@@ -224,7 +224,7 @@
       <div class="signin-ph-top">
         <div class="signin-ph-brand">
           <div class="sb-brand-dot">T</div>
-          <span>Tiger Studio Manager <b class="signin-ph-two">2</b></span>
+          <span>Tiger Studio <b class="signin-ph-two">Fork</b></span>
         </div>
         <label class="signin-ph-lang">
           <span class="icon icon-globe icon-14" aria-hidden="true"></span>
@@ -371,6 +371,12 @@
             <span class="icon icon-qr icon-13" aria-hidden="true"></span>
             <span id="btnScanModeLabel" data-i18n="scanModeAll">Scanner: everywhere</span>
           </button>
+          <!-- In select mode: tick everything the current filter shows (again: untick
+               it) — the list header's master box, for the tile views. -->
+          <button id="btnSelectAll" class="inv-select-btn inv-select-all" type="button" aria-pressed="false">
+            <span class="icon icon-list-check icon-13"></span>
+            <span data-i18n="ctxSelectAll">Select All</span>
+          </button>
           <!-- Multi-select toggle → checkboxes + bulk-delete bar (own inventory only). -->
           <button id="btnSelectMode" class="inv-select-btn js-select-toggle" type="button" title="Select multiple">
             <span class="icon icon-check icon-13"></span>
@@ -407,8 +413,8 @@
                the printer ones. -->
           <div class="fb-bar" id="fbBar"></div>
           <input id="searchInv" type="text" placeholder="Search material, brand, color, UID…" data-i18n-placeholder="searchPlaceholder" />
-          <!-- Clear button — takes the magnifier's place while the field has
-               text (the loupe is hidden in CSS), so only one glyph is ever shown. -->
+          <!-- Clear button, shown while the field has text, left of the buttons
+               (no magnifier: the pill reads as a search field on its own). -->
           <button type="button" id="searchInvClear" class="inv-search-clear" hidden
                   aria-label="Clear search" data-i18n-aria="clearSearch">
             <span class="icon icon-close icon-13" aria-hidden="true"></span>
@@ -426,10 +432,11 @@
           <button type="button" id="fbAddBtn" class="inv-search-scan inv-search-filter" aria-label="Filter" data-i18n-aria="fbAdd" aria-haspopup="true">
             <span class="icon icon-filter icon-14" aria-hidden="true"></span>
           </button>
-          <span class="icon icon-search icon-13"></span>
         </div>
         <!-- Search views: the sort (their filters are chips of the filter bar). -->
         <div class="cv-filter-group" id="cvFilters">
+          <!-- The brands the catalogue shows (#catBrandsPanel); says how many are on. -->
+          <button type="button" class="cv-brands-btn" id="cvBrandsBtn"><span class="icon icon-tag icon-14" aria-hidden="true"></span><span id="cvBrandsBtnText"></span></button>
           <select id="cvSort" class="inv-brand-filter"></select>
         </div>
         <!-- Grid-only sort control, pushed to the far right (table view sorts
@@ -539,6 +546,11 @@
         <button id="bulkList" class="bulk-btn" type="button">
           <span class="icon icon-list-check icon-13"></span>
           <span data-i18n="listAddTo">Add to a list</span>
+        </button>
+        <!-- Own spools: one printed label per selected spool (renderer/labels). -->
+        <button id="bulkLabels" class="bulk-btn" type="button">
+          <span class="icon icon-qr icon-13"></span>
+          <span data-i18n="bulkLabels">Labels</span>
         </button>
         <button id="bulkTags" class="bulk-btn" type="button">
           <span class="icon icon-edit icon-13"></span>
@@ -3074,7 +3086,7 @@
 <aside class="detail-panel pba-panel cer-panel" id="tagAddPanel">
   <div class="pba-header">
     <div class="pba-header-text">
-      <div class="pba-title" data-i18n="linkedChipAddTag">Add with TigerTag</div>
+      <div class="pba-title" data-i18n="linkedChipAddTag">Add with a Tag</div>
       <div class="pba-sub" data-i18n="tagAddHint">Place the TigerTag on the TigerPOD.</div>
     </div>
     <button class="panel-close" id="tagAddPanelClose">✕</button>
@@ -3115,12 +3127,36 @@
 <aside class="detail-panel pba-panel cer-panel" id="colorSearchPanel">
   <div class="pba-header">
     <div class="pba-header-text">
-      <div class="pba-title qrs-title"><span class="icon icon-pipette" aria-hidden="true"></span><span data-i18n="colorSearchBtn">Find by colour</span></div>
-      <div class="pba-sub" data-i18n="colorSearchSub">Type a HEX or RAL code, or take the colour from a photo.</div>
+      <!-- What it searches (catalogue or inventory) is in the ⓘ, set by openColorSearch. -->
+      <div class="pba-title qrs-title"><span class="icon icon-pipette" aria-hidden="true"></span><span data-i18n="colorSearchBtn">Find by colour</span><span class="tool-info ui-info csr-title-info" data-tip="" aria-label=""><span class="icon icon-info icon-14" aria-hidden="true"></span></span></div>
     </div>
     <button class="panel-close" id="colorSearchPanelClose" aria-label="Close" data-i18n-aria="tutoClose">✕</button>
   </div>
   <div class="pba-body csr-root" id="colorSearchRoot"></div>
+</aside>
+
+<!-- The catalogue's brands (Search views): which makers the catalogue shows,
+     kept in prefs/app.catalogBrands (catalogue block of inventory.js, _catBrands*). -->
+<button class="pp-close-tab" id="catBrandsCloseTab" aria-label="Close" hidden>»</button>
+<aside class="detail-panel pba-panel cer-panel" id="catBrandsPanel">
+  <div class="pba-header">
+    <div class="pba-header-text">
+      <div class="pba-title qrs-title"><span class="icon icon-tag" aria-hidden="true"></span><span data-i18n="catBrandsTitle">Your brands</span><span class="tool-info ui-info cbp-title-info" data-tip="" aria-label=""><span class="icon icon-info icon-14" aria-hidden="true"></span></span></div>
+    </div>
+    <button class="panel-close" id="catBrandsPanelClose" aria-label="Close" data-i18n-aria="tutoClose">✕</button>
+  </div>
+  <div class="pba-body cbp-root">
+    <input class="pba-input cbp-search" id="catBrandsSearch" type="text" spellcheck="false" placeholder="Search a brand" data-i18n-placeholder="catBrandsSearch" />
+    <div class="cbp-head">
+      <span class="cbp-count" id="catBrandsCount"></span>
+      <span class="cbp-bulk">
+        <button type="button" class="cbp-link" id="catBrandsAll" data-i18n="catBrandsAll">All</button>
+        <button type="button" class="cbp-link" id="catBrandsNone" data-i18n="catBrandsNone">None</button>
+      </span>
+    </div>
+    <div class="cbp-list" id="catBrandsList" role="listbox" aria-multiselectable="true"></div>
+    <button type="button" class="cbp-done" id="catBrandsDone" data-i18n="catBrandsDone">Show the catalogue</button>
+  </div>
 </aside>
 
 <button class="pp-close-tab" id="chipLinkCloseTab" aria-label="Close" hidden>»</button>

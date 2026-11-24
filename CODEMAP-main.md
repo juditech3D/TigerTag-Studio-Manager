@@ -47,7 +47,7 @@ L4480-4540   App lifecycle (whenReady, window-all-closed, activate)
 | 388-412 | UID hex→decimal + TigerTag SDK payload builder | `normalizeUid`, `_sdkPayload` |
 | 413-519 | `BrowserWindow` creation, preload wiring, CSP, devtools | `createWindow` |
 
-## NFC / RFID reader + chip write (L640-1950)
+## NFC / RFID reader + chip write (L640-1983)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -56,33 +56,33 @@ L4480-4540   App lifecycle (whenReady, window-all-closed, activate)
 | 806-1228 | IPC: `rfid:read-now` / `rfid:write-now` / `rfid:repair` (restore from backup) / `rfid:format` (reinitialize via `TigerTag.asInit`) / `rfid:erase` (blank NDEF) / `rfid:write-ndef` + `rfid:ndef-size` + `rfid:ndef-capacity` (link, Wi-Fi, contact… via services/ndef.js; chip room from the capability container, `_ndefCapacity`) / `rfid:encode-cloud` / `rfid:burn-one` / `rfid:refresh-api` / `rfid:lookup-product`; surgical page diff before write | `_pagesFromBytes`, `_pagesToWrite` |
 | 1372-1424 | IPC `catalog:fetch-all` — pages the WHOLE product catalogue (`product/get/all`, `per_page` 1000, follows `nextPage`) so the renderer can cache and search it offline | `XANO_PRODUCT_ALL_URL` |
 
-## TD1S color sensor (L1646-2028)
+## TD1S color sensor (L1679-2061)
 
 | L | What | Anchors / IPC |
 |---|---|---|
 | 1596-1904 | Serial-port watcher, TD/color line parse, state replayed to renderer on reload; IPC `td1s:need` / `td1s:release` | `initTD1S` |
 
-## Auto-updater + migration gate (L2259-2583)
+## Auto-updater + migration gate (L2691-2866)
 
 | L | What | Anchors / IPC |
 |---|---|---|
 | 2135-2157 | Auto-update on/off preference (on disk) | `readAutoUpdatePref`, `writeAutoUpdatePref` |
-| 2158-2273 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `initUpdater` |
+| 2158-2273 | Updater event wiring; IPC: `migration:set-in-flight`, `install-update`, `update:set-auto` | `wireUpdaterEvents`, `updaterErrorReason`, `initUpdater` |
 
-## Google auth loopback, shell, detached cam window (L1769-2031)
+## Google auth loopback, shell, detached cam window (L1802-2064)
 
 | L | What | IPC |
 |---|---|---|
 | 1645-1860 | Google OAuth loopback sign-in (`auth:google-loopback`); `shell:open-external` | — |
 | 2051-2097 | Detached camera-wall `BrowserWindow` (`cam:open-detached`); `update:check-now` | — |
 
-## Local MCP server — prefs, renderer relay, IPC (L1976-2553)
+## Local MCP server — prefs, renderer relay, IPC (L2009-2586)
 
 | L | What | IPC |
 |---|---|---|
 | 1852-2038 | MCP server for AI assistants: `<userData>/mcp.json` prefs (enabledFor [uid] / writeFor [uid] — write tools listed only for those / port 5795 / token; server follows the signed-in account via `mcp:set-account`), stdio bridge copied to `<userData>/mcp/`, `tools/call` relayed to the renderer, started by `initMcp()` at boot. Protocol: `services/mcpServer.js` | `mcp:get-config`, `mcp:set-account`, `mcp:set-enabled`, `mcp:set-write`, `mcp:new-token`, `mcp:register-tools`, `mcp:call` / `mcp:result`, `mcp:hosted-grants` (Hub hosted-connector grants list / revoke, CORS-exempt) |
 
-## Printer discovery probes (L2677-3643)
+## Printer discovery probes (L2710-3676)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -95,7 +95,7 @@ L4480-4540   App lifecycle (whenReady, window-all-closed, activate)
 | 3297-3408 | Prusa — PrusaLink HTTP IPC (`prusa:http`: Digest auth, cached challenge, path allowlist, binary for thumbnails/snapshots) + discovery probe (`prusa:probe`, one unauthenticated `GET /api/version`) | — |
 | 3224-3288 | Creality — Moonraker HTTP IPC port 7125, live controls (`cre:http`) | — |
 
-## Infra IPC — image cache, subnets, mDNS, app info, DB (L2945-3100)
+## Infra IPC — image cache, subnets, mDNS, app info, DB (L2978-3133)
 
 | L | What | IPC |
 |---|---|---|
@@ -103,7 +103,13 @@ L4480-4540   App lifecycle (whenReady, window-all-closed, activate)
 | 2876-2966 | LAN /24 subnet list (`net:get-local-subnets`), MAC behind a LAN IP from the OS ARP cache, directly attached subnets only (`net:arp-mac`), mDNS Snapmaker browse (`mdns:browse-snapmaker`) | — |
 | 2966-2976 | App/platform info for diagnostics (`app:info`, `app:renderer-path`); TigerTag DB lookups (`db:*`) | — |
 
-## Elegoo MQTT bridge + timelapse + ffmpeg (L3101-3237)
+## Printed labels + label printers (L4348-4607)
+
+| L | What | Anchors / IPC |
+|---|---|---|
+| 4342-4571 | The label page (renderer/labels) captured at its printer dots (`_labelImage`) and turned into PNG / PDF / SVG / a print job (`label:render`, Save dialog via `_askLabelPath`; `deviceName` prints silently on that installed printer); label printers reached without the dialog: `label:printers` (installed printers + Brother QL announced over mDNS), `label:bitmap` (1-bit bitmap for the Marklife P15, `renderer/labels/p15.js`), `label:print-ql` (Brother QL raster on TCP 9100), `label:ql-roll` (the roll a QL names over SNMP v1, prtInputMediaName), `label:ql-state` (its READY / ERROR state line). The bitmap / mDNS / QL raster code: `services/label-printers.js`. The P15's Web Bluetooth device pick is `select-bluetooth-device` + `label:bt-pick` in createWindow | `_labelImage`, `_askLabelPath` |
+
+## Elegoo MQTT bridge + timelapse + ffmpeg (L3134-3270)
 
 | L | What | IPC |
 |---|---|---|
@@ -111,39 +117,39 @@ L4480-4540   App lifecycle (whenReady, window-all-closed, activate)
 | 3547-3619 | Elegoo MQTT 1883 bridge (`elegoo:connect` / `disconnect` / `publish`) | — |
 | 3620-3674 | Shared `ffmpeg` binary detection (Bambu RTSP + Anycubic FLV cameras) — each candidate is PROBED, not just stat'ed | — |
 
-## Camera captures — photo/video from printer camera sources, filed per printer under Pictures/Tiger Studio/Captures (cam:* IPC) (L4597-4789)
+## Camera captures — photo/video from printer camera sources, filed per printer under Pictures/Tiger Studio/Captures (cam:* IPC) (L4721-4913)
 
-## Demo mode — printer simulator (L4790-4798)
+## Demo mode — printer simulator (L4914-4922)
 
 Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:state`, `demo:set`) with the detected ffmpeg; stops every face on `will-quit`. The simulator itself lives in `services/demo/` — see `docs/DEMO-MODE.md`.
 
-## Bambu Lab — MQTT + JPEG-TCP/RTSP cameras (L4799-5169)
+## Bambu Lab — MQTT + JPEG-TCP/RTSP cameras (L4923-5293)
 
 | L | What | Anchors / IPC |
 |---|---|---|
 | 3675-3735 | MQTTS 8883 control bus (`bambulab:connect` / `disconnect` / `publish`) | — |
 | 3736-3883 | JPEG-TCP camera, port 6000 (`bambulab:cam-start` / `cam-stop`) — 80-byte auth packet, retry/timeout | `_bambuCamAuthPacket` |
 | 3884-4001 | RTSP camera via ffmpeg, port 322 (`bambulab:cam-start-rtsp` / `cam-stop-rtsp`) — 30 fps + low-latency flags; the spawn is guarded (it throws synchronously on a bad CPU type) | — |
-| 4226-4385 | Prusa Buddy3D camera — plain RTSP `rtsp://<camera-ip>/live` via the same ffmpeg pipeline, 15 fps (`prusa:cam-start-rtsp` / `prusa:cam-stop-rtsp`, frames on `prusa:cam-frame`) | — |
+| 4226-4477 | Prusa Buddy3D camera — plain RTSP `rtsp://<camera-ip>/live` via the same ffmpeg pipeline, 15 fps (`prusa:cam-start-rtsp` / `prusa:cam-stop-rtsp`, frames on `prusa:cam-frame`) | — |
 
-## Bambu Lab cloud — REST + shared cloud MQTT (L5170-6059)
+## Bambu Lab cloud — REST + shared cloud MQTT (L5294-6183)
 
 | L | What | Anchors / IPC |
 |---|---|---|
 | 4002-4094 | Tolerant REST helper over ELECTRON's `net` — Chromium's stack on purpose, because the login sits behind Cloudflare, which reads the TLS fingerprint | `_bblFetch`, `_bblHeaders` |
 | 4095-4218 | Auth: `cloud-send-code`, `cloud-login` (code / password, `verifyCode` + `tfa` branches), `cloud-tfa` (token arrives in a COOKIE), `cloud-uid` (token is NOT a JWT), `cloud-bind` (machines + their LAN access codes), `cloud-device-version` | — |
-| 4219-4480 | ONE cloud-MQTT client per ACCOUNT: `cloud-connect` (us→eu fallback), `cloud-subscribe` (+ `pushall`), `cloud-publish`, `cloud-unsubscribe`, `cloud-disconnect`. Telemetry is emitted on the LAN `bambulab:message` channel — same payload, same parser | `_bblCloudOpen`, `_bblCloudPushAll` |
+| 4219-4572 | ONE cloud-MQTT client per ACCOUNT: `cloud-connect` (us→eu fallback), `cloud-subscribe` (+ `pushall`), `cloud-publish`, `cloud-unsubscribe`, `cloud-disconnect`. Telemetry is emitted on the LAN `bambulab:message` channel — same payload, same parser | `_bblCloudOpen`, `_bblCloudPushAll` |
 
-## Anycubic LAN — MQTT, provisioning, FLV camera (L5862-6186)
+## Anycubic LAN — MQTT, provisioning, FLV camera (L5986-6492)
 
 | L | What | Anchors / IPC |
 |---|---|---|
-| 5691-5767 | MQTTS 9883 control bus, TLS 1.2 (`anycubic:connect` / `disconnect` / `publish`) | — |
-| 5768-5861 | FLV camera via ffmpeg, port 18088 (`anycubic:cam-start` / `cam-stop`) — URL-aware (`/flv` or `/live/<token>`) | — |
-| 5862-5927 | Slicer on-disk credential reader (`anycubic:read-slicer-config`) — keyless deobfuscation | `_acuDeobfuscate`, `_acuConfCandidates` |
-| 5928-5992 | LAN scan: TCP probe (`anycubic:tcp-probe`), FLV liveness (`anycubic:flv-probe`, accepts 200/206), `/info` (`anycubic:http-info`) | — |
+| 5783-5859 | MQTTS 9883 control bus, TLS 1.2 (`anycubic:connect` / `disconnect` / `publish`) | — |
+| 5860-5953 | FLV camera via ffmpeg, port 18088 (`anycubic:cam-start` / `cam-stop`) — URL-aware (`/flv` or `/live/<token>`) | — |
+| 5954-6019 | Slicer on-disk credential reader (`anycubic:read-slicer-config`) — keyless deobfuscation | `_acuDeobfuscate`, `_acuConfCandidates` |
+| 6020-6084 | LAN scan: TCP probe (`anycubic:tcp-probe`), FLV liveness (`anycubic:flv-probe`, accepts 200/206), `/info` (`anycubic:http-info`) | — |
 
-## Anycubic cloud — REST + cloud MQTT (L6187-6670)
+## Anycubic cloud — REST + cloud MQTT (L6568-7043)
 
 | L | What | Anchors / IPC |
 |---|---|---|
@@ -151,10 +157,10 @@ Registers `services/demo` (`demo:faces`, `demo:allocate`, `demo:sync`, `demo:sta
 | 3935-4046 | Web login (`anycubic:cloud-web-login`) + CDP token grab (`anycubic:cloud-cdp-token`) from a bridge-mode slicer | `_cdpEvaluate` |
 | 4047-4185 | REST: `cloud-get-printers`, `cloud-printer-info` (temps + thumbnail + latest project), `cloud-verify`, `cloud-send-order`, `cloud-camera-open` (order 1001 → Agora "shengwang" creds) | — |
 | 4186-4222 | Cloud-uploaded files (§9c): `cloud-files-list` (POST `/work/index/files`), `cloud-file-delete` (POST `/work/index/delFiles`); print reuses `cloud-send-order` order 1 | — |
-| 4223-4488 | Shared cloud-MQTT client (one per user): `cloud-connect` / `subscribe` / `publish` / `unsubscribe`; RSA-encrypted token login | `_buildCloudLogin`, `_routeCloudMessage`, `_ensureCloudClient` |
+| 4223-4580 | Shared cloud-MQTT client (one per user): `cloud-connect` / `subscribe` / `publish` / `unsubscribe`; RSA-encrypted token login | `_buildCloudLogin`, `_routeCloudMessage`, `_ensureCloudClient` |
 
-## App lifecycle (L6408-6476)
+## App lifecycle (L6532-6600)
 
 | L | What |
 |---|---|
-| 5751-5815 | `app.whenReady` (img cache dir, server, window, NFC/TD1S/updater init), `window-all-closed`, `activate` |
+| 5843-5907 | `app.whenReady` (img cache dir, server, window, NFC/TD1S/updater init), `window-all-closed`, `activate` |

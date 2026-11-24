@@ -5,6 +5,166 @@ Versions follow [Semantic Versioning](https://semver.org/).
 
 ---
 
+## v2.61.0-fork.1 — 2026-11-24
+
+Upstream v2.61.0 merged onto 2.60.0-fork.1, together with the fork's detached camera wall additions
+(notice + "Bring the wall back" in the main window, per-card stop / play and Stop all / Show all in
+the detached window, the plan bar on its own row). Fork additions kept. Upstream's Screenshot fix for the
+Tiger Scale / Tiger Touch live screen (#335) is kept alongside the fork's own: the scale's live view
+still closes first, which also frees one of the scale's two stream slots for the screenshot.
+
+---
+
+## v2.61.0 — 2026-11-24
+
+### Added
+- **Requests: repository, search and filters** (#331, Ptitlouis6012). Each request shows the
+  repository it went to (a tag in its line and in an open conversation's header, from `target` or
+  the issue URL, `repoOf`); "All requests" and "My requests" get a search field (title, number,
+  repository), Status / Repository / Type filters (the type menu follows the repository) and a reset
+  key. Defaults unchanged ("All requests" on Open, "My requests" on everything).
+- **Requests: TigerMasters told when an author writes** (#333, Ptitlouis6012). A rise in an open
+  request's non-team comments is checked in its thread; only a comment from the reporter raises a
+  "Request #N" notice (unread until the notification centre opens, then kept 30 days / 30 notices).
+  Checked at sign-in and every 30 min while visible, only for TigerMasters and admins. Keys
+  `tigertag.reportTeamSeen.<uid>`, `tigertag.reportTeamNotifs.<uid>`. Request notices now belong to
+  one account (`_dropRequestNotifs`), which also fixes a reply notice leaking into the next account.
+
+### Fixed
+- **Printers board: cameras no longer flicker at launch.** The board was rebuilt ~25 times in the
+  first 30 s (each brand's Firestore snapshot, every inventory render, Elegoo ticks, the last-seen
+  seed), restarting every live feed each time. `renderPrintersView` now compares the board's shape
+  (`_boardSig`: machines, names, models, widgets, unit split, camera offered, job keys, selection,
+  arrange, zoom, language, external cameras) and, when unchanged, only re-lays positions out; live
+  values are patched in place (`_patchGridStatus`, `_patchGridJobs`, `_patchSlotsWidgets`,
+  `_camCatchUp`). The FlashForge mux consumers are released only on a real rebuild.
+- **Printers: Connect / Disconnect in the side panel** patched the status dots instead of rebuilding
+  the board (`_patchGridStatus` / `_patchTableStatus` / `_patchCamWall`), so other feeds keep running.
+- **Tiger Scale / Tiger Touch live screen:** Screenshot opened its window behind the live view (same
+  overlay level, live one later in the DOM); `showScreenshot` moves its overlay to the end of the page
+  before opening (#335).
+- **Search bar:** its lists (field list, chip editors) stand at z-index 100, under the side cards
+  (101+), instead of the shared `.csel-pop` 600, so a side card over the bar covers them.
+
+### Changed
+- Bundled data: brand table and catalogue refreshed (`db_update.py`, 24,947 products).
+
+---
+
+## v2.60.0-fork.1 — 2026-11-23
+
+Upstream v2.60.0 merged onto 2.59.2-fork.4 (PR #18). Fork additions kept. The plan wheel scroll /
+zoom (#323), the `.ttag` Import-mode fix (#319) and the ROCKEY-ARM filter (#320) now come from
+upstream; the fork's own versions of them were dropped in favour of upstream's code.
+
+---
+
+## v2.60.0 — 2026-11-23
+
+### Added
+- **Catalogue: pick the brands you follow.** The Search views show only their products (lighter,
+  fewer `/img` asks). The first visit asks for them (`_catViewAskBrands` opens the brands card);
+  the toolbar's "N brands" button reopens it (`#catBrandsPanel`: search, All / None, a toggle row
+  per maker with its product count, saved once on close). Everything unticked goes back to the first
+  state and the view asks again; a search that only matches unfollowed brands says how many and
+  offers to edit them. Kept in `prefs/app.catalogBrands` (read with the language at launch, no extra
+  read; shared with the mobile app) and `tigertag.catalogBrands.<uid>`. `_catBrandShown`,
+  `_catBrandsLoad`, `_catBrandsFromPrefs`, `_catBrandsSave`, `openCatBrands` / `closeCatBrands`.
+- **Catalogue: "Sort by: Series"** — brand, then series, then colour (`_catSortRank`,
+  `CAT_SORTS.series`), grid and table.
+- **Inventory: "Find by colour"** in the search bar of the grid, table and storage views — the
+  Search views' colour card (HEX, RAL Classic, photo, ΔE ceiling, multicolour). Spools past the
+  ceiling are hidden (dimmed in storage), grid and table show the closest first, the colour is one
+  of the bar's chips; not in a friend's view. `_colorSearchScope`, `_rowMatchesColor`,
+  `_invColorRank`, body class `color-search`.
+
+### Changed
+- **Search bar:** no magnifier; right to left QR, Filter, colour; the clear button has its own slot
+  left of them while there is text.
+- **Plans (storage, printers, camera wall):** the wheel scrolls (sideways when the plan is wide but
+  not tall), Ctrl / ⌘ + wheel or a pinch zooms, Ctrl / ⌘ + / − press the zoom buttons; thin themed
+  scrollbars (#323, asked in #301 and #315). `_planWheelZooms`, `_planWheelSideways`.
+- **Find by colour, HEX mode:** the picker (SV area + hue strip) shows in the card at once and
+  follows the field, presets, RAL and photo both ways, gliding in 280 ms (none with reduced motion).
+  `mountColorArea` split out of `openColorPop`.
+- **Find by colour card:** explanations in ⓘ bubbles (`infoTipHtml`); ΔE and multicolour in one
+  settings block; multicolour on by default; the RAL list fills the card's height and scrolls to the
+  chosen code.
+- **Firebase reads and writes cut** (sized for 500,000 users):
+  - XP, TigerCoins and community histories kept locally and topped up with new rows only
+    (`_deltaLog`: COUNT check, monthly full read). Keys `tigertag.xpLog.<uid>`,
+    `tigertag.coinlog.<uid>` (now `{rows, n, …}`), `tigertag.squadPulseHistory` (30 min gap).
+  - `users/{uid}` / `userProfiles/{uid}` no longer read again at sign-in: `syncUserDoc` takes the
+    listeners' first server snapshot (`_ownServerSnap`).
+  - Launch telemetry writes only what changed, or once a day (`tigertag.telemetryMemo.<uid>`,
+    `_telDue`); `sessionsCount` now counts days of use; `recordStudioState` takes the milestone
+    stamps from the sign-in read.
+- `linkedChipLinkTip` and `linkedChipAddTag` reworded in the 11 locales (same text as the mobile app).
+- Bundled data: brand table and catalogue refreshed (`db_update.py`, 24,865 products).
+
+### Fixed
+- **Ghost racks "undefined · 0/NaN"** coming back every day (#302). `updateRack` used `set(merge)`,
+  so a plan write landing after a delete recreated the doc with only `plan` / `lastUpdate`; the plan
+  also adopted a deleted rack's stale card. Now `update()` (not-found ignored), the plan skips cards
+  whose rack is gone, rack docs with no name and no grid are hidden (`_isRealRack`), and existing
+  ghost docs (only `plan` / `lastUpdate`, no spool pointing at them, own account, server snapshot)
+  are deleted (`_sweepGhostRacks`).
+- Find by colour: the search bar's pipette was missing at launch until the view changed.
+- Labels: the maker's logo prints on every layout that prints the brand (vertical labels, Slicer
+  label); logos drawn for a dark background keep their letters (`_monoLabelLogo`, cropped to ink).
+- Friend view: no empty dark box at the right of the header (#322).
+- RFID readers: a Feitian ROCKEY-ARM licence dongle is no longer listed as a reader (#320, #312).
+- `.ttag` import: Import mode no longer fails on every file (`FieldValue.delete()` in a `set()`
+  without merge) (#319, #311).
+- Klipper: editing a filament counts for the "Edit a filament in a printer" mission (#318, #268).
+- Favorites: no rebuild of every card on each inventory refresh (`_pvSameAsShown`), no flicker.
+
+### Removed
+- `persistPrinterSortIndices` (unused since the printer plan; it rewrote every printer).
+
+---
+
+## v2.59.2-fork.4 — 2026-11-22
+
+### Added
+- Label card on an A4 sheet: a real preview of the whole sheet, "Sheet" choice per printer (label size,
+  A4 top-left, A4 centred grid; prefs `pageBy`), "Copies" with "Stock (n)", spacing and margin (prefs
+  `sheetGap`, `sheetMargin`), extra sheets when one is full, − / + zoom (#263).
+- Stock selection bar: a "Labels" button opens one label card for every selected spool (`openLabelBatch`);
+  the open card follows the selection (`syncLabelBatch`).
+- Label values chosen on a giant drawing of the label, drawn for every format from its own layout
+  (`giant`, `slotSel`).
+- Printers board: "Show all cameras" / "Stop all cameras" keys (#272).
+- Tile views in select mode: a "Select All" key (`#btnSelectAll`).
+
+### Changed
+- Storage, Printers and the camera wall: the mouse wheel scrolls the plan (sideways when wide but not
+  tall), Ctrl / ⌘ + wheel and Ctrl / ⌘ + / − zoom it; thin scrollbars (#301, #315).
+
+---
+
+## v2.59.2-fork.3 — 2026-11-21
+
+### Added
+- Direct label printing (`renderer/labels/p15.js`, `services/label-printers.js`, `docs/LABEL-PRINTERS.md`):
+  Marklife P15 over Web Bluetooth (L11 protocol, three GATT attempts), Brother QL raster on TCP 9100
+  (mDNS search, roll read over SNMP, die-cut 62 x 29 at its printable length, error / ready state),
+  installed printers printed silently through their driver; P15 and Brother 62 x 29 templates.
+- Barcode scanner mode button: everywhere / search bar / off (`_setScanMode`, `tigertag.scanMode`).
+- TigerScale "Wake up" button through the firmware's `POST /wake` (IPC `tigerscale:wake`); the live
+  view and the screenshot wake the scale the same way instead of a tap.
+
+### Changed
+- A Bambu Lab spool is saved or linked only once both chips are read (`bambuPairGap`,
+  `renderer/rfid_protocol/linked/index.js`).
+
+### Fixed
+- "Check for updates" sends a short reason instead of electron-updater's raw error
+  (`updaterErrorReason`, `updateErrorText`).
+- TigerScale live view: Screenshot closes the live view so its preview is not opened behind it.
+
+---
+
 ## v2.59.2-fork.2 — 2026-11-20
 
 ### Added

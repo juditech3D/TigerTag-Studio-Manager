@@ -389,6 +389,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Printed labels: { html, svg, wDots, hDots, mmW, mmH, dpi, format: 'png'|'pdf'|'svg'|'print', fileName }
   // → { ok, path } once saved (Save dialog), { ok } once printed. See main.js label:render.
   renderLabel: (opts) => ipcRenderer.invoke('label:render', opts),
+  // Label printers reached without the print dialog (main.js label:printers):
+  // { installed: [{ id, name, deviceName, isDefault }], network: [{ id, name, model, host, port, ql }] }.
+  // An installed one prints through renderLabel({ …, format: 'print', deviceName }).
+  listLabelPrinters: () => ipcRenderer.invoke('label:printers'),
+  // The label as a 1-bit bitmap { ok, width, height, bytesPerRow, data } (rotate: a quarter turn clockwise).
+  labelBitmap: (opts) => ipcRenderer.invoke('label:bitmap', opts),
+  // The label sent to a Brother QL on the network: { …label page, host, port, model, roll } → { ok, media, scaled }
+  // or { ok: false, needRoll } when no roll was given and the printer does not say which one it holds.
+  printLabelQl: (opts) => ipcRenderer.invoke('label:print-ql', opts),
+  labelQlRoll: (host) => ipcRenderer.invoke('label:ql-roll', host),
+  labelQlState: (host) => ipcRenderer.invoke('label:ql-state', host),
+  // While Studio looks for the Marklife P15: every Bluetooth device the scan lists
+  // ([{ id, name }]; null once the scan is over), and the one the user picked ('' cancels).
+  onLabelBtDevices: (callback) => ipcRenderer.on('label:bt-devices', (_e, list) => callback(list)),
+  pickLabelBtDevice: (deviceId) => ipcRenderer.invoke('label:bt-pick', deviceId),
   // A TigerTag+ backup decoded: { ok, certified, raw } (the Restore card's preview).
   decodeChipBackup: (uidHex, backupHex) =>
     ipcRenderer.invoke('rfid:decode-backup', uidHex, backupHex),
@@ -443,6 +458,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Opens (or focuses) a standalone window displaying all online printer cameras.
   // cameras: CamDescriptor[] — built by inventory.js _serializeCamerasForDetach()
   openCamWindow: (cameras) => ipcRenderer.invoke('cam:open-detached', cameras),
+  closeCamWindow: () => ipcRenderer.invoke('cam:close-detached'),
+  // cb() once the detached window is closed (by its own close button or by closeCamWindow).
+  onCamWindowClosed: (cb) => ipcRenderer.on('cam:detached-closed', () => cb()),
   // Show native Save dialog and stream a timelapse video from the printer to disk.
   downloadTimelapse: (url, filename) => ipcRenderer.invoke('timelapse:download', url, filename),
   // Show native Save dialog and download an image (e.g. a QR code) to disk.

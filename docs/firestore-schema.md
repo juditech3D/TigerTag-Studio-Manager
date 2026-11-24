@@ -128,7 +128,7 @@ users/
                                 declared, else IP; most frequent over 365 days), written by the nightly rollup when it
                                 changes. Server-written, shown nowhere; first in the brand market's marketCountry
     studioTimezone  string    — IANA timezone (e.g. "Europe/Paris"), from Intl.DateTimeFormat
-    studioLastSeen  timestamp — server timestamp of last login (deployment targeting / churn)
+    studioLastSeen  timestamp — server timestamp of last login, refreshed at most once a day unless the client state changed (deployment targeting / churn)
 
     ── Studio's OWN settings ─────────────────────────────────────────────────
     They live here, on the user doc, and NOT in `prefs/app`: that document is the
@@ -159,7 +159,7 @@ users/
                               telemetry `hasOnly()` whitelist in firestore.rules
                               (add a field there + redeploy before the client writes it).
         ── Lifetime accumulators ──
-        sessionsCount  number   — total sessions (FieldValue.increment)
+        sessionsCount  number   — days Studio was used — one increment a day at most, or on a new version / platform (FieldValue.increment)
         versionsUsed   string[] — all app versions ever used (arrayUnion)
         platformsUsed  string[] — all platforms ever used (arrayUnion)
         td1sUsed       boolean  — true once a TD1s sensor was connected (rules: only `true` accepted)
@@ -470,6 +470,7 @@ users/
       app/
         lang      string   — language code, synced across devices
         groupInv  boolean  — Studio inventory "group identical spools" toggle (Studio-only, synced across devices)
+        catalogBrands string[] — the brands the catalogue shows (reference `id_brand` as a string, or "n:<name>" for a maker the table does not know); absent or `[]` = none picked (Studio asks first; `[]` is written when the user unticks everything, so other devices follow). Read with the language at launch; localStorage `tigertag.catalogBrands.<uid>` paints it at once
         autoManage    boolean — Storage "Auto-organize" toggle (drives both auto-place + auto-free; per-account, synced across devices; localStorage `tigertag.autoManage.enabled` is the fast read cache). Migrated from the legacy split fields below (unified = either-was-on).
         autoStorage   boolean — LEGACY (pre-merge) "Auto storage" toggle — read only for one-time migration into `autoManage`
         autoUnstorage boolean — LEGACY (pre-merge) "Auto unstorage" toggle — read only for one-time migration into `autoManage`

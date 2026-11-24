@@ -28,6 +28,22 @@
 /* The paper: white, whatever the theme — it is the label as printed. */
 /* A fixed box (the tallest preview fits it): switching templates moves nothing below. */
 .lbl-preview { display: flex; justify-content: center; align-items: center; height: 232px; padding: 4px 0 8px; }
+/* An A4 sheet around the label when it prints on A4: the label sits where it will print. */
+.lbl-sheet { position: relative; flex: none; background: var(--on-dark); border-radius: 2px; box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
+.lbl-sheet .lbl-paper { box-shadow: 0 0 0 1px var(--border); }
+.lbl-sheet .lbl-paper--link:hover { transform: none; }
+.lbl-sheet .lbl-open-hint { white-space: nowrap; }
+.lbl-copy { position: absolute; display: block; box-shadow: 0 0 0 1px var(--border); pointer-events: none; }
+.lbl-copies.lbl-copies { flex: 0 0 72px; }
+.lbl-batch { margin: 0 0 8px; font-weight: 600; }
+/* The A4 preview's zoom (the storage plan's − 100 % + control): closer, the sheet
+   is dragged inside the preview, starting from its top-left corner. */
+.lbl-zoom-row { display: flex; justify-content: flex-end; }
+/* Moved by dragging, not by the wheel: the wheel stays the card's own scroll. */
+.lbl-preview.is-zoomed { display: block; height: 232px; overflow: hidden; padding: 8px; cursor: grab; touch-action: none; }
+.lbl-preview.is-zoomed.is-panning { cursor: grabbing; }
+.lbl-preview.is-zoomed .lbl-paper { pointer-events: none; }
+.lbl-preview.is-zoomed .lbl-sheet { margin: 0 auto; }
 .lbl-paper { position: relative; overflow: hidden; border-radius: 4px; background: var(--on-dark); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
 .lbl-frame { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; transition: opacity .15s; }
 /* While the preview loads: the paper is blank and a spinner turns on it (spin: 70-detail-misc.css). */
@@ -40,14 +56,34 @@
 .lbl-open-hint .icon { background-color: currentColor; }
 .lbl-paper--link:hover .lbl-open-hint, .lbl-paper--link:focus-visible .lbl-open-hint { opacity: 1; transform: translate(-50%, 0); }
 
-.lbl-tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }   /* nine templates, three rows of three */
+.lbl-tpls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }   /* ten templates, three per row */
 .lbl-tpl.lbl-tpl { height: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 9px 4px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; transition: border-color .15s, background .15s; }
 .lbl-tpl:hover { border-color: var(--primary); }
 .lbl-tpl.is-active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, var(--surface-2)); }
 .lbl-tpl b { font-size: 12px; line-height: 1.2; text-align: center; }
 .lbl-tpl small { font-size: 10.5px; color: var(--muted); }
+.lbl-tpl:disabled { opacity: .4; cursor: not-allowed; border-color: var(--border); }
 
-.lbl-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* The values, chosen on a giant drawing of the label (white paper, black print):
+   brand, series bar and colour as printed, a stand-in QR, and each values line a
+   highlighted choice where it prints. */
+.lbl-giant-wrap { display: flex; justify-content: center; }
+.lbl-giant { position: relative; width: 100%; container-type: inline-size; font-family: Arial, Helvetica, sans-serif; border-radius: 10px; background: var(--on-dark); color: var(--media-bg); box-shadow: 0 2px 10px rgba(0, 0, 0, .28); }
+.lbl-giant > div { position: absolute; box-sizing: border-box; }
+.lbl-giant-txt { display: flex; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1; }
+.lbl-giant-bar { display: flex; align-items: center; overflow: hidden; white-space: nowrap; background: var(--media-bg); color: var(--on-dark); line-height: 1; }
+.lbl-giant-pill { display: flex; align-items: center; justify-content: center; border: 2px solid var(--media-bg); border-radius: 999px; font-weight: 800; line-height: 1; }
+.lbl-giant-rule { border-top: 1px solid color-mix(in srgb, var(--media-bg) 25%, transparent); }
+.lbl-giant-qrbox { display: grid; place-items: center; }
+.lbl-giant-qr { width: 100%; height: 100%; fill: var(--media-bg); opacity: .25; }
+.lbl-giant-at { display: flex; }
+.lbl-giant-at .lbl-giant-line { flex: 1; }
+.lbl-giant-line { position: relative; display: flex; height: 100%; align-items: center; border: 1.5px dashed color-mix(in srgb, var(--primary) 70%, transparent); border-radius: 6px; background: color-mix(in srgb, var(--primary) 10%, transparent); transition: background .15s, border-color .15s; }
+.lbl-giant-line:hover, .lbl-giant-line:focus-within { border-style: solid; border-color: var(--primary); background: color-mix(in srgb, var(--primary) 18%, transparent); }
+.lbl-giant-line.is-empty .lbl-giant-sel { color: color-mix(in srgb, var(--media-bg) 45%, transparent); font-style: italic; }
+.lbl-giant-sel.lbl-giant-sel { appearance: none; width: 100%; height: 100%; min-height: 0; padding: 0 22px 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--media-bg); font: inherit; font-size: max(11px, 1em); cursor: pointer; text-overflow: ellipsis; }
+.lbl-giant-sel option { color: var(--text); background: var(--surface); font-style: normal; }
+.lbl-giant-caret { position: absolute; right: 8px; pointer-events: none; color: var(--primary); font-size: 12px; }
 /* The QR's link, copied: under the preview, which opens it on a click. */
 .lbl-linkrow { display: flex; justify-content: center; gap: 8px; margin: -4px 0 8px; }
 .lbl-linkrow .icon { background-color: currentColor; }
@@ -55,5 +91,27 @@
 .lbl-actions .primary { flex: 1 1 100%; justify-content: center; }
 .lbl-actions .ghost { flex: 1; justify-content: center; }
 .lbl-actions .icon { background-color: currentColor; }
-.lbl-msg { margin: 0; min-height: 0; font-size: 12.5px; color: var(--danger-text); }
+.lbl-msg, .lbl-ql-state { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; margin: 0; padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; line-height: 1.35; color: var(--danger-text); background: var(--danger-soft); }
+.lbl-msg::before, .lbl-ql-state::before { content: ""; flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.lbl-msg.is-busy { color: var(--info-text); background: var(--info-soft); }
+.lbl-msg.is-busy::before { animation: lbl-pulse 1s ease-in-out infinite; }
+.lbl-msg.is-ok, .lbl-ql-state.is-ok { color: var(--success-text); background: var(--success-soft); }
+@keyframes lbl-pulse { 50% { opacity: .3; } }
+/* Where Print sends the label (the system dialog, a P15, an installed or network
+   printer) and the button that searches for printers again. */
+.lbl-printer { display: flex; gap: 8px; align-items: center; }
+.lbl-printer .csel { flex: 1; min-width: 0; }
+.lbl-printer .csel .csel-btn { width: 100%; max-width: none; }
+.lbl-printer-search .icon { background-color: currentColor; }
+.lbl-roll-label { flex: 0 0 auto; font-size: 12.5px; color: var(--muted); }
+.lbl-host { flex: 1; min-width: 0; }
+.lbl-printer-search.is-busy .icon { animation: spin .8s linear infinite; }
 .lbl-msg:empty { display: none; }
+/* The P15: its connection state and Connect button; while it is searched, the
+   Bluetooth devices seen, to pick it by hand (main.js select-bluetooth-device). */
+.lbl-p15 { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--muted); }
+.lbl-p15 .icon { background-color: currentColor; }
+.lbl-bt { display: flex; flex-direction: column; gap: 8px; }
+.lbl-bt-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 140px; overflow-y: auto; }
+.lbl-ql { justify-content: space-between; }
+.lbl-ql-state:empty { display: none; }

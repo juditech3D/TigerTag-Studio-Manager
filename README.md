@@ -1,8 +1,18 @@
-> ⚠️ **Unofficial fork.** This repository is a personal fork of Tiger Studio Manager. It is neither published, maintained nor supported by the TigerTag Project, so please do not contact them about it.
+> [!CAUTION]
+> **Unofficial personal fork. This is not the official Tiger Studio Manager.**
+>
+> - Tiger Studio Fork and the Tiger Multi-tools firmware for the TigerScale are personal, unofficial versions. They are neither published nor supported by the TigerTag / Tiger Studio team.
+> - I use them to try ideas for my own needs, then suggest some features to the official team. Those features will not necessarily make it into the official version. This fork does not try to replace it.
+> - The official team is not responsible for any problem this fork may cause: please do not contact them about it. If something goes wrong, come to me: [open an issue here](https://github.com/juditech3D/TigerTag-Studio-Manager/issues).
+> - You use it at your own risk. I accept no liability for any problem with these versions.
+>
+> Looking for the official app? It is here: [Tiger Studio Manager](https://github.com/TigerTag-Project/TigerTag-Studio-Manager).
 
 <div align="center">
 
-# Tiger Studio Manager 2
+# Tiger Studio Fork
+
+**Unofficial personal fork of Tiger Studio Manager 2**
 
 <img src="assets/img/icon.png" width="140" alt="Tiger Studio Manager" />
 
@@ -11,40 +21,8 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 <br>
 
-<p align="center">
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/">
-    <img src="assets/svg/site-button.svg" alt="Visit the Tiger Studio Manager site" width="420">
-  </a>
-</p>
+<p align="center"><sub>The official Tiger Studio Manager site (not this fork): <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/">tigertag-project.github.io/TigerTag-Studio-Manager</a></sub></p>
 
-<p align="center">
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/" hreflang="en">English</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/fr/" hreflang="fr">Français</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/de/" hreflang="de">Deutsch</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/es/" hreflang="es">Español</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/it/" hreflang="it">Italiano</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/zh/" hreflang="zh-Hans">中文</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pt/" hreflang="pt-BR">Português (BR)</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pt-pt/" hreflang="pt-PT">Português (PT)</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/pl/" hreflang="pl">Polski</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/ru/" hreflang="ru">Русский</a>
-  &nbsp;&middot;&nbsp;
-  <a href="https://tigertag-project.github.io/TigerTag-Studio-Manager/nl/" hreflang="nl">Nederlands</a>
-</p>
-
-<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
-  <img src="assets/svg/download_macos.svg" width="420" height="68" alt="Download for macOS">
-</a>
-<br>
 <a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_windows.svg" width="420" height="68" alt="Download for Windows">
 </a>
@@ -57,7 +35,7 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 
 [![Latest release](https://img.shields.io/github/v/release/juditech3D/TigerTag-Studio-Manager?label=Latest&color=FF6B00)](https://github.com/juditech3D/TigerTag-Studio-Manager/releases/latest)
 
-*Intel + Apple Silicon · This fork's macOS build is not signed by Apple: see [Opening the app on macOS](#opening-the-app-on-macos--ouvrir-lapplication-sur-macos) · No installation knowledge required.*
+*This fork's builds: Windows, Linux and macOS (Intel + Apple Silicon) · Neither the Windows installer nor the Mac app is signed: see [Opening the app on macOS](#opening-the-app-on-macos--ouvrir-lapplication-sur-macos).*
 
 <br>
 
@@ -259,6 +237,8 @@ The **TigerTag SDK** is the low-level library that handles all NFC chip operatio
 - **Spools that keep themselves current** *(new in 2.16.0)* — when a brand corrects a temperature, a diameter or a colour name, the spools you own follow along on their own. Only a TigerTag+ can ever ask you for anything, and only when the change concerns something written on the chip itself
 - **Filters written in the search bar** *(new in 2.59.0)* — brand, material, aspect, type, tag, list, weight, rack: click the bar or type a field name and each filter becomes a chip you combine
 - **Find a catalogue product by colour** *(new in 2.59.0)* — a HEX code, a RAL colour (in your own language) or a point of a photo; the closest products come first, with their ΔE on each picture
+- **Find your own spools by colour** *(new in 2.60.0)* — the same colour button in your inventory's search bar: the closest spools first, the rest hidden
+- **Only the brands you follow** *(new in 2.60.0)* — the catalogue shows the makers you picked, and sorts a series' colours side by side
 - **Photos framed in the spool's colour** *(new in 2.30.0)* — every spool photo sits in a frame of its own colour, in the grid, the lists, the catalogue and the details, so you spot the red one at a glance
 - Custom product image for DIY & Cloud spools
 - Manufacturing date, twin-tag detection and manual repair — chips written as a twin say so ("chip 1 of 2"), and the app asks for the second chip when only one has been scanned
