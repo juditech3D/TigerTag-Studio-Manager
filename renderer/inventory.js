@@ -39685,12 +39685,27 @@ import { initScreenTools } from './ai/screen-tools.js';
     /* And it is the NEWCOMER that gives way. Pushing the other machine's card
        down to make room moved a printer nobody touched (#42); the widget just
        placed steps down past whatever of another machine it landed on, to the
-       first gap in its own column, and its own followers go down with it. */
+       first gap in its own column, and its own followers go down with it.
+       A GROUP the user made is one block: a gap between its members is not a
+       free place for another machine's widget, so the whole group's outline is
+       in the way, not only the boxes in it. */
+    const groups = new Map();
+    for (const b of all) {
+      const cid = clusterOf(b.id);
+      if (!cid) continue;
+      const g = groups.get(cid);
+      if (!g) { groups.set(cid, { x: b.x, y: b.y, r: b.x + b.w, bt: b.y + b.h, owners: new Set([ownerOf(b)]) }); continue; }
+      g.x = Math.min(g.x, b.x); g.y = Math.min(g.y, b.y);
+      g.r = Math.max(g.r, b.x + b.w); g.bt = Math.max(g.bt, b.y + b.h); g.owners.add(ownerOf(b));
+    }
+    const blocks = [...groups.values()]
+      .map(g => ({ x: g.x, y: g.y, w: g.r - g.x, h: g.bt - g.y, owners: g.owners }));
     const sorted = all.slice().sort((u, v) => u.y - v.y);
     for (const a of sorted) {
       if (!isWidget(a) || !autoPlaced.has(a.id) || _boardHeld.has(a.id)) continue;
       for (let step = 0; step < 40; step++) {
-        const b = all.find(o => o !== a && ownerOf(o) !== ownerOf(a) && overlaps(a, o));
+        const b = all.find(o => o !== a && ownerOf(o) !== ownerOf(a) && overlaps(a, o))
+               || blocks.find(g => !g.owners.has(ownerOf(a)) && overlaps(a, g));
         if (!b) break;
         a.y = Math.round(b.y + b.h + PAD); moved.add(a.id);
       }
