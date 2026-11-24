@@ -73,6 +73,41 @@
   container units), where each values line sits where it prints as a highlighted choice
   showing the value it prints for this spool. `renderer/labels/index.js` (`giant`, `slotSel`, `fakeQr`),
   `renderer/labels/labels.css` (`.lbl-giant*`).
+- Detached camera wall: while its window is open, the main window's wall shows a notice
+  ("The camera wall is open in its own window") with a "Bring the wall back" key instead of a
+  second copy of every feed; closing the detached window, or that key, brings the wall back.
+  While it is open the main window receives no camera frames (`_camToSender` in `main.js`) and
+  closes its own Creality sessions, so each feed is carried once.
+  `main.js` (`cam:close-detached`, `cam:detached-closed`), `preload.js` (`closeCamWindow`,
+  `onCamWindowClosed`), `renderer/inventory.js` (`_camDetached`). i18n: `camWallDetachedTitle`,
+  `camWallDetachedSub`, `camWallReattach`.
+- Detached camera wall window: the same keys as the main wall. Each card's head has a key that
+  stops that camera, a stopped card shows a play key that brings it back, and the titlebar has
+  "Stop all cameras" / "Show all cameras". A stopped Creality or external camera closes its own
+  connection; a feed the main window relays (Bambu Lab, FlashForge, Anycubic) is no longer drawn.
+  `renderer/cam/cam.js` (`_off`, `setOff`, `startFeed`, `stopFeed`, `stopExt`),
+  `renderer/cam/cam.html`, `renderer/cam/cam.css`.
+- Printers board and camera wall: the Arrange / zoom / "Stop all cameras" bar has its own row
+  above the plan instead of floating over it, so it no longer covers the top of a card (on a
+  window narrow enough for the top row to reach the right edge, it sat on a camera feed).
+  `renderer/css/40-printers.css` (`.pv-plan-bar`).
+- Fixed: "Show all cameras" after "Stop all cameras" did not restart Bambu Lab feeds — the cards
+  kept the last frame as if live and the detached window stayed on its loading dots.
+  `bambuStopCam` now forgets the last frame, so the next start opens the stream again
+  (`renderer/printers/bambulab/index.js`).
+- Camera wall: it is fitted again whenever a card changes size (a stream arriving), through a
+  ResizeObserver, and the "does it fit" test uses the cards without the padding, so a wall that
+  fits never scrolls (`_fitCamWall`, `_watchCamWall` in `renderer/inventory.js`).
+- Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
+  Cut, every card keeps its place and size on a placeholder carrying its own play key, which
+  brings that one camera back while the others stay cut (clicking elsewhere on the card still
+  opens the printer); a live card's head has a key that cuts that camera alone, and the streams only
+  the wall was holding are closed (session-only). The wall is sized to its cards outside
+  Arrange, and its scroller is locked when they all fit, so the wheel no longer slides the
+  cameras under the bar; the Printers board is locked the same way when every machine fits
+  (outside Arrange). `renderer/inventory.js` (`_camWallCut`, `_camWallStopAll`,
+  `_camWallPlayAll`, `_layoutCamWall`, `layoutPrintersPlan`, `#cwCamPlayAll`, `#cwCamStopAll`). i18n: reuses
+  `boardCamPlayAll`, `boardCamStopAll`; adds `camWallStopOne`.
 - Printers board: a "Show all cameras" key plays every camera that can be shown (as if each
   play key were pressed, external camera cards included), shown while one is not playing; a
   "Stop all cameras" key, shown while a feed is
