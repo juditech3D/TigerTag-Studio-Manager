@@ -63,6 +63,12 @@
   `main.js` (`cam:close-detached`, `cam:detached-closed`), `preload.js` (`closeCamWindow`,
   `onCamWindowClosed`), `renderer/inventory.js` (`_camDetached`). i18n: `camWallDetachedTitle`,
   `camWallDetachedSub`, `camWallReattach`.
+- Detached camera wall window: the same keys as the main wall. Each card's head has a key that
+  stops that camera, a stopped card shows a play key that brings it back, and the titlebar has
+  "Stop all cameras" / "Show all cameras". A stopped Creality or external camera closes its own
+  connection; a feed the main window relays (Bambu Lab, FlashForge, Anycubic) is no longer drawn.
+  `renderer/cam/cam.js` (`_off`, `setOff`, `startFeed`, `stopFeed`, `stopExt`),
+  `renderer/cam/cam.html`, `renderer/cam/cam.css`.
 - Printers board and camera wall: the Arrange / zoom / "Stop all cameras" bar has its own row
   above the plan instead of floating over it, so it no longer covers the top of a card (on a
   window narrow enough for the top row to reach the right edge, it sat on a camera feed).
