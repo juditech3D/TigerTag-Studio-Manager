@@ -1,0 +1,72 @@
+/* fork-report/fork-report.css — the fork's "Something wrong?" bubble and its card
+   (fork-report.js). Bottom right, above the page, below modals. */
+
+.fr-bubble {
+  position: fixed; right: 18px; bottom: 18px; z-index: 105;
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 42px; padding: 0 16px 0 12px; border: none; border-radius: 999px;
+  background: var(--primary); color: var(--on-accent);
+  font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--primary) 45%, transparent);
+  transition: background .15s, transform .15s;
+}
+.fr-bubble.fr-bubble { height: 42px; }
+.fr-bubble:hover { background: var(--primary-hover); transform: translateY(-1px); }
+.fr-bubble svg { width: 20px; aspect-ratio: 1; flex-shrink: 0; }
+
+.fr-card {
+  position: fixed; right: 18px; bottom: 72px; z-index: 105;
+  width: 320px; max-width: calc(100vw - 36px);
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border); border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.28);
+  opacity: 0; transform: translateY(8px) scale(.98); transform-origin: bottom right;
+  transition: opacity .16s, transform .18s cubic-bezier(.34,1.3,.6,1);
+}
+.fr-card.open { opacity: 1; transform: none; }
+.fr-card[hidden] { display: none; }
+
+.fr-form { padding: 14px; display: flex; flex-direction: column; gap: 9px; font-size: 12.5px; }
+.fr-head { display: flex; align-items: center; justify-content: space-between; }
+.fr-title { font-size: 14px; }
+.fr-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 4px; }
+.fr-x:hover { color: var(--text); }
+
+.fr-text, .fr-name {
+  width: 100%; box-sizing: border-box; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+}
+.fr-text { resize: vertical; min-height: 76px; }
+.fr-text:focus, .fr-name:focus { outline: none; border-color: var(--primary); }
+
+.fr-shot { display: flex; align-items: center; gap: 8px; }
+.fr-shot-img { display: none; width: 64px; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.fr-shot-drop { display: none; }
+.fr-shot.has-shot .fr-shot-img, .fr-shot.has-shot .fr-shot-drop { display: block; }
+.fr-btn {
+  background: none; border: 1px solid var(--border); color: var(--text); border-radius: 8px;
+  padding: 6px 9px; font: inherit; font-size: 11.5px; cursor: pointer;
+}
+.fr-btn:hover { border-color: var(--primary); }
+
+.fr-auto { margin: 0; padding: 7px 9px; border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+.fr-status { margin: 0; min-height: 0; font-size: 11.5px; color: var(--muted); }
+.fr-status:empty { display: none; }
+.fr-status--err { color: var(--danger); }
+
+.fr-send {
+  border: none; border-radius: 9px; padding: 9px; cursor: pointer;
+  background: var(--primary); color: var(--on-accent); font: inherit; font-weight: 700;
+}
+.fr-send:hover { background: var(--primary-hover); }
+.fr-send:disabled { opacity: .6; cursor: default; }
+
+.fr-sent { display: none; padding: 22px 16px; text-align: center; }
+.fr-card.sent .fr-form { display: none; }
+.fr-card.sent .fr-sent { display: block; animation: fr-pop .3s cubic-bezier(.34,1.45,.6,1); }
+.fr-check {
+  display: grid; place-items: center; width: 42px; aspect-ratio: 1; margin: 0 auto 8px;
+  border-radius: 50%; background: var(--success); color: var(--on-accent); font-size: 22px; font-weight: 800;
+}
+.fr-sent p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+@keyframes fr-pop { from { transform: scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }

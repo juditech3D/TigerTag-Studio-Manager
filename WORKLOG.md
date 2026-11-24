@@ -31,6 +31,39 @@
 
 ### Added
 
+- A "Something wrong?" bubble at the bottom right of the desktop app: a small card to describe a
+  problem, give a Discord name (remembered on the device), attach a capture of the window (card and
+  bubble hidden), and send it straight to the fork's Discord channel through a webhook, with the app
+  version, the system (macOS version + Apple chip / Intel) and the last 40 lines of `main.log` scrubbed of
+  e-mails, IPs and long keys; in a Discord forum channel each report becomes its own post titled with
+  its first line (a text channel works too: a 400 on `thread_name` is retried without it); mentions disabled, one send per 20 s, text kept on a failure. Reports about
+  the fork never go to the official tracker (`renderer/report`). The webhook comes from the build secret
+  `FORK_DISCORD_WEBHOOK`, written into the packed, gitignored `fork-config.json` by
+  `scripts/gen-fork-config.mjs` (run by every `build:*` script); without it the bubble is not shown.
+  `main.js` (IPC `forkReport:available`, `forkReport:send`), `preload.js` (`forkReport`),
+  `renderer/fork-report/fork-report.js` + `.css`, `renderer/inventory.html`, `renderer/inventory.js`
+  (`initForkReport`), `package.json`, `.gitignore`, both workflows. i18n: `forkReportBubble`,
+  `forkReportTitle`, `forkReportClose`, `forkReportPlaceholder`, `forkReportName`, `forkReportCapture`,
+  `forkReportRecapture`, `forkReportRemove`, `forkReportAuto`, `forkReportSend`, `forkReportSending`,
+  `forkReportEmpty`, `forkReportFailed`, `forkReportTooSoon`, `forkReportSent`, `forkReportSentSub`
+  (11 locales).
+- A macOS build (Apple Silicon `mac-arm64` + Intel `mac-x64`, `.dmg` + `.zip`) in every release. It is
+  signed ad-hoc (`build.mac.identity: "-"`, no hardened runtime, no notarization: the fork holds no
+  Apple Developer ID), which Apple Silicon needs to start it at all; Gatekeeper still asks the user to
+  allow it once. The app's Info.plist carries `NSLocalNetworkUsageDescription` (`build.mac.extendInfo`), so
+  macOS 15+ asks for Local Network access with a reason instead of the scale, TigerPOD and printers
+  waiting forever (first Mac tester, 2026-11-22); README tells users where to turn it back on. `latest-mac.yml` is deliberately left out of the release: Squirrel.Mac only installs an
+  update signed by the same Developer ID, so Mac users download each new `.dmg` by hand. README
+  "Opening the app on macOS / Ouvrir l'application sur macOS" gives the end-user steps in French and
+  English (Open Anyway on Sequoia+, right-click → Open on Sonoma and older, `xattr -cr` for "damaged");
+  the next fork release note must carry the same steps and drop "Windows and Linux only" from its
+  Known limitations. `package.json` (`build.mac`, script `build:mac:fork`),
+  `.github/workflows/build.yml` (mac matrix entry, Apple signing steps removed, ad-hoc signature check,
+  draft upload without `latest-mac.yml`, publish check for both `.dmg`), `.github/workflows/test-build.yml`
+  (mac test build uses `build:mac:fork`; on a manual run with `mac_prerelease` it also publishes the two `.dmg` as a
+  `mac-test-<run>` pre-release for testers without a GitHub account, app renamed "Tiger Studio Fork" with its
+  own bundle id so it installs next to the official app; not semver, never latest, no `latest*.yml`, so no
+  updater can pick it up), `README.md`.
 - Label card: a "Sheet" choice for the system print dialog and installed printers — the
   label's own size (default), A4 with the label in the top-left corner, or A4 on a full
   sheet's grid centred on the page (the label in its top-left place) — remembered per printer, for drivers that know no page but A4 and printed the

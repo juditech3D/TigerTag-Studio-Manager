@@ -446,6 +446,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppInfo:      () => ipcRenderer.invoke('app:info'),
   // Screenshot of this window for the in-app bug report (JPEG data URL or null).
   captureWindow:   () => ipcRenderer.invoke('report:capture'),
+  // Fork: the "Something wrong?" bubble → the fork's Discord channel (main.js forkReport:*).
+  forkReport: {
+    available: () => ipcRenderer.invoke('forkReport:available'),
+    send: (payload) => ipcRenderer.invoke('forkReport:send', payload),
+  },
   // Open a URL in the default system application (e.g. VLC for rtsp://).
   openExternal: (url) => ipcRenderer.send('shell:open-external', url),
 
