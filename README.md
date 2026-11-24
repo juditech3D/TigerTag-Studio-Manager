@@ -30,6 +30,10 @@ Manage your spool inventory, connect your 3D printers, and keep everything in sy
 <a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
   <img src="assets/svg/download_linux.svg" width="420" height="68" alt="Download for Linux">
 </a>
+<br>
+<a href="https://github.com/juditech3D/TigerTag-Studio-Manager/releases">
+  <img src="assets/svg/download_macos.svg" width="420" height="68" alt="Download for macOS">
+</a>
 
 <br><br>
 
