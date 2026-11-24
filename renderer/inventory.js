@@ -14437,7 +14437,24 @@ import { initScreenTools } from './ai/screen-tools.js';
   }
   // Detach (top, cam view) → pop the camera wall into its own window.
   $("camWallDetachTop")?.addEventListener("click", () => {
-    try { window.electronAPI?.openCamWindow(_serializeCamerasForDetach()); } catch (_) {}
+    try {
+      Promise.resolve(window.electronAPI?.openCamWindow(_serializeCamerasForDetach()))
+        .then(() => {
+          _camDetached = true;
+          /* The detached window runs its own Creality sessions: close the main
+             window's, which nothing shows now (the wall reopens them when it comes back). */
+          for (const p of state.printers || []) {
+            if (p.brand === "creality" && p.ip) { try { stopCreCam(p.ip); } catch (_) {} }
+          }
+          renderPrintersView(true);
+        })
+        .catch(() => {});
+    } catch (_) {}
+  });
+  window.electronAPI?.onCamWindowClosed?.(() => {
+    if (!_camDetached) return;
+    _camDetached = false;
+    renderPrintersView(true);
   });
   $("btnViewTable").addEventListener("click", () => setViewMode("table"));
   $("btnViewGrid").addEventListener("click",  () => setViewMode("grid"));
@@ -29818,6 +29835,10 @@ import { initScreenTools } from './ai/screen-tools.js';
      and the streams the wall alone was holding are closed. Session-only, like
      the board's: reopening Studio shows the wall live again. */
   let _camWallCut = false;
+  /* The wall is shown in its own window ("Detach"): the main window shows a notice
+     with a key to bring it back instead of a second copy of every feed. The
+     connections keep running — the detached window draws the frames they produce. */
+  let _camDetached = false;
   function _camWallStopAll() {
     _camWallCut = true;
     const keep = _activePrinter ? _printerKey(_activePrinter) : null;
@@ -30988,6 +31009,26 @@ import { initScreenTools } from './ai/screen-tools.js';
     const _cutHtml = `<div class="cam-wall-offline cam-wall-cut"><span class="icon icon-eye-off icon-24"></span></div>`;
     if (_camWallCut) _camHtmlMap.forEach((_, k) => _camHtmlMap.set(k, _cutHtml));
     const _wallPrinters = [..._onlinePrinters, ..._offlinePlaced];
+
+    // ── Step 1b: The wall is in its own window → a notice and a key to bring it back
+    if (_camDetached) {
+      host.innerHTML = `
+        <div class="printers-empty-card cam-wall-detached">
+          <span class="icon icon-eye-off icon-32"></span>
+          <div class="printers-empty-title">${esc(t("camWallDetachedTitle"))}</div>
+          <div class="printers-empty-sub">${esc(t("camWallDetachedSub"))}</div>
+          <button type="button" class="rv-plan-btn" id="cwReattach">
+            <span class="icon icon-eye-on icon-14"></span>
+            <span>${esc(t("camWallReattach"))}</span>
+          </button>
+        </div>`;
+      host.querySelector("#cwReattach")?.addEventListener("click", () => {
+        Promise.resolve(window.electronAPI?.closeCamWindow?.()).catch(() => {});
+        _camDetached = false;
+        renderPrintersView(true);
+      });
+      return;
+    }
 
     // ── Step 2: Empty state ────────────────────────────────────────────────────
     if (!_wallPrinters.length) {

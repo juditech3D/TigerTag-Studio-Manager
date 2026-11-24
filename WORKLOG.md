@@ -55,6 +55,18 @@
   keyboard zoom listener, `wirePrinterZoom`, the camera wall and storage plan wheel handlers),
   `renderer/css/30-racks.css` (`.rp-racks-scroll`), `renderer/css/40-printers.css`
   (`.printers-scroll`).
+- Detached camera wall: while its window is open, the main window's wall shows a notice
+  ("The camera wall is open in its own window") with a "Bring the wall back" key instead of a
+  second copy of every feed; closing the detached window, or that key, brings the wall back.
+  While it is open the main window receives no camera frames (`_camToSender` in `main.js`) and
+  closes its own Creality sessions, so each feed is carried once.
+  `main.js` (`cam:close-detached`, `cam:detached-closed`), `preload.js` (`closeCamWindow`,
+  `onCamWindowClosed`), `renderer/inventory.js` (`_camDetached`). i18n: `camWallDetachedTitle`,
+  `camWallDetachedSub`, `camWallReattach`.
+- Fixed: "Show all cameras" after "Stop all cameras" did not restart Bambu Lab feeds — the cards
+  kept the last frame as if live and the detached window stayed on its loading dots.
+  `bambuStopCam` now forgets the last frame, so the next start opens the stream again
+  (`renderer/printers/bambulab/index.js`).
 - Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
   Cut, every card keeps its place and size on the eye-off placeholder and the streams only
   the wall was holding are closed (session-only). The wall is sized to its cards outside
