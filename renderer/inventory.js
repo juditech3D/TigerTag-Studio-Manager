@@ -31573,7 +31573,7 @@ import { initScreenTools } from './ai/screen-tools.js';
      after every layout, and again whenever a card changes size on its own (a
      stream arriving swaps the placeholder for a 16:9 picture): a size measured
      before that left the wall taller than its cards, so the wheel still slid
-     them under the bar although every camera was on screen. */
+     them away although every camera was on screen. */
   function _fitCamWall(container, right, bottom) {
     if (right == null) {
       right = bottom = 0;
@@ -31589,7 +31589,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     container.style.minHeight = _camArrange ? "" : "0";
     container.style.transform = `scale(${_camZoom})`;
     /* Nothing past the edges, nothing to scroll: the scroller is locked so the
-       wheel cannot slide the wall under the bar (it holds no hidden card). The
+       wheel cannot slide the wall off screen (it holds no hidden card). The
        test is on the cards themselves, not on the margin around them, and a
        locked wall is given exactly the visible area. */
     const sc = container.parentElement;
@@ -32572,7 +32572,7 @@ import { initScreenTools } from './ai/screen-tools.js';
     container.style.minWidth = "";
     /* Every machine on screen and not arranging: nothing to scroll to, so the
        scroller is locked — the empty board past the cards let the wheel carry
-       them under the bar. Arranging keeps the free board to drop onto. */
+       them off screen. Arranging keeps the free board to drop onto. */
     if (box) {
       const fits = !_printerArrange && right * _printerZoom <= availW + 1 && bottom * _printerZoom <= availH + 1;
       box.style.overflow = fits ? "hidden" : "";

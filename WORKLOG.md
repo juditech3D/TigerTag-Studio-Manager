@@ -63,6 +63,10 @@
   `main.js` (`cam:close-detached`, `cam:detached-closed`), `preload.js` (`closeCamWindow`,
   `onCamWindowClosed`), `renderer/inventory.js` (`_camDetached`). i18n: `camWallDetachedTitle`,
   `camWallDetachedSub`, `camWallReattach`.
+- Printers board and camera wall: the Arrange / zoom / "Stop all cameras" bar has its own row
+  above the plan instead of floating over it, so it no longer covers the top of a card (on a
+  window narrow enough for the top row to reach the right edge, it sat on a camera feed).
+  `renderer/css/40-printers.css` (`.pv-plan-bar`).
 - Fixed: "Show all cameras" after "Stop all cameras" did not restart Bambu Lab feeds — the cards
   kept the last frame as if live and the detached window stayed on its loading dots.
   `bambuStopCam` now forgets the last frame, so the next start opens the stream again
