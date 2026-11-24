@@ -75,7 +75,9 @@
   ResizeObserver, and the "does it fit" test uses the cards without the padding, so a wall that
   fits never scrolls (`_fitCamWall`, `_watchCamWall` in `renderer/inventory.js`).
 - Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
-  Cut, every card keeps its place and size on the eye-off placeholder and the streams only
+  Cut, every card keeps its place and size on a placeholder carrying its own play key, which
+  brings that one camera back while the others stay cut (clicking elsewhere on the card still
+  opens the printer), and the streams only
   the wall was holding are closed (session-only). The wall is sized to its cards outside
   Arrange, and its scroller is locked when they all fit, so the wheel no longer slides the
   cameras under the bar; the Printers board is locked the same way when every machine fits
