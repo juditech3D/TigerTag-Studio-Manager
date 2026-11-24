@@ -10,6 +10,7 @@
 
 ## Fixed
 
+- Printers board (#42): a widget the layout places automatically (switched on, or its machine's data just arrived) no longer pushes another printer's card or widgets down when it lands on them. The newcomer gives way instead: it steps down past the other machine's things to the first gap in its own column, and its own widgets below follow it. A group is one block: the widget does not land in a gap between a group's members either. Widgets you drop yourself are unchanged (an overlap is still drawn in red, never refused). File: `renderer/inventory.js` (`_planSettleColumns`).
 - Tiger Scale / Tiger Touch live screen: "Screenshot" opened its window BEHIND the live view (both overlays at the same level, the live one added to the page later). `showScreenshot` now moves its overlay to the end of the page before opening it, so it stands above whichever window asked. File: `renderer/IoT/tigertouch/panel.js`.
 
 - Search bar: the filter's field list (and the bar's other lists) no longer shows above a side card opened over the bar (Report, etc.) — the bar's lists stand at z-index 100, under the side cards (101+), instead of the shared dropdown's 600. File: `renderer/css/70-detail-misc.css`.
@@ -26,6 +27,7 @@
 ## Fork additions (kept on top of upstream v2.61.0)
 
 - Upstream v2.61.0 merged in (with the camera wall from fork main). The fork's Screenshot fix (close the scale's live view first) kept next to upstream's #335 (screenshot overlay moved to the end of the page). Version 2.61.0-fork.1 (not released).
+- Brought in from the fork's upstream proposal branches: printers board widgets give way when placed automatically (#42); the P15 is offered only formats that fit its 30 mm labels; no values drawing for a format with no values; a PDF follows the Sheet choice (A4 or the label's size) and a printed or saved document is titled after its file name. `renderer/inventory.js`, `renderer/labels/index.js`, `main.js`, `docs/LABEL-PRINTERS.md`.
 
 ### Added
 
