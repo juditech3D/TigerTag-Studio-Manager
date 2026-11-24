@@ -95,6 +95,18 @@ const targetable = kind => kind && kind !== "catalog" && kind !== "brand";
 // A product's artwork, tinted (resolved against report.css, where var() is used);
 // `icon` is relative to assets/svg/icons/.
 const targetIco = x => `<span class="rep-target-ico" style="--ico:url('../../assets/svg/icons/${x.icon}')"></span>`;
+// Where a request landed: a product of TARGETS, from the backend's own `target` when it
+// sends one, else from the repository in the issue's link. A repository we do not know is
+// shown under its own name (and can only be found by the search).
+const REPO_TARGET = { "tigertag-studio-manager": "studio", "tiger-touch": "tigertouch", "tigerpod": "tigerpod", "tiger-scale-v3": "tigerscale", "tigerspool-rfid": "tigerspool", "tigertag_rfid_connect": "mobile" };
+function repoOf(r) {
+  const own = TARGETS.find(x => x.id === r?.target);
+  if (own) return { id: own.id, label: own.label };
+  const m = /^https:\/\/github\.com\/[^/]+\/([^/]+)\/issues\//.exec(r?.url || "");
+  if (!m) return null;
+  const known = TARGETS.find(x => x.id === REPO_TARGET[m[1].toLowerCase()]);
+  return known ? { id: known.id, label: known.label } : { id: `repo:${m[1]}`, label: m[1] };
+}
 const MAX_IMAGES = 5;          // images + PDFs + JSON files together
 const MAX_PDF_BYTES = 5 * 1024 * 1024;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
@@ -111,7 +123,12 @@ let _closeAsk = null;    // report id whose close is awaiting confirmation
 let _lastScreen = null;  // last screen painted — a change slides the new one in
 // The conversation open in "My requests" / "All requests": { id, team, data, loading, error, text, images, sending, err }.
 let _thread = null;
-let _all = { list: null, loading: false, error: false, open: true };   // "All requests" (TigerMasters)
+let _all = { list: null, loading: false, error: false };   // "All requests" (TigerMasters)
+// Search + filters of the two request lists (status "open" = open and in progress; "" = any).
+const _fltAll  = { q: "", status: "open", repo: "", kind: "" };   // every member's requests: the open ones, as before
+const _fltMine = { q: "", status: "",     repo: "", kind: "" };   // the user's own: all of them, as before
+let _menu = null;   // the filter menu open: "status" | "repo" | "kind"
+const _flt = () => (_view === "all" ? _fltAll : _fltMine);
 // A requests tab opened again within this keeps the list it shows (no server call).
 const TAB_FRESH_MS = 20e3;
 let _resolveAsk = null;  // "done" | "declined" awaiting its confirmation in the open conversation
@@ -123,7 +140,9 @@ export function initReport(c) {
   // Team replies and status changes are read from GitHub on demand: at sign-in, when
   // "My requests" opens, and every WATCH_MS while a request is still open.
   setInterval(() => {
-    if (document.visibilityState === "visible" && (_mine.list || []).some(r => CLOSABLE.has(r.status))) syncReports().catch(() => {});
+    if (document.visibilityState !== "visible") return;
+    if ((_mine.list || []).some(r => CLOSABLE.has(r.status))) syncReports().catch(() => {});
+    if (ctx.isTeam?.()) syncAll().catch(() => {});   // the team: an author may have written on an open request
   }, WATCH_MS);
 }
 
@@ -321,6 +340,9 @@ function _ensureCard() {
   _overlay.addEventListener("click", onClick);
   _overlay.addEventListener("input", onInput);
   _overlay.addEventListener("change", onInput);
+  // A click anywhere but the menu (or its chip) closes the open filter menu: the menu alone is
+  // removed, so a click on the search field keeps its focus.
+  document.addEventListener("click", e => { if (_menu && !e.target.closest('.rep-fmenu, [data-rep="fchip"]')) closeMenu(); });
   _overlay.addEventListener("dragover", e => { e.preventDefault(); });
   _overlay.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); reportDragState(false); reportDropFiles(e.dataTransfer?.files); });
   // The drop overlay (shown while files are dragged over the window).
@@ -411,6 +433,85 @@ function _checkReplies() {
   if (shown.length) _showAlert(shown);
 }
 
+// ── The team: the author wrote on an open request ────────────────────────────
+// "All requests" is watched like "My requests" is for the user: a notice when the AUTHOR of an
+// open request wrote something. The server's numbers cannot say who wrote (`comments` = every
+// comment, `replies` = the team's), so a rise in the others' count is checked in the conversation
+// itself, where each comment says whether it comes from the reporter, the team or another member.
+// A notice stays in the notification centre like a "new request" one: unread until the centre is
+// opened, then read, and kept (30 days, 30 of them) — on this computer, per account.
+const TEAM_SEEN_KEY = uid => `tigertag.reportTeamSeen.${uid}`;
+const TEAM_NOTIFS_KEY = uid => `tigertag.reportTeamNotifs.${uid}`;
+const TEAM_NOTIFS_KEEP = { max: 30, ms: 30 * 24 * 3600e3 };
+const _authorNotifId = id => `req-author-${id}`;
+const _others = r => Math.max(0, (Number(r.comments) || 0) - (Number(r.replies) || 0));
+function _loadTeamSeen(uid) {
+  try { return JSON.parse(localStorage.getItem(TEAM_SEEN_KEY(uid)) || "{}") || {}; } catch (_) { return {}; }
+}
+function _saveTeamSeen(uid, map) {
+  try { localStorage.setItem(TEAM_SEEN_KEY(uid), JSON.stringify(map)); } catch (_) {}
+}
+// The notices kept for an account: { reportId, number, title, at (the author's message), seenAt (when Studio noticed), read }.
+function _loadTeamNotifs(uid) {
+  try { const l = JSON.parse(localStorage.getItem(TEAM_NOTIFS_KEY(uid)) || "[]"); return Array.isArray(l) ? l : []; } catch (_) { return []; }
+}
+function _saveTeamNotifs(uid, list) {
+  const now = Date.now();
+  const kept = list.filter(e => now - (Number(e.seenAt) || now) < TEAM_NOTIFS_KEEP.ms)
+    .sort((a, b) => (Number(b.seenAt) || 0) - (Number(a.seenAt) || 0)).slice(0, TEAM_NOTIFS_KEEP.max);
+  try { localStorage.setItem(TEAM_NOTIFS_KEY(uid), JSON.stringify(kept)); } catch (_) {}
+}
+/** Put one kept notice in the centre. `quiet`: an old one coming back, no chime. */
+function _raiseTeamNotif(e, quiet) {
+  if (!quiet) ctx.clearNotif?.(_authorNotifId(e.reportId));   // a new message on a request that already had a notice: it chimes again
+  ctx.notifyReply?.({ id: _authorNotifId(e.reportId), icon: "suggestion", action: "report", at: e.at || e.seenAt, read: !!e.read, quiet: !!quiet,
+    title: t("notifReqAuthor", { n: e.number }), text: e.title || "" });
+}
+/** The team opened this request's conversation: what its author wrote is seen. */
+function _markTeamSeen(id) {
+  const uid = ctx.getUid?.(), r = (_all.list || []).find(x => x.id === id);
+  if (!uid || !r) return;
+  _saveTeamSeen(uid, { ..._loadTeamSeen(uid), [id]: _others(r) });
+  const l = _loadTeamNotifs(uid), e = l.find(x => x.reportId === id);
+  if (e && !e.read) { e.read = true; _saveTeamNotifs(uid, l); _raiseTeamNotif(e, true); }
+}
+/** The notification centre was opened: every notice is read (the badge clears, the cards stay). */
+export function markTeamNotifsRead() {
+  const uid = ctx?.getUid?.();
+  if (!uid) return;
+  const l = _loadTeamNotifs(uid);
+  if (l.some(e => !e.read)) _saveTeamNotifs(uid, l.map(e => ({ ...e, read: true })));
+}
+async function _checkAuthorMessages() {
+  const uid = ctx.getUid?.(), list = _all.list;
+  if (!uid || !list || !ctx.isTeam?.()) return;
+  _loadTeamNotifs(uid).forEach(e => _raiseTeamNotif(e, true));   // the kept notices are in the centre (again, after another account used it)
+  const seen = _loadTeamSeen(uid), next = { ...seen }, rising = [];
+  for (const r of list) {
+    if (!r || r.id == null) continue;
+    const n = _others(r);
+    if (!(r.id in next)) { next[r.id] = n; continue; }   // first sighting: a silent baseline (the whole history is not announced)
+    // Mine: "My requests" announces it. Closed: nothing left to answer. Open on screen: being read.
+    if (r.mine || !CLOSABLE.has(r.status) || (_thread?.team && _thread.id === r.id && isReportOpen())) { next[r.id] = n; continue; }
+    if (n > next[r.id]) rising.push(r);
+  }
+  for (const r of rising) {
+    const n = _others(r);
+    let by = false, at = 0;
+    try {
+      const j = await authedPost(MINE_ENDPOINT, { action: "thread", reportId: r.id, as: "team" });
+      const byAuthor = (j.thread?.comments || []).filter(c => c.from !== "team").slice(-(n - next[r.id])).filter(c => c.from === "reporter");
+      by = byAuthor.length > 0; at = by ? byAuthor[byAuthor.length - 1].at : 0;
+    } catch (_) { continue; }   // not read: tried again at the next check
+    next[r.id] = n;   // read: counted, whoever wrote
+    if (!by) continue;   // another member answered a question: not announced
+    const e = { reportId: r.id, number: r.number, title: r.title || "", at, seenAt: Date.now(), read: false };
+    _saveTeamNotifs(uid, [e, ..._loadTeamNotifs(uid).filter(x => x.reportId !== r.id)]);
+    _raiseTeamNotif(e, false);
+  }
+  _saveTeamSeen(uid, next);
+}
+
 // ── Alert window: "your request moved" ───────────────────────────────────────
 // The request art (TigerSquad look: requests are a squad perk) — the icon tile until it exists.
 const ALERT_ART = isLaddered("tigersquad/requests/tiger-request") ? "tigersquad/requests/tiger-request" : null;
@@ -457,8 +558,9 @@ async function openThread(id, { team = false, reply = "", onSent = null } = {}) 
   // `reply` / `onSent`: an answer prepared by an AI assistant (reply_ticket), in the reply box.
   _thread = { id, team, data: null, loading: true, error: false, body: String(reply || ""), images: [], pdfs: [], jsons: [], printerPick: false, sending: false, err: "",
     onSent: typeof onSent === "function" ? onSent : null };
-  _view = team ? "all" : "mine"; _closeAsk = null; _resolveAsk = null;
+  _view = team ? "all" : "mine"; _closeAsk = null; _resolveAsk = null; _menu = null;
   if (!team) _markSeen((_mine.list || []).find(r => r.id === id));
+  if (team) _markTeamSeen(id);   // the author's message is read
   render();
   try { const j = await authedPost(MINE_ENDPOINT, { action: "thread", reportId: id, ...(team && ctx.isTeam?.() ? { as: "team" } : {}) }); if (_thread?.id === id) _thread.data = j.thread; }
   catch (_) { if (_thread?.id === id) _thread.error = true; }
@@ -471,12 +573,17 @@ const _threadActive = () => !!(_thread && isReportOpen() && (_view === "mine" ||
 // ── All requests (every member reads them; the team acts on them) ────────────
 // `maxAge`: a tab opened again within it keeps the list it shows (no call).
 async function syncAll({ maxAge = 0 } = {}) {
-  if (_all.loading || (maxAge && _all.list && Date.now() - (_all.at || 0) < maxAge)) return;
-  _all.loading = true; _all.error = false;
-  try { _all.list = (await authedPost(MINE_ENDPOINT, { action: "all" })).reports || []; _all.at = Date.now(); } catch (_) { _all.error = true; }
+  const uid = ctx.getUid?.() || null;
+  if (_all.uid !== uid) _all = { ..._all, list: null, loading: false, error: false, msgReports: null, at: 0, uid };   // another account: its own list
+  const cur = _all;   // what this call fills: if the account changes meanwhile, the new one has its own
+  if (cur.loading || (maxAge && cur.list && Date.now() - (cur.at || 0) < maxAge)) return;
+  cur.loading = true; cur.error = false;
+  try { cur.list = (await authedPost(MINE_ENDPOINT, { action: "all" })).reports || []; cur.at = Date.now(); } catch (_) { cur.error = true; }
   // The team also sees the TigerCoins envelope messages their recipients reported.
-  if (ctx.isTeam?.()) { try { _all.msgReports = (await authedPost(MINE_ENDPOINT, { action: "messageReports" })).reports || []; } catch (_) { _all.msgReports = null; } }
-  _all.loading = false;
+  if (ctx.isTeam?.()) { try { cur.msgReports = (await authedPost(MINE_ENDPOINT, { action: "messageReports" })).reports || []; } catch (_) { cur.msgReports = null; } }
+  cur.loading = false;
+  if (_all !== cur) return;   // the account changed while reading: this answer is not for the new one
+  if (_all.list) _checkAuthorMessages().catch(() => {});
   // The list also feeds the open count on the "All requests" tab: repaint any list view.
   if (isReportOpen() && !_thread && (_view !== "new" || !kindOf(st?.kind))) render();
 }
@@ -496,27 +603,80 @@ async function resolveThread(outcome) {
 function allHTML() {
   if (_all.loading && !_all.list) return `<div class="rep-mine-empty">${esc(t("reportMineLoading"))}</div>`;
   if (_all.error && !_all.list) return `<div class="rep-mine-empty">${esc(t("reportMineError"))}</div>`;
-  const list = (_all.list || []).filter(r => !_all.open || CLOSABLE.has(r.status));
-  const chipsHtml = `<div class="rep-all-filter">
-    <button type="button" class="rep-chip${_all.open ? " is-on" : ""}" data-rep="allFilter" data-open="1">${esc(t("reportAllOpen"))}</button>
-    <button type="button" class="rep-chip${_all.open ? "" : " is-on"}" data-rep="allFilter" data-open="0">${esc(t("reportAllEverything"))}</button></div>`;
   const hint = ctx.isTeam?.() ? "" : `<div class="rep-hint">${esc(t("reportAllHint"))}</div>`;
-  const chips = chipsHtml + msgReportsHTML();
-  if (!list.length) return `${chips}<div class="rep-mine-empty">${esc(t("reportAllEmpty"))}</div>${hint}`;
-  return `${chips}<div class="rep-mine">${list.map(r => {
+  return `${filtersHTML(_all.list || [])}${msgReportsHTML()}<div id="repRows">${allRowsHTML()}</div>${hint}`;
+}
+function allRowsHTML() {
+  const list = (_all.list || []).filter(r => matchFilters(r, _fltAll));
+  if (!list.length) return emptyHTML(_fltAll, "reportAllEmpty");
+  return `<div class="rep-mine">${list.map(r => {
     const k = kindOf(r.kind) || KINDS[0], sdef = STATUS[r.status] || STATUS.open;
-    const sub = [r.number ? `#${r.number}` : null, r.createdAt ? ctx.timeAgo(r.createdAt) : null,
-                 r.replies ? t("reportMineComments", { n: r.replies }) : null, r.mine ? t("reportAllYours") : null].filter(Boolean).join(" · ");
+    const sub = subHTML(r, [r.replies ? t("reportMineComments", { n: r.replies }) : null, r.mine ? t("reportAllYours") : null]);
     return `
       <div class="rep-mine-row${CLOSABLE.has(r.status) ? "" : " is-final"}" style="--kc:${k.c}">
         <span class="rep-kind-ico"><span class="icon icon-${k.icon} icon-14"></span></span>
         <button type="button" class="rep-mine-main" data-rep="allThread" data-id="${esc(r.id)}"${r.number ? "" : " disabled"} aria-label="${esc(t("reportMineOpenThread"))}">
           <div class="rep-mine-title">${esc(r.title || r.brand?.name || "—")}</div>
-          <div class="rep-mine-sub">${esc(sub)}</div>
+          <div class="rep-mine-sub">${sub}</div>
         </button>
         <span class="rep-status" style="--sc:${sdef.c}">${esc(t(sdef.key))}</span>
       </div>`;
-  }).join("")}</div>${hint}`;
+  }).join("")}</div>`;
+}
+// ── Search + filters, shared by "My requests" and "All requests" ─────────────
+function matchFilters(r, f) {
+  if (f.status === "open" ? !CLOSABLE.has(r.status) : f.status && r.status !== f.status) return false;
+  if (f.kind && r.kind !== f.kind) return false;
+  const repo = repoOf(r);
+  if (f.repo && repo?.id !== f.repo) return false;
+  const q = f.q.trim().toLowerCase();
+  return !q || [r.title, r.brand?.name, r.number ? `#${r.number}` : "", repo?.label].some(s => String(s || "").toLowerCase().includes(q));
+}
+// Nothing searched or filtered beyond the list's own default status.
+const fltIsDefault = f => !f.q.trim() && !f.repo && !f.kind && f.status === (f === _fltAll ? "open" : "");
+// Something is filtering the list (a chip lit, or text): the reset button is there to undo it.
+const fltActive = f => !!(f.q.trim() || f.repo || f.kind || f.status);
+// What an empty list says: the list's own message while its filters are the default ones, else "no match".
+const emptyHTML = (f, ownKey) => `<div class="rep-mine-empty">${esc(t(fltIsDefault(f) ? ownKey : "reportFltNoMatch"))}</div>`;
+// "#53 · 2 h ago · [repository] · …": the repository is a small tag, the other parts plain text.
+function subHTML(r, extra) {
+  const repo = repoOf(r);
+  return [r.number ? esc(`#${r.number}`) : "", r.createdAt ? esc(ctx.timeAgo(r.createdAt)) : "",
+          repo ? `<span class="rep-repo">${esc(repo.label)}</span>` : "", ...extra.filter(Boolean).map(esc)].filter(Boolean).join(" · ");
+}
+// The kinds a repository takes: Studio has them all; every other product only the ones a
+// request can be sent for there (no catalogue fix, no new brand: see KINDS above and `targetable`).
+const kindsFor = repo => KINDS.filter(k => !repo || repo === "studio" || targetable(k.id));
+function filtersHTML(list) {
+  const f = _flt();
+  const repos = new Map();
+  for (const r of list) { const p = repoOf(r); if (p) repos.set(p.id, p); }
+  const rank = id => { const i = TARGETS.findIndex(x => x.id === id); return i < 0 ? 99 : i; };
+  const repoOpts = [...repos.values()].sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label)).map(p => [p.id, p.label]);
+  const groups = {
+    status: [[["", t("reportAllEverything")], ["open", t("reportAllOpen")], ["done", t(STATUS.done.key)], ["declined", t(STATUS.declined.key)], ["cancelled", t(STATUS.cancelled.key)]], t("reportAllEverything")],
+    repo:   [[["", t("reportFltRepoAll")], ...repoOpts], t("reportFltRepo")],
+    kind:   [[["", t("reportFltKindAll")], ...kindsFor(f.repo).map(k => [k.id, t(k.label)])], t("reportFltKind")],
+  };
+  const chip = key => {
+    const [opts, name] = groups[key];
+    const cur = opts.find(o => o[0] === f[key]);
+    const on = f[key] !== "";
+    return `<span class="rep-fwrap">
+      <button type="button" class="rep-chip rep-chip--menu${on ? " is-on" : ""}" data-rep="fchip" data-f="${key}" aria-haspopup="listbox" aria-expanded="${_menu === key}">${esc(cur && (on || key === "status") ? cur[1] : name)}<span class="icon icon-chevron-r icon-12 rep-chip-chev"></span></button>
+      ${_menu === key ? `<div class="rep-fmenu" role="listbox">${opts.map(([v, label]) => `<button type="button" class="rep-fopt${f[key] === v ? " is-on" : ""}" role="option" aria-selected="${f[key] === v}" data-rep="fopt" data-f="${key}" data-v="${esc(v)}">${esc(label)}</button>`).join("")}</div>` : ""}
+    </span>`;
+  };
+  return `
+    <div class="rep-prod-search rep-fsearch"><span class="icon icon-search icon-14"></span>
+      <input id="repQ" class="rep-input" type="text" value="${esc(f.q)}" placeholder="${esc(t("reportSearchPh"))}" aria-label="${esc(t("reportSearchPh"))}" autocomplete="off"></div>
+    <div class="rep-all-filter rep-ftools">${chip("status")}${chip("repo")}${chip("kind")}${fltActive(f) ? `
+      <button type="button" class="rep-chip rep-chip--reset" data-rep="fReset" aria-label="${esc(t("reportFltReset"))}"><span class="icon icon-refresh icon-14"></span></button>` : ""}</div>`;
+}
+// Typing repaints the rows only, so the field keeps its focus.
+function repaintRows() {
+  const box = _overlay?.querySelector("#repRows");
+  if (box) box.innerHTML = _view === "all" ? allRowsHTML() : mineRowsHTML();
 }
 /* TigerCoins messages reported by their recipient (team only, backend myReports
    "messageReports"): the open ones first, each with the text, who sent it to whom,
@@ -603,7 +763,7 @@ function threadHTML() {
     <div class="rep-thread-head" style="--kc:${k.c}">
       <span class="rep-kind-ico"><span class="icon icon-${k.icon} icon-14"></span></span>
       <div class="rep-mine-main"><div class="rep-thread-title" id="repHead">${esc(d?.title || r.title || r.brand?.name || "—")}</div>
-        <div class="rep-mine-sub">${esc([(d?.number || r.number) ? `#${d?.number || r.number}` : "", (d?.createdAt || r.createdAt) ? ctx.timeAgo(d?.createdAt || r.createdAt) : ""].filter(Boolean).join(" · "))}</div></div>
+        <div class="rep-mine-sub">${subHTML({ number: d?.number || r.number, createdAt: d?.createdAt || r.createdAt, url, target: d?.target || r.target }, [])}</div></div>
       <span class="rep-status" style="--sc:${sdef.c}">${esc(t(sdef.key))}</span>
       ${url ? `<button type="button" class="rep-mine-btn" data-rep="link" data-url="${esc(url)}" aria-label="${esc(t("reportOpenIssue"))}"><span class="icon icon-github icon-14"></span></button>` : ""}
     </div>`;
@@ -660,6 +820,7 @@ export async function syncReports({ maxAge = 0 } = {}) {
   if (isReportOpen() && _view === "mine" && !_thread) render();
   try { _mine.list = (await authedPost(MINE_ENDPOINT, { action: "list" })).reports || []; _mine.at = Date.now(); _checkReplies(); }
   catch (_) { _mine.error = true; }
+  if (ctx.isTeam?.() && !_all.list && !_all.loading) syncAll().catch(() => {});   // the team's watch starts with the session, not with the tab
   _mine.loading = false;
   if (isReportOpen() && !_thread) render();
   return _mine.list;
@@ -778,6 +939,7 @@ function onInput(e) {
   else if (el.id === "repBrandName") st.brandName = el.value;
   else if (el.id === "repBrandSite") st.brandSite = el.value;
   else if (el.id === "repProdQ") { st.pq = el.value; searchProducts(); }
+  else if (el.id === "repQ") { _flt().q = el.value; repaintRows(); }
   if (["repTitle", "repBody", "repBrandName", "repBrandSite"].includes(el.id)) syncSend();
 }
 const _validSite = u => { try { const x = new URL(/^https?:\/\//i.test(u) ? u : `https://${u}`); return /\./.test(x.hostname); } catch { return false; } };
@@ -864,6 +1026,11 @@ function showMissing() {
   }
 }
 
+function closeMenu() {
+  _menu = null;
+  _overlay?.querySelectorAll(".rep-fmenu").forEach(m => m.remove());
+  _overlay?.querySelectorAll('[data-rep="fchip"]').forEach(c => c.setAttribute("aria-expanded", "false"));
+}
 function onClick(e) {
   const a = e.target.closest("[data-rep]");
   if (!a) return;
@@ -898,10 +1065,16 @@ function onClick(e) {
   else if (act === "coffee") ctx.openCoffee?.(a);
   else if (act === "squad") ctx.openSquad?.();
   else if (act === "squadWall") (ctx.openSquadBoard ? ctx.openSquadBoard("countries") : ctx.openExternal(a.dataset.url));
-  else if (act === "view") { _view = a.dataset.view; _closeAsk = null; _thread = null; render(); if (_view === "mine") syncReports({ maxAge: TAB_FRESH_MS }); else if (_view === "all") syncAll({ maxAge: TAB_FRESH_MS }); }
+  else if (act === "view") { _view = a.dataset.view; _closeAsk = null; _thread = null; _menu = null; render(); if (_view === "mine") syncReports({ maxAge: TAB_FRESH_MS }); else if (_view === "all") syncAll({ maxAge: TAB_FRESH_MS }); }
   else if (act === "mineThread") openThread(a.dataset.id);
   else if (act === "allThread") openThread(a.dataset.id, { team: true });
-  else if (act === "allFilter") { _all.open = a.dataset.open === "1"; render(); }
+  else if (act === "fchip") { _menu = _menu === a.dataset.f ? null : a.dataset.f; render(); }
+  else if (act === "fReset") { Object.assign(_flt(), { q: "", status: "", repo: "", kind: "" }); _menu = null; render(); }   // every filter off, "Everything" shown
+  else if (act === "fopt") {
+    const f = _flt(); f[a.dataset.f] = a.dataset.v;
+    if (!kindsFor(f.repo).some(k => k.id === f.kind)) f.kind = "";   // the kind chosen does not exist in this repository
+    _menu = null; render();
+  }
   else if (act === "msgRep") resolveMsgReport(a.dataset.id, a.dataset.outcome);
   else if (act === "resolve") { _resolveAsk = a.dataset.outcome; render(); setTimeout(() => { if (_resolveAsk === a.dataset.outcome) { _resolveAsk = null; render(); } }, 4000); }
   else if (act === "resolveYes") resolveThread(a.dataset.outcome);
@@ -1018,14 +1191,18 @@ function squadGateHTML() {
 function mineHTML() {
   if (_mine.loading && !_mine.list) return `<div class="rep-mine-empty">${esc(t("reportMineLoading"))}</div>`;
   if (_mine.error && !_mine.list) return `<div class="rep-mine-empty">${esc(t("reportMineError"))}</div>`;
-  const list = _mine.list || [];
-  if (!list.length) return `<div class="rep-mine-empty">${esc(t("reportMineEmpty"))}</div>`;
+  if (!(_mine.list || []).length) return `<div class="rep-mine-empty">${esc(t("reportMineEmpty"))}</div>`;
+  return `${filtersHTML(_mine.list)}<div id="repRows">${mineRowsHTML()}</div>
+  <div class="rep-hint">${esc(t("reportMineHint"))}</div>`;
+}
+function mineRowsHTML() {
+  const list = (_mine.list || []).filter(r => matchFilters(r, _fltMine));
+  if (!list.length) return emptyHTML(_fltMine, "reportMineEmpty");
   const seen = _mine.uid ? _loadSeen(_mine.uid) : {};
   return `<div class="rep-mine">${list.map(r => {
     const k = kindOf(r.kind) || KINDS[0];
     const sdef = STATUS[r.status] || STATUS.open;
-    const sub = [r.number ? `#${r.number}` : null, r.createdAt ? ctx.timeAgo(r.createdAt) : null,
-                 r.comments ? t("reportMineComments", { n: r.comments }) : null].filter(Boolean).join(" · ");
+    const sub = subHTML(r, [r.comments ? t("reportMineComments", { n: r.comments }) : null]);
     const asking = _closeAsk === r.id;
     const unseen = r.number ? unseenReplies(r, seen) : 0;
     return `
@@ -1033,7 +1210,7 @@ function mineHTML() {
         <span class="rep-kind-ico"><span class="icon icon-${k.icon} icon-14"></span></span>
         <button type="button" class="rep-mine-main" data-rep="mineThread" data-id="${esc(r.id)}"${r.number ? "" : " disabled"} aria-label="${esc(t("reportMineOpenThread"))}">
           <div class="rep-mine-title">${unseen ? `<span class="rep-mine-new">${esc(t("reportMineNewReply"))}</span>` : ""}${esc(r.title || r.brand?.name || "—")}</div>
-          <div class="rep-mine-sub">${esc(sub)}</div>
+          <div class="rep-mine-sub">${sub}</div>
           ${r.closeFailed ? `<div class="rep-error">${esc(t("reportErrSend"))}</div>` : ""}
         </button>
         <span class="rep-status" style="--sc:${sdef.c}">${esc(t(sdef.key))}</span>
@@ -1046,8 +1223,7 @@ function mineHTML() {
             : `<button type="button" class="rep-mine-btn" data-rep="mineClose" data-id="${esc(r.id)}" aria-label="${esc(t("reportMineClose"))}"><span class="icon icon-close icon-12"></span></button>`) : ""}
         </div>
       </div>`;
-  }).join("")}</div>
-  <div class="rep-hint">${esc(t("reportMineHint"))}</div>`;
+  }).join("")}</div>`;
 }
 
 // "Automatic information" — exactly what travels with the report, shown before.
