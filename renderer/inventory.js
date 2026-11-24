@@ -39682,12 +39682,21 @@ import { initScreenTools } from './ai/screen-tools.js';
        never closed: moving one printer rearranged its neighbour. */
     const isWidget = b => { const o = _boardObj(b.id); return !!(o && o.unit); };
     const ownerOf = b => { const o = _boardObj(b.id); return o && o.p ? _printerKey(o.p) : b.id; };
+    /* And it is the NEWCOMER that gives way. Pushing the other machine's card
+       down to make room moved a printer nobody touched (#42); the widget just
+       placed steps down past whatever of another machine it landed on, to the
+       first gap in its own column, and its own followers go down with it. */
     const sorted = all.slice().sort((u, v) => u.y - v.y);
     for (const a of sorted) {
-      if (!isWidget(a) || !autoPlaced.has(a.id)) continue;
-      for (const b of sorted) {
-        if (b === a || ownerOf(b) === ownerOf(a) || b.y < a.y) continue;
-        if (overlaps(a, b) && a.y + a.h + PAD > b.y) push(a, b);
+      if (!isWidget(a) || !autoPlaced.has(a.id) || _boardHeld.has(a.id)) continue;
+      for (let step = 0; step < 40; step++) {
+        const b = all.find(o => o !== a && ownerOf(o) !== ownerOf(a) && overlaps(a, o));
+        if (!b) break;
+        a.y = Math.round(b.y + b.h + PAD); moved.add(a.id);
+      }
+      if (!moved.has(a.id)) continue;
+      for (const c of sorted) {
+        if (c !== a && ownerOf(c) === ownerOf(a) && c.y >= a.y - a.h && overlaps(a, c) && c.y >= a.y - PAD) push(a, c);
       }
     }
     for (const id of moved) {

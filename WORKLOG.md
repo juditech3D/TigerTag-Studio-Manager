@@ -9,6 +9,7 @@
 
 ## Fixed
 
+- Printers board (#42): a widget the layout places automatically (switched on, or its machine's data just arrived) no longer pushes another printer's card or widgets down when it lands on them. The newcomer gives way instead: it steps down past the other machine's things to the first gap in its own column, and its own widgets below follow it. Widgets you drop yourself are unchanged (an overlap is still drawn in red, never refused). File: `renderer/inventory.js` (`_planSettleColumns`).
 - Tiger Scale / Tiger Touch live screen: "Screenshot" opened its window BEHIND the live view (both overlays at the same level, the live one added to the page later). `showScreenshot` now moves its overlay to the end of the page before opening it, so it stands above whichever window asked. File: `renderer/IoT/tigertouch/panel.js`.
 
 - Search bar: the filter's field list (and the bar's other lists) no longer shows above a side card opened over the bar (Report, etc.) — the bar's lists stand at z-index 100, under the side cards (101+), instead of the shared dropdown's 600. File: `renderer/css/70-detail-misc.css`.
