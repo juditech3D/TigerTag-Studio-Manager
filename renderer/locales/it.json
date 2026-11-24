@@ -1579,6 +1579,7 @@
   "boardCamPlay": "Mostra il flusso",
   "boardCamPlayAll": "Mostra tutte le telecamere",
   "boardCamStopAll": "Spegni tutte le telecamere",
+  "camWallStopOne": "Ferma questa videocamera",
   "boardUnitsTitle": "Deposito filamento",
   "boardWidgets": "Widget",
   "unitsSplit": "Separa unità",

@@ -1579,6 +1579,7 @@
   "boardCamPlay": "Mostrar la señal",
   "boardCamPlayAll": "Mostrar todas las cámaras",
   "boardCamStopAll": "Apagar todas las cámaras",
+  "camWallStopOne": "Detener esta cámara",
   "boardUnitsTitle": "Almacén de filamento",
   "boardWidgets": "Widgets",
   "unitsSplit": "Separar unidades",

@@ -77,13 +77,13 @@
 - Camera wall: the same "Show all cameras" / "Stop all cameras" keys as the Printers board.
   Cut, every card keeps its place and size on a placeholder carrying its own play key, which
   brings that one camera back while the others stay cut (clicking elsewhere on the card still
-  opens the printer), and the streams only
+  opens the printer); a live card's head has a key that cuts that camera alone, and the streams only
   the wall was holding are closed (session-only). The wall is sized to its cards outside
   Arrange, and its scroller is locked when they all fit, so the wheel no longer slides the
   cameras under the bar; the Printers board is locked the same way when every machine fits
   (outside Arrange). `renderer/inventory.js` (`_camWallCut`, `_camWallStopAll`,
   `_camWallPlayAll`, `_layoutCamWall`, `layoutPrintersPlan`, `#cwCamPlayAll`, `#cwCamStopAll`). i18n: reuses
-  `boardCamPlayAll`, `boardCamStopAll`.
+  `boardCamPlayAll`, `boardCamStopAll`; adds `camWallStopOne`.
 - Printers board: a "Show all cameras" key plays every camera that can be shown (as if each
   play key were pressed, external camera cards included), shown while one is not playing; a
   "Stop all cameras" key, shown while a feed is
